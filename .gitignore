@@ -1,0 +1,11 @@
+# Outputs
+build/
+HomeAssistantFloorPlanPlugin-*.sh3p
+
+# Build depdendencies
+dl/
+
+# General
+*.swp
+*.swo
+tags
