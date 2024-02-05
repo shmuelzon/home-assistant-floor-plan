@@ -51,7 +51,7 @@ public class Controller {
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
         roomsWithLights = getRooms(lights);
-        lightsNames = new ArrayList<>(lights.keySet());
+        lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
     }
 
@@ -142,7 +142,7 @@ public class Controller {
     }
 
     private Map<String, List<HomeLight>> getEnabledLights() {
-        Map<String, List<HomeLight>> lights = new HashMap<>();
+        Map<String, List<HomeLight>> lights = new HashMap<String, List<HomeLight>>();
 
         for (HomePieceOfFurniture piece : home.getFurniture()) {
             if (!(piece instanceof HomeLight))
@@ -150,7 +150,9 @@ public class Controller {
             HomeLight light = (HomeLight)piece;
             if (light.getPower() == 0f || !light.isVisible())
                 continue;
-            lights.computeIfAbsent(light.getName(), k -> new ArrayList<>()).add(light);
+            if (!lights.containsKey(light.getName()))
+                lights.put(light.getName(), new ArrayList<HomeLight>());
+            lights.get(light.getName()).add(light);
         }
 
         return lights;
@@ -158,15 +160,18 @@ public class Controller {
 
     private Map<String, Map<String, List<HomeLight>>> getRooms(Map<String, List<HomeLight>> lights)
     {
-        Map<String, Map<String, List<HomeLight>>> rooms = new HashMap<>();
+        Map<String, Map<String, List<HomeLight>>> rooms = new HashMap<String, Map<String, List<HomeLight>>>();
         List<Room> homeRooms = home.getRooms();
 
         for (Room room : homeRooms) {
             String roomName = room.getName() != null ? room.getName() : room.getId();
             for (List<HomeLight> subLights : lights.values()) {
                 HomeLight subLight = subLights.get(0); 
-                if (room.containsPoint(subLight.getX(), subLight.getY(), 0))
-                    rooms.computeIfAbsent(roomName, k -> new HashMap<>()).put(subLight.getName(), subLights);
+                if (room.containsPoint(subLight.getX(), subLight.getY(), 0)) {
+                    if (!rooms.containsKey(roomName))
+                        rooms.put(roomName, new HashMap<String, List<HomeLight>>());
+                    rooms.get(roomName).put(subLight.getName(), subLights);
+                }
             }
         }
 
@@ -175,7 +180,7 @@ public class Controller {
 
     private Map<HomeLight, Float> getLightsPower(Map<String, List<HomeLight>> lights)
     {
-        Map<HomeLight, Float> lightsPower = new HashMap<>();
+        Map<HomeLight, Float> lightsPower = new HashMap<HomeLight, Float>();
 
         for (List<HomeLight> lightsList : lights.values()) {
             for (HomeLight light : lightsList )
@@ -314,16 +319,16 @@ public class Controller {
     }
 
     public List<List<String>> getCombinations(List<String> inputSet) {
-        List<List<String>> combinations = new ArrayList<>();
+        List<List<String>> combinations = new ArrayList<List<String>>();
 
-        _getCombinations(new ArrayList<>(inputSet), 0, new ArrayList<>(), combinations);
+        _getCombinations(new ArrayList<String>(inputSet), 0, new ArrayList<String>(), combinations);
 
         return combinations;
     }
 
     private void _getCombinations(List<String> inputList, int currentIndex, List<String> currentCombination, List<List<String>> combinations) {
         if (currentCombination.size() > 0)
-            combinations.add(new ArrayList<>(currentCombination));
+            combinations.add(new ArrayList<String>(currentCombination));
 
         for (int i = currentIndex; i < inputList.size(); i++) {
             currentCombination.add(inputList.get(i));

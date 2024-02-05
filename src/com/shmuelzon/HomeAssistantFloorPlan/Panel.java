@@ -214,15 +214,15 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryTextField.setText(controller.getOutputDirectory());
         outputDirectoryTextField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isBlank());
+                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
                 controller.setOutputDirectory(outputDirectoryTextField.getText());
             }
             public void removeUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isBlank());
+                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
                 controller.setOutputDirectory(outputDirectoryTextField.getText());
             }
             public void changedUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isBlank());
+                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
                 controller.setOutputDirectory(outputDirectoryTextField.getText());
             }
         });
@@ -247,7 +247,7 @@ public class Panel extends JPanel implements DialogView {
 
         startButton = new JButton(actionMap.get(ActionType.START));
         startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
-        startButton.setEnabled(!outputDirectoryTextField.getText().isBlank());
+        startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
     }
