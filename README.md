@@ -51,6 +51,7 @@ for the complete floor plan and will progress as they are ready.
 
 * Set each light in SW3D with the entity name of Home Assistant, i.e.,
   `light.xxx`
+* Only light sources that are visible and have a power > 0% are considered
 * If you have multiple light sources that are controlled by the same switch,
   e.g., spot lights, give them all the same name
 * If lights from two different rooms do interact with each other, e.g., there's
