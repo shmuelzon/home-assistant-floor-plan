@@ -33,11 +33,11 @@ public class Controller {
     private Map<String, Map<String, List<HomeLight>>> roomsWithLights;
     private List<String> lightsNames;
     private Map<HomeLight, Float> lightsPower;
+    private List<HomePieceOfFurniture> sensors;
     private Vector4d cameraPosition;
     private Transform3D perspectiveTransform;
     private PropertyChangeSupport propertyChangeSupport;
     private int numberOfCompletedRenders;
-
     private String outputDirectoryName = System.getProperty("user.home");
     private String outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
     private String outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
@@ -54,6 +54,7 @@ public class Controller {
         roomsWithLights = getRooms(lights);
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
+        sensors = getSensors();
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -141,6 +142,7 @@ public class Controller {
             for (String room : roomsWithLights.keySet())
                 yaml += generateRoomRenders(room, baseImage);
             yaml += generateLightsToggleButtons();
+            yaml += generateSensorsIndications();
 
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (IOException e) {
@@ -199,6 +201,18 @@ public class Controller {
         return lightsPower;
     }
 
+    private List<HomePieceOfFurniture> getSensors() {
+       List<HomePieceOfFurniture> sensors = new ArrayList<HomePieceOfFurniture>();
+
+        for (HomePieceOfFurniture piece : home.getFurniture()) {
+            if (piece.getName() == null || (!piece.isVisible() || !piece.getName().startsWith("sensor.") && !piece.getName().startsWith("binary_sensor.")))
+                continue;
+            sensors.add(piece);
+        }
+
+        return sensors;
+    }
+
     private void build3dProjection() {
         Camera camera = home.getCamera();
         cameraPosition = new Vector4d(camera.getX(), camera.getZ(), camera.getY(), 0);
@@ -232,7 +246,7 @@ public class Controller {
             String fileName = String.join("_", onLights) + ".png";
             BufferedImage image = generateImage(onLights, outputRendersDirectoryName + File.separator + fileName);
             generateOverlay(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName);
-            yaml += generateYamlState(roomLights, onLights, fileName);
+            yaml += generateLightYaml(roomLights, onLights, fileName);
         }
         return yaml;
     }
@@ -288,7 +302,7 @@ public class Controller {
         return diff / 3;
     }
 
-    private String generateYamlState(List<String> lightsNames, List<String> onLights, String fileName) {
+    private String generateLightYaml(List<String> lightsNames, List<String> onLights, String fileName) {
         String conditions = "";
         for (String lightName : lightsNames) {
             conditions += String.format(
@@ -358,6 +372,32 @@ public class Controller {
         return new Point2d(objectPosition.x * 0.5 + 0.5, objectPosition.y * 0.5 + 0.5);
     }
 
+    private String generateStateYaml(String name, Point2d position, String stateType, String action) {
+        String yaml = String.format(
+            "  - type: state-%s\n" +
+            "    entity: %s\n" +
+            "    title: null\n" +
+            "    style:\n" +
+            "      top: %.2f%%\n" +
+            "      left: %.2f%%\n" +
+            "      border-radius: 50%%\n" +
+            "      text-align: center\n" +
+            "      background-color: rgba(255, 255, 255, 0.3)\n",
+            stateType, name, 100.0 * position.y, 100.0 * position.x);
+
+        if (action != null) {
+            yaml += String.format(
+                "    tap_action:\n" +
+                "      action: %s\n", action);
+        }
+
+        return yaml;
+    }
+
+    private String generateStateYaml(String name, Point2d position, String stateType) {
+        return generateStateYaml(name, position, stateType, null);
+    }
+
     private String generateLightsToggleButtons() {
         String toggleButtonsYaml = "";
 
@@ -367,21 +407,20 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            toggleButtonsYaml += String.format(
-                "  - type: state-icon\n" +
-                "    entity: %s\n" +
-                "    title: null\n" +
-                "    tap_action:\n" +
-                "      action: toggle\n" +
-                "    style:\n" +
-                "      top: %.2f%%\n" +
-                "      left: %.2f%%\n" +
-                "      border-radius: 50%%\n" +
-                "      text-align: center\n" +
-                "      background-color: rgba(255, 255, 255, 0.3)\n",
-                lightsList.get(0).getName(), 100.0 * lightsCenter.y, 100.0 * lightsCenter.x);
+            toggleButtonsYaml += generateStateYaml(lightsList.get(0).getName(), lightsCenter, "icon", "toggle");
         }
 
         return toggleButtonsYaml;
+    }
+
+    private String generateSensorsIndications() {
+        String sensorsIndicationsYaml = "";
+
+        for (HomePieceOfFurniture piece : sensors) {
+            Point2d location = getFurniture2dLocation(piece);
+            sensorsIndicationsYaml += generateStateYaml(piece.getName(), location, piece.getName().startsWith("binary_sensor.") ? "icon" : "label");
+        }
+
+        return sensorsIndicationsYaml;
     }
 };
