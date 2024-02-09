@@ -201,11 +201,24 @@ public class Controller {
         return lightsPower;
     }
 
+    private boolean isSensor(String name) {
+        String[] sensorPrefixes = {"sensor.", "binary_sensor.", "camera."};
+
+        if (name == null)
+            return false;
+
+        for (String prefix : sensorPrefixes ) {
+            if (name.startsWith(prefix))
+                return true;
+        }
+        return false;
+    }
+
     private List<HomePieceOfFurniture> getSensors() {
        List<HomePieceOfFurniture> sensors = new ArrayList<HomePieceOfFurniture>();
 
         for (HomePieceOfFurniture piece : home.getFurniture()) {
-            if (piece.getName() == null || (!piece.isVisible() || !piece.getName().startsWith("sensor.") && !piece.getName().startsWith("binary_sensor.")))
+            if (!isSensor(piece.getName()))
                 continue;
             sensors.add(piece);
         }
@@ -418,7 +431,7 @@ public class Controller {
 
         for (HomePieceOfFurniture piece : sensors) {
             Point2d location = getFurniture2dLocation(piece);
-            sensorsIndicationsYaml += generateStateYaml(piece.getName(), location, piece.getName().startsWith("binary_sensor.") ? "icon" : "label");
+            sensorsIndicationsYaml += generateStateYaml(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon");
         }
 
         return sensorsIndicationsYaml;

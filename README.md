@@ -4,7 +4,7 @@ This project is a plugin for the [Sweet Home 3D](https://www.sweethome3d.com/)
 interior design application.
 It allows creating a 3D rendered floor plan panel for Home Assistant that
 displays your home's current lighting state along with icons for toggling each
-light.
+light, sensors and cameras.
 
 The floor plan is comprised of one base/background image without any of the
 lights turned on. Then, for each light, it generates an overlay image where only
@@ -57,9 +57,9 @@ for the complete floor plan and will progress as they are ready.
 * If lights from two different rooms do interact with each other, e.g., there's
   a glass door separating the rooms, you can give both rooms the same name and
   they'll be treated as one
-* To include state icons and labels for sensor, set the relevant furniture name
-  to the entity name of Home Assistant, i.e., `sensor.xxx` or
-  `binary_sensor.xxx`
+* To include state icons and labels for sensors, set the relevant furniture name
+  to the entity name of Home Assistant, i.e., `sensor.xxx`, `binary_sensor.xxx`
+  or `camera.xxx`
 
 ## Suggestions
 
