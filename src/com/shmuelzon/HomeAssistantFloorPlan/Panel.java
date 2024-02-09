@@ -1,11 +1,12 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.ComponentOrientation;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
@@ -23,6 +24,7 @@ import javax.swing.border.LineBorder;
 import javax.swing.ActionMap;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -75,6 +77,7 @@ public class Panel extends JPanel implements DialogView {
     private JTextField outputDirectoryTextField;
     private JButton outputDirectoryBrowseButton;
     private FileContentManager outputDirectoryChooser;
+    private JCheckBox useExistingRendersCheckbox;
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
@@ -179,7 +182,6 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-
         sensitivityLabel = new JLabel();
         sensitivityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.text"));
         final SpinnerNumberModel sensitivitySpinnerModel = new SpinnerNumberModel(15, 0, 100, 1);
@@ -190,7 +192,6 @@ public class Panel extends JPanel implements DialogView {
               controller.setSensitivity(((Number)sensitivitySpinner.getValue()).intValue());
             }
         });
-
 
         versionLabel = new JLabel();
         versionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.versionLabel.text"));
@@ -229,6 +230,16 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryBrowseButton = new JButton(actionMap.get(ActionType.BROWSE));
         outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
         outputDirectoryChooser = new FileContentManager(preferences);
+
+        useExistingRendersCheckbox = new JCheckBox();
+        useExistingRendersCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.text"));
+        useExistingRendersCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.tooltip"));
+        useExistingRendersCheckbox.setSelected(controller.getUserExistingRenders());
+        useExistingRendersCheckbox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+              controller.setUserExistingRenders(useExistingRendersCheckbox.isSelected());
+            }
+        });
 
         progressBar = new JProgressBar() {
             @Override
@@ -320,9 +331,14 @@ public class Panel extends JPanel implements DialogView {
             3, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
 
-        /* Sixth row (progress bar) */
+        /* Sixth row (Options) */
+        add(useExistingRendersCheckbox, new GridBagConstraints(
+            0, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+
+        /* Seventh row (progress bar) */
         add(progressBar, new GridBagConstraints(
-            0, 5, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, 6, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
     }
 

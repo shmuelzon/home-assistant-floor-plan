@@ -45,6 +45,7 @@ public class Controller {
     private int sensitivity = 10;
     private int renderWidth = 1024;
     private int renderHeight = 576;
+    private boolean useExistingRenders = true;
 
     public Controller(Home home) {
         this.home = home;
@@ -115,6 +116,14 @@ public class Controller {
         this.outputDirectoryName = outputDirectoryName;
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
+    }
+
+    public boolean getUserExistingRenders() {
+        return useExistingRenders;
+    }
+
+    public void setUserExistingRenders(boolean useExistingRenders) {
+        this.useExistingRenders = useExistingRenders;
     }
 
     public void render() throws Exception {
@@ -229,6 +238,8 @@ public class Controller {
     }
 
     private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException {
+        if (useExistingRenders && Files.exists(Paths.get(fileName)))
+            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
         prepareScene(onLights);
         BufferedImage image = renderScene();
         File imageFile = new File(fileName);

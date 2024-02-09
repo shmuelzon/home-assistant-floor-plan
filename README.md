@@ -76,7 +76,7 @@ For best results, it's suggested to:
 - [ ] Support including sensors state-icons/labels for other items
 - [ ] Support fans with animated gif/png with css3 image rotation
 - [ ] Make sure state-icons/labels do not overlap
-- [ ] Allow using existing rendered images and just re-create overlays and YAML
+- [x] Allow using existing rendered images and just re-create overlays and YAML
 - [ ] After rendering is complete, show preview of overlay images
 - [ ] Allow overriding state-icons/labels positions, and save persistently
 - [ ] Allow defining, per entity, if it should be an icon or label, and save
