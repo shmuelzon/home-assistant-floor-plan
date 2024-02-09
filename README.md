@@ -57,6 +57,9 @@ for the complete floor plan and will progress as they are ready.
 * If lights from two different rooms do interact with each other, e.g., there's
   a glass door separating the rooms, you can give both rooms the same name and
   they'll be treated as one
+* To include state icons and labels for sensor, set the relevant furniture name
+  to the entity name of Home Assistant, i.e., `sensor.xxx` or
+  `binary_sensor.xxx`
 
 ## Suggestions
 
@@ -73,7 +76,7 @@ For best results, it's suggested to:
       Assistant according to local time
 - [ ] Allow stopping rendering thread
 - [ ] Allow enabling/disabling/configuring state-icon
-- [ ] Support including sensors state-icons/labels for other items
+- [x] Support including sensors state-icons/labels for other items
 - [ ] Support fans with animated gif/png with css3 image rotation
 - [ ] Make sure state-icons/labels do not overlap
 - [x] Allow using existing rendered images and just re-create overlays and YAML
