@@ -10,6 +10,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
@@ -386,7 +387,7 @@ public class Controller {
     }
 
     private String generateStateYaml(String name, Point2d position, String stateType, String action) {
-        String yaml = String.format(
+        String yaml = String.format(Locale.US,
             "  - type: state-%s\n" +
             "    entity: %s\n" +
             "    title: null\n" +
