@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +44,7 @@ public class Controller {
     private String outputDirectoryName = System.getProperty("user.home");
     private String outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
     private String outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
-    private String renderVersion = "1";
+    private String renderVersion = DateTimeFormatter.ofPattern("yyyy-MM-dd-hh-mm-ss").format(LocalDateTime.now());
     private int sensitivity = 10;
     private int renderWidth = 1024;
     private int renderHeight = 576;
