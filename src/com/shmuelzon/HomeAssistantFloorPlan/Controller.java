@@ -276,8 +276,10 @@ public class Controller {
     }
 
     private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException {
-        if (useExistingRenders && Files.exists(Paths.get(fileName)))
+        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
+            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
+        }
         prepareScene(onLights);
         BufferedImage image = renderScene();
         File imageFile = new File(fileName);
