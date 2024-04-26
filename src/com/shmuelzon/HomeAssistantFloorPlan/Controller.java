@@ -34,7 +34,7 @@ public class Controller {
     private Map<String, Map<String, List<HomeLight>>> roomsWithLights;
     private List<String> lightsNames;
     private Map<HomeLight, Float> lightsPower;
-    private List<HomePieceOfFurniture> sensors;
+    private List<HomePieceOfFurniture> homeAssistantEntities;
     private Vector4d cameraPosition;
     private Transform3D perspectiveTransform;
     private PropertyChangeSupport propertyChangeSupport;
@@ -55,7 +55,7 @@ public class Controller {
         roomsWithLights = getRooms(lights);
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
-        sensors = getSensors();
+        homeAssistantEntities = getHomeAssistantEntities();
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -202,8 +202,16 @@ public class Controller {
         return lightsPower;
     }
 
-    private boolean isSensor(String name) {
-        String[] sensorPrefixes = {"sensor.", "binary_sensor.", "camera."};
+    private boolean isHomeAssistantEntity(String name) {
+        String[] sensorPrefixes = {
+            "binary_sensor.",
+            "camera.",
+            "climate.",
+            "cover.",
+            "media_player.",
+            "sensor.",
+            "switch.",
+        };
 
         if (name == null)
             return false;
@@ -215,16 +223,16 @@ public class Controller {
         return false;
     }
 
-    private List<HomePieceOfFurniture> getSensors() {
-       List<HomePieceOfFurniture> sensors = new ArrayList<HomePieceOfFurniture>();
+    private List<HomePieceOfFurniture> getHomeAssistantEntities() {
+       List<HomePieceOfFurniture> homeAssistantEntities = new ArrayList<HomePieceOfFurniture>();
 
         for (HomePieceOfFurniture piece : home.getFurniture()) {
-            if (!isSensor(piece.getName()))
+            if (!isHomeAssistantEntity(piece.getName()))
                 continue;
-            sensors.add(piece);
+            homeAssistantEntities.add(piece);
         }
 
-        return sensors;
+        return homeAssistantEntities;
     }
 
     private void build3dProjection() {
@@ -430,7 +438,7 @@ public class Controller {
     private String generateSensorsIndications() {
         String sensorsIndicationsYaml = "";
 
-        for (HomePieceOfFurniture piece : sensors) {
+        for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
             sensorsIndicationsYaml += generateStateYaml(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon");
         }
