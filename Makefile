@@ -3,7 +3,9 @@ SRC_DIR=src/com/shmuelzon/HomeAssistantFloorPlan
 SRCS=$(wildcard $(SRC_DIR)/*)
 OBJS=$(subst src/,build/,$(SRCS:.java=.class))
 
-SWEET_HOME_JAR=dl/SweetHome3D-7.2.jar
+SWEET_HOME_VERSION=7.3
+
+SWEET_HOME_JAR=dl/SweetHome3D-$(SWEET_HOME_VERSION).jar
 J3D_CORE_JAR=dl/j3dcore.jar
 J3D_VECMATH_JAR=dl/vecmath.jar
 JAVA_DEPENDENCIES=$(SWEET_HOME_JAR) $(J3D_CORE_JAR) $(J3D_VECMATH_JAR)
@@ -16,7 +18,7 @@ define download
 endef
 
 $(SWEET_HOME_JAR):
-	$(call download,$@,https://sourceforge.net/projects/sweethome3d/files/SweetHome3D/SweetHome3D-7.2/SweetHome3D-7.2.jar)
+	$(call download,$@,https://sourceforge.net/projects/sweethome3d/files/SweetHome3D/SweetHome3D-$(SWEET_HOME_VERSION)/SweetHome3D-$(SWEET_HOME_VERSION).jar)
 
 $(J3D_CORE_JAR):
 	$(call download,$@,https://jogamp.org/deployment/java3d/1.6.0-final/j3dcore.jar)
