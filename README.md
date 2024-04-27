@@ -39,8 +39,6 @@ the room they're located in. Please verify the list matches your expectations.
   images
 * Sensitivity - [1, 100] The degree by which two pixels need to be different
   from one another to be taken into account for the generated overlay image
-* Version - In order to avoid image caching by the browser, use a different
-  value here for each time you deploy a render to Home Assistant
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
