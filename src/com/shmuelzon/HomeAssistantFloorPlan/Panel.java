@@ -71,8 +71,6 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner heightSpinner;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
-    private JLabel versionLabel;
-    private JTextField versionTextField;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
     private JButton outputDirectoryBrowseButton;
@@ -193,22 +191,6 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        versionLabel = new JLabel();
-        versionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.versionLabel.text"));
-        versionTextField = new JTextField();
-        versionTextField.setText(controller.getRenderVersion());
-        versionTextField.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) {
-                controller.setRenderVersion(versionTextField.getText());
-            }
-            public void removeUpdate(DocumentEvent e) {
-                controller.setRenderVersion(versionTextField.getText());
-            }
-            public void changedUpdate(DocumentEvent e) {
-                controller.setRenderVersion(versionTextField.getText());
-            }
-        });
-
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField();
@@ -267,7 +249,6 @@ public class Panel extends JPanel implements DialogView {
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
         sensitivitySpinner.setEnabled(enabled);
-        versionTextField.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         startButton.setEnabled(enabled);
@@ -306,18 +287,12 @@ public class Panel extends JPanel implements DialogView {
             3, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-        /* Forth row (sensitivity and version) */
+        /* Forth row (sensitivity) */
         add(sensitivityLabel, new GridBagConstraints(
             0, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
         add(sensitivitySpinner, new GridBagConstraints(
             1, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
-        add(versionLabel, new GridBagConstraints(
-            2, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
-        add(versionTextField, new GridBagConstraints(
-            3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
 
         /* Fifth row (Output directory) */

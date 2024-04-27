@@ -7,8 +7,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +19,7 @@ import javax.imageio.ImageIO;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector4d;
+import javax.xml.bind.DatatypeConverter;
 
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
@@ -44,7 +45,6 @@ public class Controller {
     private String outputDirectoryName = System.getProperty("user.home");
     private String outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
     private String outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
-    private String renderVersion = DateTimeFormatter.ofPattern("yyyy-MM-dd-hh-mm-ss").format(LocalDateTime.now());
     private int sensitivity = 10;
     private int renderWidth = 1024;
     private int renderHeight = 576;
@@ -94,14 +94,6 @@ public class Controller {
 
     public void setRenderWidth(int renderWidth) {
         this.renderWidth = renderWidth;
-    }
-
-    public String getRenderVersion() {
-        return renderVersion;
-    }
-
-    public void setRenderVersion(String renderVersion) {
-        this.renderVersion = renderVersion;
     }
 
     public int getSensitivity() {
@@ -258,7 +250,7 @@ public class Controller {
         return String.format(
             "type: picture-elements\n" +
             "image: /local/floorplan/base.png?version=%s\n" +
-            "elements:\n", renderVersion);
+            "elements:\n", renderHash("base.png"));
     }
 
     private String generateRoomRenders(String room, BufferedImage baseImage) throws IOException {
@@ -328,7 +320,17 @@ public class Controller {
         return diff / 3;
     }
 
-    private String generateLightYaml(List<String> lightsNames, List<String> onLights, String fileName) {
+    private String renderHash(String fileName) throws IOException {
+        byte[] content = Files.readAllBytes(Paths.get(outputFloorplanDirectoryName + File.separator + fileName));
+        try {
+            byte[] hash = MessageDigest.getInstance("MD5").digest(content);
+            return DatatypeConverter.printHexBinary(hash);
+        } catch (NoSuchAlgorithmException e) {
+            return Long.toString(System.currentTimeMillis() / 1000L);
+        }
+    }
+
+    private String generateLightYaml(List<String> lightsNames, List<String> onLights, String fileName) throws IOException {
         String conditions = "";
         for (String lightName : lightsNames) {
             conditions += String.format(
@@ -360,7 +362,7 @@ public class Controller {
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n",
-            conditions, entities, fileName, renderVersion);
+            conditions, entities, fileName, renderHash(fileName));
     }
 
     private void restorLightsPower(Map<HomeLight, Float> lightsPower) {
