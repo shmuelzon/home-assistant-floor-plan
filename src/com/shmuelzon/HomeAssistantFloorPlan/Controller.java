@@ -265,7 +265,7 @@ public class Controller {
        List<HomePieceOfFurniture> homeAssistantEntities = new ArrayList<HomePieceOfFurniture>();
 
         for (HomePieceOfFurniture piece : home.getFurniture()) {
-            if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible())
+            if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible() || piece instanceof HomeLight)
                 continue;
             homeAssistantEntities.add(piece);
         }
