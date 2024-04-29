@@ -6,6 +6,24 @@ It allows creating a 3D rendered floor plan panel for Home Assistant that
 displays your home's current lighting state along with icons for toggling each
 light, sensors and cameras.
 
+<img src="doc/demo.gif" />
+
+## Rendering Modes
+
+This plugin supports 3 modes for rendering the different lights
+
+### CSS
+
+In this (recommended) mode a base image is generated with all the lights turned
+off. Then, for each light source, a new image is rendered with only it turned
+on. The floor plan YAML then instructs the browser how to mix the different
+lights sources from each render when multiple light sources interact with each
+other.
+
+This method offers good results with a low number of required images to render.
+
+### Room Overlay
+
 The floor plan is comprised of one base/background image without any of the
 lights turned on. Then, for each light, it generates an overlay image where only
 changed pixels are included and the rest of the image is transparent. This
@@ -13,11 +31,14 @@ allows for overlaying multiple images, with multiple lights turned on together
 without the need for different renders for all possible combinations.
 
 In order to get the best results for lights that do interact with each other,
-the lights that appear in the same room, will be rendered with all possible
-combinations. This approach significantly reduces the number of rendered images,
-compared to all possible combinations of the entire floor.
+i.e., the lights that appear in the same room, will be rendered with all
+possible combinations. This approach significantly reduces the number of
+rendered images, compared to all possible combinations of the entire floor.
 
-<img src="doc/demo.gif" />
+### Complete Renders
+
+This mode renders separate images for all possible light combinations on the
+rendered floor. It requires generating many renders but offers the best quality.
 
 ## Usage
 
@@ -37,8 +58,10 @@ the room they're located in. Please verify the list matches your expectations.
 
 * Width / Height - Configure the required output resolution of the rendered
   images
+* Light mixing mode - See [Rendering Modes](#rendering-modes)
 * Sensitivity - [1, 100] The degree by which two pixels need to be different
-  from one another to be taken into account for the generated overlay image
+  from one another to be taken into account for the generated overlay image.
+  Only relevant for "room overlay" light mixing mode
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
@@ -62,10 +85,12 @@ for the complete floor plan and will progress as they are ready.
 ## Suggestions
 
 For best results, it's suggested to:
+* Set the 3D view's time to 8:00 AM and disable ceiling lights
+
+When using the "Room overlay" light mixing mode, it's also suggested to:
 * Use a dark background for the 3D view
   * It can later be converted to transparent using an image editor
 * Close all the doors between individually lighted rooms
-* Set the 3D view's time to 8:00 AM and disable ceiling lights
 
 ## Possible Future Enhancements
 - [ ] Allow selecting renderer (SunFlow/Yafaray) and level (high/low)

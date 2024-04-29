@@ -9,6 +9,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
@@ -20,13 +21,15 @@ import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import javax.swing.border.LineBorder;
 import javax.swing.ActionMap;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
@@ -35,11 +38,13 @@ import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.border.LineBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicTreeUI;
+import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
@@ -69,6 +74,8 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner widthSpinner;
     private JLabel heightLabel;
     private JSpinner heightSpinner;
+    private JLabel lightMixingModeLabel;
+    private JComboBox lightMixingModeComboBox;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
     private JLabel outputDirectoryLabel;
@@ -86,7 +93,7 @@ public class Panel extends JPanel implements DialogView {
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
         createActions(preferences);
-        createComponents(preferences, this.controller.getRoomsWithLights());
+        createComponents(preferences, this.controller.getLightsGroups());
         layoutComponents();
     }
 
@@ -130,11 +137,11 @@ public class Panel extends JPanel implements DialogView {
             outputDirectoryTextField.setText(selectedDirectory);
     }
 
-    private void createComponents(UserPreferences preferences, Map<String, Map<String, List<HomeLight>>> roomsWithLights) {
+    private void createComponents(UserPreferences preferences, Map<String, Map<String, List<HomeLight>>> lightsGroups) {
         final ActionMap actionMap = getActionMap();
 
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
-        detectedLightsTree = new JTree(buildRoomsAndLightsTree(roomsWithLights)) {
+        detectedLightsTree = new JTree(new DefaultMutableTreeNode(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"))) {
             @Override
             protected void setExpandedState(TreePath path, boolean state) {
                 if (state) {
@@ -142,9 +149,14 @@ public class Panel extends JPanel implements DialogView {
                 }
             }
         };
-        for (int i = 0; i < detectedLightsTree.getRowCount(); i++) {
-            detectedLightsTree.expandRow(i);
-        }
+        buildLightsGroupsTree(lightsGroups);
+        controller.addPropertyChangeListener(Controller.Property.LIGHT_MIXING_MODE, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                buildLightsGroupsTree(controller.getLightsGroups());
+                detectedLightsTree.repaint();
+                SwingUtilities.getWindowAncestor(Panel.this).pack();
+            }
+        });
         detectedLightsTree.putClientProperty("JTree.lineStyle", "Angled");
         detectedLightsTree.setUI(new BasicTreeUI() {
             @Override
@@ -177,6 +189,24 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
               controller.setRenderHeight(((Number)heightSpinnerModel.getValue()).intValue());
+            }
+        });
+
+        lightMixingModeLabel = new JLabel();
+        lightMixingModeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.text"));
+        lightMixingModeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.tooltip"));
+        lightMixingModeComboBox = new JComboBox<Controller.LightMixingMode>(Controller.LightMixingMode.values());
+        lightMixingModeComboBox.setSelectedItem(controller.getLightMixingMode());
+        lightMixingModeComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.lightMixingModeComboBox.%s.text", ((Controller.LightMixingMode)o).name())));
+                return rendererComponent;
+            }
+        });
+        lightMixingModeComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setLightMixingMode((Controller.LightMixingMode)lightMixingModeComboBox.getSelectedItem());
             }
         });
 
@@ -237,6 +267,13 @@ public class Panel extends JPanel implements DialogView {
                 progressBar.setValue(((Number)ev.getNewValue()).intValue());
             }
         });
+        controller.addPropertyChangeListener(Controller.Property.LIGHT_MIXING_MODE, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                progressBar.setMaximum(controller.getNumberOfTotalRenders());
+                progressBar.setValue(0);
+                progressBar.repaint();
+            }
+        });
 
         startButton = new JButton(actionMap.get(ActionType.START));
         startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
@@ -248,6 +285,7 @@ public class Panel extends JPanel implements DialogView {
     private void setComponentsEnabled(boolean enabled) {
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
+        lightMixingModeComboBox.setEnabled(enabled);
         sensitivitySpinner.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
@@ -287,12 +325,18 @@ public class Panel extends JPanel implements DialogView {
             3, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-        /* Forth row (sensitivity) */
-        add(sensitivityLabel, new GridBagConstraints(
+        /* Forth row (Light mixing mode and sensitivity) */
+        add(lightMixingModeLabel, new GridBagConstraints(
             0, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
-        add(sensitivitySpinner, new GridBagConstraints(
+        add(lightMixingModeComboBox, new GridBagConstraints(
             1, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+        add(sensitivityLabel, new GridBagConstraints(
+            2, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+        add(sensitivitySpinner, new GridBagConstraints(
+            3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
 
         /* Fifth row (Output directory) */
@@ -344,17 +388,26 @@ public class Panel extends JPanel implements DialogView {
         currentPanel = this;
     }
 
-    private DefaultMutableTreeNode buildRoomsAndLightsTree(Map<String, Map<String, List<HomeLight>>> roomsWithLights) {
-        DefaultMutableTreeNode home = new DefaultMutableTreeNode(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.home.text"));
+    private void buildLightsGroupsTree(Map<String, Map<String, List<HomeLight>>> lightsGroups) {
+        DefaultTreeModel model = (DefaultTreeModel)detectedLightsTree.getModel();
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
 
-        for (String room : roomsWithLights.keySet()) {
-            DefaultMutableTreeNode roomNode = new DefaultMutableTreeNode(room);
-            for (String lightName : roomsWithLights.get(room).keySet())
-                roomNode.add(new DefaultMutableTreeNode(lightName));
-            home.add(roomNode);
+        root.removeAllChildren();
+        model.reload();
+
+        for (String group : lightsGroups.keySet()) {
+            DefaultMutableTreeNode groupNode = new DefaultMutableTreeNode(group);
+            if (lightsGroups.get(group).size() != 1 || lightsGroups.get(group).get(group) == null)
+            {
+                for (String lightName : lightsGroups.get(group).keySet())
+                    groupNode.add(new DefaultMutableTreeNode(lightName));
+            }
+            model.insertNodeInto(groupNode, root, root.getChildCount());
         }
 
-        return home;
+        for (int i = 0; i < detectedLightsTree.getRowCount(); i++) {
+            detectedLightsTree.expandRow(i);
+        }
     }
 
     private void close() {

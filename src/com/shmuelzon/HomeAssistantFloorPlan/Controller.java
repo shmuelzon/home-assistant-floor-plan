@@ -29,11 +29,12 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS}
+    public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
+    public enum LightMixingMode {CSS, OVERLAY, FULL}
 
     private Home home;
     private Map<String, List<HomeLight>> lights;
-    private Map<String, Map<String, List<HomeLight>>> roomsWithLights;
+    private Map<String, Map<String, List<HomeLight>>> lightsGroups;
     private List<String> lightsNames;
     private Map<HomeLight, Float> lightsPower;
     private List<HomePieceOfFurniture> homeAssistantEntities;
@@ -45,6 +46,7 @@ public class Controller {
     private String outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
     private String outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
     private int sensitivity = 10;
+    private LightMixingMode lightMixingMode = LightMixingMode.CSS;
     private int renderWidth = 1024;
     private int renderHeight = 576;
     private boolean useExistingRenders = true;
@@ -53,7 +55,7 @@ public class Controller {
         this.home = home;
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
-        roomsWithLights = getRooms(lights);
+        lightsGroups = getLightsGroups(lights);
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = getHomeAssistantEntities();
@@ -62,19 +64,20 @@ public class Controller {
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.addPropertyChangeListener(property.name(), listener);
     }
+
     public void removePropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.removePropertyChangeListener(property.name(), listener);
     }
 
-    public Map<String, Map<String, List<HomeLight>>> getRoomsWithLights() {
-        return roomsWithLights;
+    public Map<String, Map<String, List<HomeLight>>> getLightsGroups() {
+        return lightsGroups;
     }
 
     public int getNumberOfTotalRenders() {
         int numberOfTotalRenders = 1;
 
-        for (Map<String, List<HomeLight>> roomLights : roomsWithLights.values()) {
-            numberOfTotalRenders += (1 << roomLights.keySet().size()) - 1;
+        for (Map<String, List<HomeLight>> groupLights : lightsGroups.values()) {
+            numberOfTotalRenders += (1 << groupLights.keySet().size()) - 1;
         }
         return numberOfTotalRenders;
     }
@@ -101,6 +104,17 @@ public class Controller {
 
     public void setSensitivity(int sensitivity) {
         this.sensitivity = sensitivity;
+    }
+
+    public LightMixingMode getLightMixingMode() {
+        return lightMixingMode;
+    }
+
+    public void setLightMixingMode(LightMixingMode lightMixingMode) {
+        LightMixingMode oldValue = this.lightMixingMode;
+        this.lightMixingMode = lightMixingMode;
+        lightsGroups = getLightsGroups(lights);
+        propertyChangeSupport.firePropertyChange(Property.LIGHT_MIXING_MODE.name(), oldValue, lightMixingMode);
     }
 
     public String getOutputDirectory() {
@@ -133,8 +147,8 @@ public class Controller {
             String yaml = generateBaseRender();
             BufferedImage baseImage = ImageIO.read(Files.newInputStream(Paths.get(outputFloorplanDirectoryName + File.separator + "base.png")));
             
-            for (String room : roomsWithLights.keySet())
-                yaml += generateRoomRenders(room, baseImage);
+            for (String group : lightsGroups.keySet())
+                yaml += generateGroupRenders(group, baseImage);
             yaml += generateLightsToggleButtons();
             yaml += generateSensorsIndications();
 
@@ -163,28 +177,59 @@ public class Controller {
         return lights;
     }
 
-    private Map<String, Map<String, List<HomeLight>>> getRooms(Map<String, List<HomeLight>> lights)
-    {
-        Map<String, Map<String, List<HomeLight>>> rooms = new HashMap<String, Map<String, List<HomeLight>>>();
+    private Map<String, Map<String, List<HomeLight>>> getLightsGroupsByRoom(Map<String, List<HomeLight>> lights) {
+        Map<String, Map<String, List<HomeLight>>> lightsGroups = new HashMap<String, Map<String, List<HomeLight>>>();
         List<Room> homeRooms = home.getRooms();
 
         for (Room room : homeRooms) {
             String roomName = room.getName() != null ? room.getName() : room.getId();
             for (List<HomeLight> subLights : lights.values()) {
-                HomeLight subLight = subLights.get(0); 
+                HomeLight subLight = subLights.get(0);
                 if (room.containsPoint(subLight.getX(), subLight.getY(), 0)) {
-                    if (!rooms.containsKey(roomName))
-                        rooms.put(roomName, new HashMap<String, List<HomeLight>>());
-                    rooms.get(roomName).put(subLight.getName(), subLights);
+                    if (!lightsGroups.containsKey(roomName))
+                        lightsGroups.put(roomName, new HashMap<String, List<HomeLight>>());
+                    lightsGroups.get(roomName).put(subLight.getName(), subLights);
                 }
             }
         }
 
-        return rooms;
+        return lightsGroups;
     }
 
-    private Map<HomeLight, Float> getLightsPower(Map<String, List<HomeLight>> lights)
+    private Map<String, Map<String, List<HomeLight>>> getLightsGroupsByLight(Map<String, List<HomeLight>> lights) {
+        Map<String, Map<String, List<HomeLight>>> lightsGroups = new HashMap<String, Map<String, List<HomeLight>>>();
+
+        for (String lightName : lights.keySet()) {
+            lightsGroups.put(lightName, new HashMap<String, List<HomeLight>>());
+            lightsGroups.get(lightName).put(lightName, lights.get(lightName));
+        }
+
+        return lightsGroups;
+    }
+
+    private Map<String, Map<String, List<HomeLight>>> getLightsGroupsByHome(Map<String, List<HomeLight>> lights) {
+        Map<String, Map<String, List<HomeLight>>> lightsGroups = new HashMap<String, Map<String, List<HomeLight>>>();
+
+        lightsGroups.put("Home", new HashMap<String, List<HomeLight>>());
+        for (String lightName : lights.keySet())
+            lightsGroups.get("Home").put(lightName, lights.get(lightName));
+
+        return lightsGroups;
+    }
+
+    private Map<String, Map<String, List<HomeLight>>> getLightsGroups(Map<String, List<HomeLight>> lights)
     {
+        if (lightMixingMode == LightMixingMode.CSS)
+            return getLightsGroupsByLight(lights);
+        if (lightMixingMode == LightMixingMode.OVERLAY)
+            return getLightsGroupsByRoom(lights);
+        if (lightMixingMode == LightMixingMode.FULL)
+            return getLightsGroupsByHome(lights);
+
+        return null;
+    }
+
+    private Map<HomeLight, Float> getLightsPower(Map<String, List<HomeLight>> lights) {
         Map<HomeLight, Float> lightsPower = new HashMap<HomeLight, Float>();
 
         for (List<HomeLight> lightsList : lights.values()) {
@@ -252,16 +297,16 @@ public class Controller {
             "elements:\n", renderHash("base.png"));
     }
 
-    private String generateRoomRenders(String room, BufferedImage baseImage) throws IOException {
-        List<String> roomLights = new ArrayList<String>(roomsWithLights.get(room).keySet());
+    private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException {
+        List<String> groupLights = new ArrayList<String>(lightsGroups.get(group).keySet());
 
-        List<List<String>> lightCombinations = getCombinations(roomLights);
+        List<List<String>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
         for (List<String> onLights : lightCombinations) {
             String fileName = String.join("_", onLights) + ".png";
             BufferedImage image = generateImage(onLights, outputRendersDirectoryName + File.separator + fileName);
-            generateOverlay(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName);
-            yaml += generateLightYaml(roomLights, onLights, fileName);
+            generateFloorPlanImage(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName);
+            yaml += generateLightYaml(groupLights, onLights, fileName);
         }
         return yaml;
     }
@@ -298,7 +343,14 @@ public class Controller {
         return image;
     }
 
-   private void generateOverlay(BufferedImage baseImage, BufferedImage image, String fileName) throws IOException {
+    private void generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String fileName) throws IOException {
+        File floorPlanFile = new File(fileName);
+
+        if (lightMixingMode != LightMixingMode.OVERLAY) {
+            ImageIO.write(image, "png", floorPlanFile);
+            return;
+        }
+
         BufferedImage overlay = new BufferedImage(baseImage.getWidth(), baseImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
         for(int x = 0; x < baseImage.getWidth(); x++) {
@@ -307,8 +359,7 @@ public class Controller {
                 overlay.setRGB(x, y, diff > sensitivity ? image.getRGB(x, y) : 0);
             }
         }
-        File overlayFile = new File(fileName);
-        ImageIO.write(overlay, "png", overlayFile);
+        ImageIO.write(overlay, "png", floorPlanFile);
     }
 
     private int pixelDifference(int first, int second) {
@@ -371,8 +422,9 @@ public class Controller {
             "        style:\n" +
             "          left: 50%%\n" +
             "          top: 50%%\n" +
-            "          width: 100%%\n",
-            conditions, entities, fileName, renderHash(fileName));
+            "          width: 100%%\n%s",
+            conditions, entities, fileName, renderHash(fileName),
+            lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
     private void restorLightsPower(Map<HomeLight, Float> lightsPower) {
