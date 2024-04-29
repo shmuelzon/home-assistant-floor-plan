@@ -1,4 +1,5 @@
 VERSION=$(shell git describe --always --tags)
+export VERSION
 SRC_DIR=src/com/shmuelzon/HomeAssistantFloorPlan
 SRCS=$(wildcard $(SRC_DIR)/*)
 OBJS=$(subst src/,build/,$(SRCS:.java=.class))
@@ -30,7 +31,8 @@ build/%.class: src/%.java $(JAVA_DEPENDENCIES)
 	javac -classpath "dl/*:build" -target 1.5 -source 1.5 -d build $<
 
 build/%.properties: src/%.properties
-	install -D $< $@
+	mkdir -p $(dir $@)
+	envsubst < $< > $@
 
 $(PLUGIN): $(OBJS)
 	jar -cf $@ -C build .
@@ -38,7 +40,7 @@ $(PLUGIN): $(OBJS)
 build: $(PLUGIN)
 
 clean:
-	rm -rf build $(PLUGIN)
+	rm -rf build *.sh3p
 
 distclean: clean
 	rm -rf dl
