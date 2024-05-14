@@ -266,6 +266,7 @@ public class Controller {
             "camera.",
             "climate.",
             "cover.",
+            "fan.",
             "media_player.",
             "sensor.",
             "switch.",
@@ -528,12 +529,24 @@ public class Controller {
         return stateIcons;
     }
 
+    private boolean isHomeAssistantEntityActionable(String name) {
+        String[] actionableEntityPrefixes = {
+            "fan.",
+        };
+
+        for (String prefix : actionableEntityPrefixes ) {
+            if (name.startsWith(prefix))
+                return true;
+        }
+        return false;
+    }
+
     private List<StateIcon> generateSensorsStateIcons() {
         List<StateIcon> stateIcons = new ArrayList<StateIcon>();
 
         for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
-            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", null));
+            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null));
         }
 
         return stateIcons;
