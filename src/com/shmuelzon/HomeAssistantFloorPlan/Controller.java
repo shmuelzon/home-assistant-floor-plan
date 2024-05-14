@@ -11,13 +11,16 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
 import javax.vecmath.Vector4d;
 
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
@@ -50,6 +53,20 @@ public class Controller {
     private int renderWidth = 1024;
     private int renderHeight = 576;
     private boolean useExistingRenders = true;
+
+    class StateIcon {
+        public String name;
+        public Point2d position;
+        public String type;
+        public String action;
+
+        public StateIcon(String name, Point2d position, String type, String action) {
+            this.name = name;
+            this.position = position;
+            this.type = type;
+            this.action = action;
+        }
+    }
 
     public Controller(Home home) {
         this.home = home;
@@ -149,8 +166,11 @@ public class Controller {
             
             for (String group : lightsGroups.keySet())
                 yaml += generateGroupRenders(group, baseImage);
-            yaml += generateLightsToggleButtons();
-            yaml += generateSensorsIndications();
+
+            List<StateIcon> stateIcons = generateLightsStateIcons();
+            stateIcons.addAll(generateSensorsStateIcons());
+            moveStateIconsToAvoidIntersection(stateIcons);
+            yaml += generateStateIconsYaml(stateIcons);
 
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (IOException e) {
@@ -459,10 +479,10 @@ public class Controller {
         perspectiveTransform.transform(objectPosition);
         objectPosition.scale(1 / objectPosition.w);
 
-        return new Point2d(objectPosition.x * 0.5 + 0.5, objectPosition.y * 0.5 + 0.5);
+        return new Point2d((objectPosition.x * 0.5 + 0.5) * renderWidth, (objectPosition.y * 0.5 + 0.5) * renderHeight);
     }
 
-    private String generateStateYaml(String name, Point2d position, String stateType, String action) {
+    private String generateStateIconYaml(String name, Point2d position, String type, String action) {
         String yaml = String.format(Locale.US,
             "  - type: state-%s\n" +
             "    entity: %s\n" +
@@ -473,7 +493,7 @@ public class Controller {
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
             "      background-color: rgba(255, 255, 255, 0.3)\n",
-            stateType, name, 100.0 * position.y, 100.0 * position.x);
+            type, name, 100.0 * (position.y / renderHeight), 100.0 * (position.x / renderWidth));
 
         if (action != null) {
             yaml += String.format(
@@ -484,12 +504,17 @@ public class Controller {
         return yaml;
     }
 
-    private String generateStateYaml(String name, Point2d position, String stateType) {
-        return generateStateYaml(name, position, stateType, null);
+    private String generateStateIconsYaml(List<StateIcon> stateIcons) {
+        String yaml = "";
+
+        for (StateIcon stateIcon : stateIcons)
+            yaml += generateStateIconYaml(stateIcon.name, stateIcon.position, stateIcon.type, stateIcon.action);
+
+        return yaml;
     }
 
-    private String generateLightsToggleButtons() {
-        String toggleButtonsYaml = "";
+    private List<StateIcon> generateLightsStateIcons() {
+        List<StateIcon> stateIcons = new ArrayList<StateIcon>();
 
         for (List<HomeLight> lightsList : lights.values()) {
             Point2d lightsCenter = new Point2d();
@@ -497,20 +522,106 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            toggleButtonsYaml += generateStateYaml(lightsList.get(0).getName(), lightsCenter, "icon", "toggle");
+            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle"));
         }
 
-        return toggleButtonsYaml;
+        return stateIcons;
     }
 
-    private String generateSensorsIndications() {
-        String sensorsIndicationsYaml = "";
+    private List<StateIcon> generateSensorsStateIcons() {
+        List<StateIcon> stateIcons = new ArrayList<StateIcon>();
 
         for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
-            sensorsIndicationsYaml += generateStateYaml(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon");
+            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", null));
         }
 
-        return sensorsIndicationsYaml;
+        return stateIcons;
+    }
+
+    private boolean doStateIconsIntersect(StateIcon first, StateIcon second) {
+        final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
+
+        double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
+
+        return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
+    }
+
+    private boolean doesStateIconIntersectWithSet(StateIcon stateIcon, Set<StateIcon> stateIcons) {
+        for (StateIcon other : stateIcons) {
+            if (doStateIconsIntersect(stateIcon, other))
+                return true;
+        }
+        return false;
+    }
+
+    private Set<StateIcon> setWithWhichStateIconIntersects(StateIcon stateIcon, List<Set<StateIcon>> stateIcons) {
+        for (Set<StateIcon> set : stateIcons) {
+            if (doesStateIconIntersectWithSet(stateIcon, set))
+                return set;
+        }
+        return null;
+    }
+
+    private StateIcon stateIconWithWhichStateIconIntersects(StateIcon stateIcon, List<StateIcon> stateIcons) {
+        for (StateIcon other : stateIcons) {
+            if (stateIcon == other)
+                continue;
+            if (doStateIconsIntersect(stateIcon, other))
+                return other;
+        }
+        return null;
+    }
+
+    private List<Set<StateIcon>> findIntersectingStateIcons(List<StateIcon> stateIcons) {
+        List<Set<StateIcon>> intersectingStateIcons = new ArrayList<Set<StateIcon>>();
+
+        for (StateIcon stateIcon : stateIcons) {
+            Set<StateIcon> interectingSet = setWithWhichStateIconIntersects(stateIcon, intersectingStateIcons);
+            if (interectingSet != null) {
+                interectingSet.add(stateIcon);
+                continue;
+            }
+            StateIcon intersectingStateIcon = stateIconWithWhichStateIconIntersects(stateIcon, stateIcons);
+            if (intersectingStateIcon == null)
+                continue;
+            Set<StateIcon> intersectingGroup = new HashSet<StateIcon>();
+            intersectingGroup.add(stateIcon);
+            intersectingGroup.add(intersectingStateIcon);
+            intersectingStateIcons.add(intersectingGroup);
+        }
+
+        return intersectingStateIcons;
+    }
+
+    private Point2d getCenterOfStateIcons(Set<StateIcon> stateIcons) {
+        Point2d centerPostition = new Point2d();
+        for (StateIcon stateIcon : stateIcons )
+            centerPostition.add(stateIcon.position);
+        centerPostition.scale(1.0 / stateIcons.size());
+        return centerPostition;
+    }
+    private void separateStateIcons(Set<StateIcon> stateIcons) {
+        final double STEP_SIZE = 2.0;
+
+        Point2d centerPostition = getCenterOfStateIcons(stateIcons);
+
+        for (StateIcon stateIcon : stateIcons) {
+            Vector2d direction = new Vector2d(stateIcon.position.x - centerPostition.x, stateIcon.position.y - centerPostition.y);
+            direction.normalize();
+            direction.scale(STEP_SIZE);
+            stateIcon.position.add(direction);
+        }
+
+    }
+
+    private void moveStateIconsToAvoidIntersection(List<StateIcon> stateIcons) {
+        for (int i = 0; i < 100; i++) {
+            List<Set<StateIcon>> intersectingStateIcons = findIntersectingStateIcons(stateIcons);
+            if (intersectingStateIcons.size() == 0)
+                break;
+            for (Set<StateIcon> set : intersectingStateIcons)
+                separateStateIcons(set);
+        }
     }
 };

@@ -101,7 +101,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [ ] Allow enabling/disabling/configuring state-icon
 - [x] Support including sensors state-icons/labels for other items
 - [ ] Support fans with animated gif/png with css3 image rotation
-- [ ] Make sure state-icons/labels do not overlap
+- [x] Make sure state-icons/labels do not overlap
 - [x] Allow using existing rendered images and just re-create overlays and YAML
 - [ ] After rendering is complete, show preview of overlay images
 - [ ] Allow overriding state-icons/labels positions, and save persistently
