@@ -26,6 +26,7 @@ import javax.vecmath.Vector4d;
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Room;
@@ -180,10 +181,12 @@ public class Controller {
         }
     }
 
-    private Map<String, List<HomeLight>> getEnabledLights() {
-        Map<String, List<HomeLight>> lights = new HashMap<String, List<HomeLight>>();
-
-        for (HomePieceOfFurniture piece : home.getFurniture()) {
+    private void addEnabledLightsInList(Map<String, List<HomeLight>> lights, List<HomePieceOfFurniture> furnitureList ) {
+        for (HomePieceOfFurniture piece : furnitureList) {
+            if (piece instanceof HomeFurnitureGroup) {
+                addEnabledLightsInList(lights, ((HomeFurnitureGroup)piece).getFurniture());
+                continue;
+            }
             if (!(piece instanceof HomeLight))
                 continue;
             HomeLight light = (HomeLight)piece;
@@ -193,6 +196,12 @@ public class Controller {
                 lights.put(light.getName(), new ArrayList<HomeLight>());
             lights.get(light.getName()).add(light);
         }
+    }
+
+    private Map<String, List<HomeLight>> getEnabledLights() {
+        Map<String, List<HomeLight>> lights = new HashMap<String, List<HomeLight>>();
+
+        addEnabledLightsInList(lights, home.getFurniture());
 
         return lights;
     }
