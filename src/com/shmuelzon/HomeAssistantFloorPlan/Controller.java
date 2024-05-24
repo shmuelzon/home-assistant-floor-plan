@@ -531,7 +531,10 @@ public class Controller {
 
     private boolean isHomeAssistantEntityActionable(String name) {
         String[] actionableEntityPrefixes = {
+            "cover.",
             "fan.",
+            "media_player.",
+            "switch.",
         };
 
         for (String prefix : actionableEntityPrefixes ) {
