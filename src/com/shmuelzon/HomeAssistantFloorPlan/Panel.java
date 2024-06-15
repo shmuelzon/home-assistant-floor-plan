@@ -295,70 +295,69 @@ public class Panel extends JPanel implements DialogView {
 
     private void layoutComponents() {
         int labelAlignment = OperatingSystem.isMacOSX() ? JLabel.TRAILING : JLabel.LEADING;
-        int standardGap = Math.round(5 * SwingTools.getResolutionScale());
-        Insets labelInsets = new Insets(0, 0, 0, standardGap);
+        int standardGap = Math.round(2 * SwingTools.getResolutionScale());
+        Insets insets = new Insets(0, standardGap, 0, standardGap);
 
         /* First row (Detected lights caption) */
         add(detectedLightsLabel, new GridBagConstraints(
             0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Second row (Detected lights tree) */
         add(detectedLightsTree, new GridBagConstraints(
             0, 1, 4, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Third row (Resolution) */
         add(widthLabel, new GridBagConstraints(
             0, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         widthLabel.setHorizontalAlignment(labelAlignment);
-        Insets componentInsets = new Insets(0, 0, 0, 10);
         add(widthSpinner, new GridBagConstraints(
             1, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, componentInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(heightLabel, new GridBagConstraints(
             2, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         heightLabel.setHorizontalAlignment(labelAlignment);
         add(heightSpinner, new GridBagConstraints(
             3, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Forth row (Light mixing mode and sensitivity) */
         add(lightMixingModeLabel, new GridBagConstraints(
             0, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(lightMixingModeComboBox, new GridBagConstraints(
             1, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(sensitivityLabel, new GridBagConstraints(
             2, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(sensitivitySpinner, new GridBagConstraints(
             3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Fifth row (Output directory) */
         add(outputDirectoryLabel, new GridBagConstraints(
             0, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryTextField, new GridBagConstraints(
             1, 4, 2, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryBrowseButton, new GridBagConstraints(
             3, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Sixth row (Options) */
         add(useExistingRendersCheckbox, new GridBagConstraints(
             0, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Seventh row (progress bar) */
         add(progressBar, new GridBagConstraints(
             0, 6, 4, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, labelInsets, 0, 0));
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
     }
 
     public void displayView(View parentView) {
