@@ -5,8 +5,7 @@ param (
     [switch]$test
 )
 
-#$VERSION = (git describe --always --tags)
-$VERSION = "v0.5.0"
+$VERSION = (git describe --always --tags)
 $SRC_DIR = "src/com/shmuelzon/HomeAssistantFloorPlan"
 $BUILD_DIR = "build/com/shmuelzon/HomeAssistantFloorPlan"
 $DL_DIR = "dl"

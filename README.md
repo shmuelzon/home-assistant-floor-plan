@@ -166,3 +166,10 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [ ] Allow overriding state-icons/labels positions, and save persistently
 - [ ] Allow defining, per entity, if it should be an icon or label, and save
       that persistently
+
+## Contribute
+
+If you are using a UNIX system, just run the `Makefile` and it will generate the necessary build to run this plugin.
+
+If you are using a Windows system, just run the `build.ps1` file and it will generate the necessary build to run this plugin.
+> I wasn't able to download the SweetHome3D `.jar` file using this method, so I have commented that line. For now, I suggest to download manually and place under a folder called `dl`
