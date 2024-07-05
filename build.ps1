@@ -68,7 +68,8 @@ function DistClean {
 }
 
 function Install {
-    $pluginDir = "$env:USERPROFILE\AppData\Roaming\eTeks\Sweet Home 3D\plugins"
+    $pluginDir = "$env:USERPROFILE\Application Data\eTeks\Sweet Home 3D\plugins"
+    Write-Host "Installing plugin to: $pluginDir"
     if (-Not (Test-Path $pluginDir)) {
         New-Item -ItemType Directory -Force -Path $pluginDir
     }
