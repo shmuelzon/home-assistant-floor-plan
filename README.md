@@ -13,6 +13,7 @@ light, sensors and cameras.
 - **3D Rendered Floor Plan**: Integrates with Sweet Home 3D to generate images automatically to your floorplan (displays current lighting state, sensors, and other entities with interactive icons for toggling lights).
 - **Rendering Modes**: Allow user to select the best rendering option to generate his images from his Sweet Home 3D project  
 - **Complete Renders Mode**: Renders images for all possible light combinations and rooms.
+- **YAML Configuration**: Generate a YAML file with the picture-elements structure for easy integration with Home Assistant.
 - **Configurations**:
   - Group detected lights by room.
   - Adjust output resolution (Width / Height).
@@ -21,6 +22,16 @@ light, sensors and cameras.
   - Create state icons for multiple entities from Home Assistant based on their names
   - Lights is detected alone or within groups under SH3D
   - Use existing exported renders to process quicker than the first time
+
+# How to activate plugin:
+1. Download the latest release in `.jar` and copy to Sweet Home 3D "plugins" folder (see notes below) or download the latest release in `.sh3p` and execute that file.
+
+> 	If double-clicking on a `.sh3p` file doesn't launch Sweet Home 3D (most chances under Linux), you can also install a plug-in with the following command in a Terminal window (where SweetHome3D is the name of the executable file provided with Sweet Home 3D installers): `/path/to/SweetHome3D /path/to/plugin.sh3p`
+
+2. Give the lights in Sweet Home 3D, the same name as in Home Assistant entities, for example: light.living_room. That way you will automate the name generation as well.
+3. Go to `Tools` in Sweet Home 3D -> Home Assistant Lightning Export
+4. Move the generated images from Path to `/config/www/planes`
+5. Create a card of type `picture-elements` and paste the generated `.yaml` from Path.  
   
 ## Rendering Modes
 
