@@ -10,29 +10,19 @@ light, sensors and cameras.
 
 ## Features
 
-- **3D Rendered Floor Plan**: Integrates with Sweet Home 3D to generate images automatically to your floorplan (displays current lighting state, sensors, and other entities with interactive icons for toggling lights).
-- **Rendering Modes**: Allow user to select the best rendering option to generate his images from his Sweet Home 3D project  
-- **Complete Renders Mode**: Renders images for all possible light combinations and rooms.
-- **YAML Configuration**: Generate a YAML file with the picture-elements structure for easy integration with Home Assistant.
-- **Configurations**:
-  - Group detected lights by room.
-  - Adjust output resolution (Width / Height).
-  - Adjust output quality (High / Low).
-  - Progress bar indicates rendering status.
+* **3D Rendered Floor Plan** - Integrates with Sweet Home 3D to generate images automatically to your floorplan (displays current lighting state, sensors, and other entities with interactive icons for toggling lights)
+* **Rendering Modes** - Allow user to select the best rendering option to generate his images from his Sweet Home 3D project
+* **Complete Renders Mode** - Renders images for all possible light combinations and rooms
+* **YAML Configuration** - Generate a YAML file with the picture-elements structure for easy integration with Home Assistant.
+* **Configurations** -
+  - Group detected lights by room
+  - Adjust output resolution
+  - Adjust output quality (high / low)
+  - Progress bar indicates rendering status
   - Create state icons for multiple entities from Home Assistant based on their names
-  - Lights is detected alone or within groups under SH3D
-  - Use existing exported renders to process quicker than the first time
+  - Lights are detected as stand-alone or within groups under SH3D
+  - Caches previously rendered images to save time when generating the next floorplan
 
-# How to activate plugin:
-1. Download the latest release in `.jar` and copy to Sweet Home 3D "plugins" folder (see notes below) or download the latest release in `.sh3p` and execute that file.
-
-> 	If double-clicking on a `.sh3p` file doesn't launch Sweet Home 3D (most chances under Linux), you can also install a plug-in with the following command in a Terminal window (where SweetHome3D is the name of the executable file provided with Sweet Home 3D installers): `/path/to/SweetHome3D /path/to/plugin.sh3p`
-
-2. Give the lights in Sweet Home 3D, the same name as in Home Assistant entities, for example: light.living_room. That way you will automate the name generation as well.
-3. Go to `Tools` in Sweet Home 3D -> Home Assistant Lightning Export
-4. Move the generated images from Path to `/config/www/planes`
-5. Create a card of type `picture-elements` and paste the generated `.yaml` from Path.  
-  
 ## Rendering Modes
 
 This plugin supports 3 modes for rendering the different lights
@@ -65,15 +55,16 @@ rendered images, compared to all possible combinations of the entire floor.
 This mode renders separate images for all possible light combinations on the
 rendered floor. It requires generating many renders but offers the best quality.
 
-## Usage
+## How To Use The Plugin
 
-1. Download the plugin from the [releases](../../releases/latest) page and
+1. Download the latest plugin from the [releases](../../releases/latest) page and
    install it
 2. Prepare your model to fit with the [criteria](#preparation) of this plugin
 3. Start the plugin by clicking the "Tools"->"Home Assistant Floor Plan" menu
 4. Modify the [configuration options](#configuration-options) accordingly
 5. Click "Start"
-6. Copy the generated `floorplan.yml` file and all images under `floorplan` folder to your HA path
+6. Copy all images under `floorplan` folder to your HA path
+7. Create a card of type `picture-elements` in HA and paste the contents of the generated `floorplan.yaml`
 
 ## Configuration Options
 
@@ -131,13 +122,13 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 ## Frequently Asked Questions
 
 1. **Where should I copy the generated files and what should I copy?**  
-  After the process is complete, copy the floorplan folder and floorplan.yaml to your Home Assistant path, specifically to: \config\www.
+  After the process is complete, copy the floorplan folder and floorplan.yaml to your Home Assistant path, specifically to: /config/www..
 
 2. **How do I select the desired perspective for rendering?**  
   Before activating the plugin, set the SH3D project to the specific 3D point of view that you want to be rendered.
 
 3. **How do I change the rendering settings?**  
-  Prior to activating the plugin, go to “Create photo…” in the SH3D project and adjust the settings there. You do not need to render or save anything; simply make the changes and close the dialog.
+  Prior to activating the plugin, go to "Create photo…" in the SH3D project and adjust the settings there. You do not need to render or save anything; simply make the changes and close the dialog.
 
 4. **Can I work on the SH3D project while rendering?**  
   No, do not make any changes or interact with the 3D view while it’s rendering. These actions will be captured by the plugin as it scripts the renders one by one. Start the rendering process and then leave it to complete.
@@ -166,10 +157,3 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [ ] Allow overriding state-icons/labels positions, and save persistently
 - [ ] Allow defining, per entity, if it should be an icon or label, and save
       that persistently
-
-## Contribute
-
-If you are using a UNIX system, just run the `Makefile` and it will generate the necessary build to run this plugin.
-
-If you are using a Windows system, just run the `build.ps1` file and it will generate the necessary build to run this plugin.
-> I wasn't able to download the SweetHome3D `.jar` file using this method, so I have commented that line. For now, I suggest to download manually and place under a folder called `dl`

@@ -34,7 +34,6 @@ import com.eteks.sweethome3d.model.Room;
 public class Controller {
     public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
-    public enum Quality {HIGH, LOW}
 
     private Home home;
     private Map<String, List<HomeLight>> lights;
@@ -54,7 +53,6 @@ public class Controller {
     private int renderWidth = 1024;
     private int renderHeight = 576;
     private boolean useExistingRenders = true;
-    private Quality quality;
 
     class StateIcon {
         public String name;
@@ -80,32 +78,8 @@ public class Controller {
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = getHomeAssistantEntities();
-        this.quality = Quality.HIGH;
     }
 
-    public Home getHome() {
-        return home;
-    }   
-    
-    public Quality getQuality() {
-        return quality;
-    }
-
-    public void setQuality(Quality quality) {
-        this.quality = quality;
-    }
-
-    private AbstractPhotoRenderer.Quality convertQuality(Quality quality) {
-        switch (quality) {
-            case HIGH:
-                return AbstractPhotoRenderer.Quality.HIGH;
-            case LOW:
-                return AbstractPhotoRenderer.Quality.LOW;
-            default:
-                return AbstractPhotoRenderer.Quality.HIGH;
-        }
-    }
-    
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.addPropertyChangeListener(property.name(), listener);
     }
@@ -395,7 +369,7 @@ public class Controller {
     private BufferedImage renderScene() throws IOException {
         AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
             "com.eteks.sweethome3d.j3d.YafarayRenderer",
-            home, null, convertQuality(getQuality()));
+            home, null, AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, home.getCamera(), null);
         return image;
@@ -560,7 +534,7 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle", lightsList.get(0).getDescription() != null ? lightsList.get(0).getDescription() : lightsList.get(0).getName()));
+            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle", lightsList.get(0).getDescription() != null ? lightsList.get(0).getDescription() : null));
         }
 
         return stateIcons;
@@ -586,7 +560,7 @@ public class Controller {
 
         for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
-            String title = piece.getDescription() != null ? piece.getDescription() : piece.getName();
+            String title = piece.getDescription() != null ? piece.getDescription() : null;
             stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null, title));
         }
 

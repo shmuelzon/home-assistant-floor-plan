@@ -1,7 +1,17 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.Component;
+import java.awt.ComponentOrientation;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.Window;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.List;
@@ -11,7 +21,23 @@ import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import javax.swing.*;
+import javax.swing.ActionMap;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JSpinner;
+import javax.swing.JTextField;
+import javax.swing.JTree;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 import javax.swing.border.LineBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -23,9 +49,6 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
 
-import static com.shmuelzon.HomeAssistantFloorPlan.Controller.Quality;
-
-import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.swing.AutoCommitSpinner;
@@ -36,7 +59,6 @@ import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.ContentManager;
 import com.eteks.sweethome3d.viewcontroller.DialogView;
 import com.eteks.sweethome3d.viewcontroller.View;
-import com.shmuelzon.HomeAssistantFloorPlan.Controller.Quality;
 
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
@@ -53,7 +75,7 @@ public class Panel extends JPanel implements DialogView {
     private JLabel heightLabel;
     private JSpinner heightSpinner;
     private JLabel lightMixingModeLabel;
-    private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
+    private JComboBox lightMixingModeComboBox;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
     private JLabel outputDirectoryLabel;
@@ -64,8 +86,6 @@ public class Panel extends JPanel implements DialogView {
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
-    private JLabel qualityLabel;
-    private JComboBox<Quality> qualityComboBox;
 
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
         super(new GridBagLayout());
@@ -201,23 +221,6 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        qualityLabel = new JLabel();
-        qualityLabel.setText("Quality:");
-        qualityComboBox = new JComboBox<Quality>(Quality.values());
-        qualityComboBox.setSelectedItem(controller.getQuality());
-        qualityComboBox.setRenderer(new DefaultListCellRenderer() {
-            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
-                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(((Quality)o).name());
-                return rendererComponent;
-            }
-        });
-        qualityComboBox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ev) {
-                controller.setQuality((Quality)qualityComboBox.getSelectedItem());
-            }
-        });
-
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField();
@@ -288,7 +291,6 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryBrowseButton.setEnabled(enabled);
         startButton.setEnabled(enabled);
         closeButton.setEnabled(enabled);
-        qualityComboBox.setEnabled(enabled);
     }
 
     private void layoutComponents() {
@@ -322,7 +324,7 @@ public class Panel extends JPanel implements DialogView {
             3, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Fourth row (Light mixing mode and sensitivity) */
+        /* Forth row (Light mixing mode and sensitivity) */
         add(lightMixingModeLabel, new GridBagConstraints(
             0, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
@@ -336,43 +338,29 @@ public class Panel extends JPanel implements DialogView {
             3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Fifth row (Quality) */
-        add(qualityLabel, new GridBagConstraints(
+        /* Fifth row (Output directory) */
+        add(outputDirectoryLabel, new GridBagConstraints(
             0, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
-            1, 4, 3, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-
-        /* Sixth row (Output directory) */
-        add(outputDirectoryLabel, new GridBagConstraints(
-            0, 5, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryTextField, new GridBagConstraints(
-            1, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            1, 4, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryBrowseButton, new GridBagConstraints(
-            3, 5, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            3, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Seventh row (Options) */
+        /* Sixth row (Options) */
         add(useExistingRendersCheckbox, new GridBagConstraints(
-            0, 6, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            0, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Eighth row (progress bar) */
+        /* Seventh row (progress bar) */
         add(progressBar, new GridBagConstraints(
-            0, 7, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, 6, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
     }
 
     public void displayView(View parentView) {
-        // Check if a project is open
-        if (controller.getHome() == null || controller.getHome().getFurniture().isEmpty()) {
-            JOptionPane.showMessageDialog(null, "No project is open. Please open a project before proceeding.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
         if (currentPanel == this) {
             SwingUtilities.getWindowAncestor(Panel.this).toFront();
             return;
@@ -398,7 +386,6 @@ public class Panel extends JPanel implements DialogView {
         dialog.setVisible(true);
         currentPanel = this;
     }
-
 
     private void buildLightsGroupsTree(Map<String, Map<String, List<HomeLight>>> lightsGroups) {
         DefaultTreeModel model = (DefaultTreeModel)detectedLightsTree.getModel();
