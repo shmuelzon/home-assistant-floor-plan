@@ -92,7 +92,8 @@ for the complete floor plan and will progress as they are ready.
 * Only light sources that are **visible** and have a **power > 0%** are considered
 * If you have multiple light sources that are controlled by the same switch,
   e.g., spot lights, give them all the same name
-* If you have lights withing groups, , give them all the same name
+* If you want to add a `Title` to your piece of furniture when you hover the mouse over your `picture-elements` card, simply fill in the description field in your SH3D project.
+* If you have lights withing groups, give them all the same name
 * If lights from two different rooms do interact with each other, e.g., there's
   a glass door separating the rooms, you can give both rooms the same name and
   they'll be treated as one
@@ -122,7 +123,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 ## Frequently Asked Questions
 
 1. **Where should I copy the generated files and what should I copy?**  
-  After the process is complete, copy the floorplan folder and floorplan.yaml to your Home Assistant path, specifically to: /config/www..
+  After the process is complete, copy the floorplan folder and `floorplan.yaml` to your Home Assistant path, specifically to: `/config/www`..
 
 2. **How do I select the desired perspective for rendering?**  
   Before activating the plugin, set the SH3D project to the specific 3D point of view that you want to be rendered.
@@ -143,7 +144,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 
 ## Possible Future Enhancements
 - [ ] Allow selecting renderer (SunFlow/Yafaray)
-- [x] Allow selecting quality (high/low)
+- [ ] Allow selecting quality (high/low)
 - [ ] Allow selecting date/time of render
 - [ ] Create multiple renders for multiple hours of the day and display in Home
       Assistant according to local time
