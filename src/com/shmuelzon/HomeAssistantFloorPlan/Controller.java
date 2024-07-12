@@ -31,6 +31,7 @@ import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Room;
 
+
 public class Controller {
     public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
@@ -61,14 +62,12 @@ public class Controller {
         public Point2d position;
         public String type;
         public String action;
-        public String title;
 
-        public StateIcon(String name, Point2d position, String type, String action, String title) {
+        public StateIcon(String name, Point2d position, String type, String action) {
             this.name = name;
             this.position = position;
             this.type = type;
             this.action = action;
-            this.title = title;
         }
     }
 
@@ -82,26 +81,7 @@ public class Controller {
         homeAssistantEntities = getHomeAssistantEntities();
         this.quality = Quality.HIGH;
     }
-    
-    public Quality getQuality() {
-        return quality;
-    }
 
-    public void setQuality(Quality quality) {
-        this.quality = quality;
-    }
-
-    private AbstractPhotoRenderer.Quality convertQuality(Quality quality) {
-        switch (quality) {
-            case HIGH:
-                return AbstractPhotoRenderer.Quality.HIGH;
-            case LOW:
-                return AbstractPhotoRenderer.Quality.LOW;
-            default:
-                return AbstractPhotoRenderer.Quality.HIGH;
-        }
-    }
-    
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.addPropertyChangeListener(property.name(), listener);
     }
@@ -174,6 +154,14 @@ public class Controller {
 
     public void setUserExistingRenders(boolean useExistingRenders) {
         this.useExistingRenders = useExistingRenders;
+    }
+
+    public Quality getQuality() {
+        return quality;
+    }
+
+    public void setQuality(Quality quality) {
+        this.quality = quality;
     }
 
     public void render() throws Exception {
@@ -300,10 +288,8 @@ public class Controller {
             "cover.",
             "fan.",
             "media_player.",
-            "remote.",
             "sensor.",
             "switch.",
-            "vacuum.",
         };
 
         if (name == null)
@@ -391,9 +377,10 @@ public class Controller {
     private BufferedImage renderScene() throws IOException {
         AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
             "com.eteks.sweethome3d.j3d.YafarayRenderer",
-            home, null, convertQuality(getQuality()));
+            home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, home.getCamera(), null);
+
         return image;
     }
 
@@ -516,18 +503,18 @@ public class Controller {
         return new Point2d((objectPosition.x * 0.5 + 0.5) * renderWidth, (objectPosition.y * 0.5 + 0.5) * renderHeight);
     }
 
-    private String generateStateIconYaml(String name, Point2d position, String type, String action, String title) {
+    private String generateStateIconYaml(String name, Point2d position, String type, String action) {
         String yaml = String.format(Locale.US,
             "  - type: state-%s\n" +
             "    entity: %s\n" +
-            "    title: %s\n" +
+            "    title: null\n" +
             "    style:\n" +
             "      top: %.2f%%\n" +
             "      left: %.2f%%\n" +
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
             "      background-color: rgba(255, 255, 255, 0.3)\n",
-            type, name, title, 100.0 * (position.y / renderHeight), 100.0 * (position.x / renderWidth));
+            type, name, 100.0 * (position.y / renderHeight), 100.0 * (position.x / renderWidth));
 
         if (action != null) {
             yaml += String.format(
@@ -542,7 +529,7 @@ public class Controller {
         String yaml = "";
 
         for (StateIcon stateIcon : stateIcons)
-            yaml += generateStateIconYaml(stateIcon.name, stateIcon.position, stateIcon.type, stateIcon.action, stateIcon.title);
+            yaml += generateStateIconYaml(stateIcon.name, stateIcon.position, stateIcon.type, stateIcon.action);
 
         return yaml;
     }
@@ -556,7 +543,7 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle", lightsList.get(0).getDescription() != null ? lightsList.get(0).getDescription() : null));
+            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle"));
         }
 
         return stateIcons;
@@ -582,8 +569,7 @@ public class Controller {
 
         for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
-            String title = piece.getDescription() != null ? piece.getDescription() : null;
-            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null, title));
+            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null));
         }
 
         return stateIcons;

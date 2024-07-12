@@ -60,9 +60,6 @@ import com.eteks.sweethome3d.viewcontroller.ContentManager;
 import com.eteks.sweethome3d.viewcontroller.DialogView;
 import com.eteks.sweethome3d.viewcontroller.View;
 
-import com.shmuelzon.HomeAssistantFloorPlan.Controller.Quality;
-import static com.shmuelzon.HomeAssistantFloorPlan.Controller.Quality;
-
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
     private enum ActionType {BROWSE, START, CLOSE}
@@ -81,6 +78,8 @@ public class Panel extends JPanel implements DialogView {
     private JComboBox lightMixingModeComboBox;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
+    private JLabel qualityLabel;
+    private JComboBox qualityComboBox;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
     private JButton outputDirectoryBrowseButton;
@@ -89,8 +88,6 @@ public class Panel extends JPanel implements DialogView {
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
-    private JLabel qualityLabel;
-    private JComboBox<Quality> qualityComboBox;    
 
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
         super(new GridBagLayout());
@@ -227,21 +224,21 @@ public class Panel extends JPanel implements DialogView {
         });
 
         qualityLabel = new JLabel();
-        qualityLabel.setText("Quality:");
-        qualityComboBox = new JComboBox<Quality>(Quality.values());
+        qualityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.QualityLabel.text"));
+        qualityComboBox = new JComboBox<Controller.Quality>(Controller.Quality.values());
         qualityComboBox.setSelectedItem(controller.getQuality());
         qualityComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(((Quality)o).name());
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.QualityComboBox.%s.text", ((Controller.Quality)o).name())));
                 return rendererComponent;
             }
         });
         qualityComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setQuality((Quality)qualityComboBox.getSelectedItem());
+                controller.setQuality((Controller.Quality)qualityComboBox.getSelectedItem());
             }
-        });        
+        });
 
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
@@ -309,11 +306,11 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.setEnabled(enabled);
         lightMixingModeComboBox.setEnabled(enabled);
         sensitivitySpinner.setEnabled(enabled);
+        qualityComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         startButton.setEnabled(enabled);
         closeButton.setEnabled(enabled);
-        qualityComboBox.setEnabled(enabled);
     }
 
     private void layoutComponents() {
@@ -366,7 +363,7 @@ public class Panel extends JPanel implements DialogView {
             0, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(qualityComboBox, new GridBagConstraints(
-            1, 4, 3, 1, 0, 0, GridBagConstraints.CENTER,
+            1, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Sixth row (Output directory) */
