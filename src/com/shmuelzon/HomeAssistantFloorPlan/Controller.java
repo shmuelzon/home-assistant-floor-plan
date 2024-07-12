@@ -31,6 +31,7 @@ import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Room;
 
+
 public class Controller {
     public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
@@ -278,10 +279,8 @@ public class Controller {
             "cover.",
             "fan.",
             "media_player.",
-            "remote.",
             "sensor.",
             "switch.",
-            "vacuum.",
         };
 
         if (name == null)
@@ -372,6 +371,7 @@ public class Controller {
             home, null, AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, home.getCamera(), null);
+
         return image;
     }
 
@@ -534,7 +534,8 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle", lightsList.get(0).getDescription() != null ? lightsList.get(0).getDescription() : null));
+            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle",
+                lightsList.get(0).getDescription()));
         }
 
         return stateIcons;
@@ -560,8 +561,8 @@ public class Controller {
 
         for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
-            String title = piece.getDescription() != null ? piece.getDescription() : null;
-            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null, title));
+            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon",
+                isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null, piece.getDescription()));
         }
 
         return stateIcons;
