@@ -78,6 +78,8 @@ public class Panel extends JPanel implements DialogView {
     private JComboBox lightMixingModeComboBox;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
+    private JLabel qualityLabel;
+    private JComboBox qualityComboBox;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
     private JButton outputDirectoryBrowseButton;
@@ -221,6 +223,23 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        qualityLabel = new JLabel();
+        qualityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.QualityLabel.text"));
+        qualityComboBox = new JComboBox<Controller.Quality>(Controller.Quality.values());
+        qualityComboBox.setSelectedItem(controller.getQuality());
+        qualityComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.QualityComboBox.%s.text", ((Controller.Quality)o).name())));
+                return rendererComponent;
+            }
+        });
+        qualityComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setQuality((Controller.Quality)qualityComboBox.getSelectedItem());
+            }
+        });
+
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField();
@@ -287,6 +306,7 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.setEnabled(enabled);
         lightMixingModeComboBox.setEnabled(enabled);
         sensitivitySpinner.setEnabled(enabled);
+        qualityComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         startButton.setEnabled(enabled);
@@ -324,7 +344,7 @@ public class Panel extends JPanel implements DialogView {
             3, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Forth row (Light mixing mode and sensitivity) */
+        /* Fourth row (Light mixing mode and sensitivity) */
         add(lightMixingModeLabel, new GridBagConstraints(
             0, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
@@ -338,25 +358,33 @@ public class Panel extends JPanel implements DialogView {
             3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Fifth row (Output directory) */
-        add(outputDirectoryLabel, new GridBagConstraints(
+        /* Fifth row (Quality) */
+        add(qualityLabel, new GridBagConstraints(
             0, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(qualityComboBox, new GridBagConstraints(
+            1, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+
+        /* Sixth row (Output directory) */
+        add(outputDirectoryLabel, new GridBagConstraints(
+            0, 5, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryTextField, new GridBagConstraints(
-            1, 4, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            1, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryBrowseButton, new GridBagConstraints(
-            3, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            3, 5, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Sixth row (Options) */
+        /* Seventh row (Options) */
         add(useExistingRendersCheckbox, new GridBagConstraints(
-            0, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            0, 6, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Seventh row (progress bar) */
+        /* Eighth row (progress bar) */
         add(progressBar, new GridBagConstraints(
-            0, 6, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, 7, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
     }
 

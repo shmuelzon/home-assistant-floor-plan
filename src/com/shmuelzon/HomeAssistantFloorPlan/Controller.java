@@ -35,6 +35,7 @@ import com.eteks.sweethome3d.model.Room;
 public class Controller {
     public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
+    public enum Quality {HIGH, LOW}
 
     private Home home;
     private Map<String, List<HomeLight>> lights;
@@ -54,6 +55,7 @@ public class Controller {
     private int renderWidth = 1024;
     private int renderHeight = 576;
     private boolean useExistingRenders = true;
+    private Quality quality;
 
     class StateIcon {
         public String name;
@@ -77,6 +79,7 @@ public class Controller {
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = getHomeAssistantEntities();
+        this.quality = Quality.HIGH;
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -151,6 +154,14 @@ public class Controller {
 
     public void setUserExistingRenders(boolean useExistingRenders) {
         this.useExistingRenders = useExistingRenders;
+    }
+
+    public Quality getQuality() {
+        return quality;
+    }
+
+    public void setQuality(Quality quality) {
+        this.quality = quality;
     }
 
     public void render() throws Exception {
@@ -366,7 +377,7 @@ public class Controller {
     private BufferedImage renderScene() throws IOException {
         AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
             "com.eteks.sweethome3d.j3d.YafarayRenderer",
-            home, null, AbstractPhotoRenderer.Quality.HIGH);
+            home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, home.getCamera(), null);
 
