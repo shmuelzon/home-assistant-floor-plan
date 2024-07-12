@@ -62,12 +62,14 @@ public class Controller {
         public Point2d position;
         public String type;
         public String action;
+        public String title;
 
-        public StateIcon(String name, Point2d position, String type, String action) {
+        public StateIcon(String name, Point2d position, String type, String action, String title) {
             this.name = name;
             this.position = position;
             this.type = type;
             this.action = action;
+            this.title = title;
         }
     }
 
@@ -503,18 +505,18 @@ public class Controller {
         return new Point2d((objectPosition.x * 0.5 + 0.5) * renderWidth, (objectPosition.y * 0.5 + 0.5) * renderHeight);
     }
 
-    private String generateStateIconYaml(String name, Point2d position, String type, String action) {
+    private String generateStateIconYaml(String name, Point2d position, String type, String action, String title) {
         String yaml = String.format(Locale.US,
             "  - type: state-%s\n" +
             "    entity: %s\n" +
-            "    title: null\n" +
+            "    title: %s\n" +
             "    style:\n" +
             "      top: %.2f%%\n" +
             "      left: %.2f%%\n" +
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
             "      background-color: rgba(255, 255, 255, 0.3)\n",
-            type, name, 100.0 * (position.y / renderHeight), 100.0 * (position.x / renderWidth));
+            type, name, title, 100.0 * (position.y / renderHeight), 100.0 * (position.x / renderWidth));
 
         if (action != null) {
             yaml += String.format(
@@ -529,7 +531,7 @@ public class Controller {
         String yaml = "";
 
         for (StateIcon stateIcon : stateIcons)
-            yaml += generateStateIconYaml(stateIcon.name, stateIcon.position, stateIcon.type, stateIcon.action);
+            yaml += generateStateIconYaml(stateIcon.name, stateIcon.position, stateIcon.type, stateIcon.action, stateIcon.title);
 
         return yaml;
     }
@@ -543,7 +545,8 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle"));
+            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle",
+                lightsList.get(0).getDescription()));
         }
 
         return stateIcons;
@@ -569,7 +572,8 @@ public class Controller {
 
         for (HomePieceOfFurniture piece : homeAssistantEntities) {
             Point2d location = getFurniture2dLocation(piece);
-            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon", isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null));
+            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon",
+                isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null, piece.getDescription()));
         }
 
         return stateIcons;

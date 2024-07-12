@@ -75,6 +75,8 @@ for the complete floor plan and will progress as they are ready.
 * Only light sources that are visible and have a power > 0% are considered
 * If you have multiple light sources that are controlled by the same switch,
   e.g., spot lights, give them all the same name
+* If you want to add a tool-tip to the state icon in Home Assistant, enter it
+  in to the description field of the SH3D furniture
 * If lights from two different rooms do interact with each other, e.g., there's
   a glass door separating the rooms, you can give both rooms the same name and
   they'll be treated as one
