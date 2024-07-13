@@ -118,8 +118,9 @@ public class Panel extends JPanel implements DialogView {
                         setComponentsEnabled(false);
                         try {
                             controller.render();
+                            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.info.finishedRendering.text"));
                         } catch (Exception e) {
-                            JOptionPane.showMessageDialog(null, "Failed to render floor plan: " + e);
+                            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + " " + e);
                         }
                         setComponentsEnabled(true);
                     }
