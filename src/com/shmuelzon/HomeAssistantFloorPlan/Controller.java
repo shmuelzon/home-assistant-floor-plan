@@ -35,6 +35,7 @@ import com.eteks.sweethome3d.model.Room;
 public class Controller {
     public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
+    public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
 
     private Home home;
@@ -55,7 +56,8 @@ public class Controller {
     private int renderWidth = 1024;
     private int renderHeight = 576;
     private boolean useExistingRenders = true;
-    private Quality quality;
+    private Renderer renderer = Renderer.YAFARAY;
+    private Quality quality = Quality.HIGH;
     private volatile boolean isCanceled = false;
 
     class StateIcon {
@@ -82,7 +84,6 @@ public class Controller {
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = getHomeAssistantEntities();
-        this.quality = Quality.HIGH;
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -159,6 +160,14 @@ public class Controller {
         this.useExistingRenders = useExistingRenders;
     }
 
+    public Renderer getRenderer() {
+        return renderer;
+    }
+
+    public void setRenderer(Renderer renderer) {
+        this.renderer = renderer;
+    }
+
     public Quality getQuality() {
         return quality;
     }
@@ -170,6 +179,10 @@ public class Controller {
     public void cancelRender() {
         isCanceled = true;
     }    
+
+    public boolean isProjectEmpty() {
+        return home == null || home.getFurniture().isEmpty();
+    }
 
     public void render() throws Exception {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
@@ -390,8 +403,12 @@ public class Controller {
     }
 
     private BufferedImage renderScene() throws IOException {
+        Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
+            put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
+            put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
+        }};
         AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
-            "com.eteks.sweethome3d.j3d.YafarayRenderer",
+            rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, home.getCamera(), null);
