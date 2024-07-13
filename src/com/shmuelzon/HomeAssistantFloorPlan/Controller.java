@@ -166,6 +166,10 @@ public class Controller {
         this.quality = quality;
     }
 
+    public boolean isProjectEmpty() {
+        return home == null || home.getFurniture().isEmpty();
+    }
+
     public void render() throws Exception {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;

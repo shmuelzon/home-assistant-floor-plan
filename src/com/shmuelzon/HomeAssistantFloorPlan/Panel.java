@@ -389,6 +389,11 @@ public class Panel extends JPanel implements DialogView {
     }
 
     public void displayView(View parentView) {
+        if (controller.isProjectEmpty()) {
+            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.emptyProject.text"),
+                resource.getString("HomeAssistantFloorPlan.Panel.error.title"), JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         if (currentPanel == this) {
             SwingUtilities.getWindowAncestor(Panel.this).toFront();
             return;
