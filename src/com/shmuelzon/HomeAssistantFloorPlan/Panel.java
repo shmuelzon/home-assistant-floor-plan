@@ -78,6 +78,8 @@ public class Panel extends JPanel implements DialogView {
     private JComboBox lightMixingModeComboBox;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
+    private JLabel rendererLabel;
+    private JComboBox rendererComboBox;
     private JLabel qualityLabel;
     private JComboBox qualityComboBox;
     private JLabel outputDirectoryLabel;
@@ -223,14 +225,31 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        rendererLabel = new JLabel();
+        rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
+        rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
+        rendererComboBox.setSelectedItem(controller.getRenderer());
+        rendererComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.rendererComboBox.%s.text", ((Controller.Renderer)o).name())));
+                return rendererComponent;
+            }
+        });
+        rendererComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setRenderer((Controller.Renderer)rendererComboBox.getSelectedItem());
+            }
+        });
+
         qualityLabel = new JLabel();
-        qualityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.QualityLabel.text"));
+        qualityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.qualityLabel.text"));
         qualityComboBox = new JComboBox<Controller.Quality>(Controller.Quality.values());
         qualityComboBox.setSelectedItem(controller.getQuality());
         qualityComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.QualityComboBox.%s.text", ((Controller.Quality)o).name())));
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.qualityComboBox.%s.text", ((Controller.Quality)o).name())));
                 return rendererComponent;
             }
         });
@@ -306,6 +325,7 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.setEnabled(enabled);
         lightMixingModeComboBox.setEnabled(enabled);
         sensitivitySpinner.setEnabled(enabled);
+        rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
@@ -358,12 +378,18 @@ public class Panel extends JPanel implements DialogView {
             3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
-        /* Fifth row (Quality) */
-        add(qualityLabel, new GridBagConstraints(
+        /* Fifth row (Renderer + Quality) */
+        add(rendererLabel, new GridBagConstraints(
             0, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
+        add(rendererComboBox, new GridBagConstraints(
             1, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(qualityLabel, new GridBagConstraints(
+            2, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(qualityComboBox, new GridBagConstraints(
+            3, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         /* Sixth row (Output directory) */

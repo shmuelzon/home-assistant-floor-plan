@@ -62,6 +62,8 @@ the room they're located in. Please verify the list matches your expectations.
 * Sensitivity - [1, 100] The degree by which two pixels need to be different
   from one another to be taken into account for the generated overlay image.
   Only relevant for "room overlay" light mixing mode
+* Renderer - Select which rendering engine to use, YafaRay or SunFlow
+* Quality - Choose the rendering quality (low or high)
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
@@ -95,7 +97,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 * Close all the doors between individually lighted rooms
 
 ## Possible Future Enhancements
-- [ ] Allow selecting renderer (SunFlow/Yafaray)
+- [x] Allow selecting renderer (SunFlow/Yafaray)
 - [x] Allow selecting quality (high/low)
 - [ ] Allow selecting date/time of render
 - [ ] Create multiple renders for multiple hours of the day and display in Home
