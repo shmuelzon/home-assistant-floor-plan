@@ -56,6 +56,7 @@ public class Controller {
     private int renderHeight = 576;
     private boolean useExistingRenders = true;
     private Quality quality;
+    private volatile boolean isCanceled = false;
 
     class StateIcon {
         public String name;
@@ -166,31 +167,39 @@ public class Controller {
         this.quality = quality;
     }
 
+    public void cancelRender() {
+        isCanceled = true;
+    }    
+
     public void render() throws Exception {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
-
+        isCanceled = false;
+    
         try {
             new File(outputRendersDirectoryName).mkdirs();
             new File(outputFloorplanDirectoryName).mkdirs();
-
             build3dProjection();
             String yaml = generateBaseRender();
             BufferedImage baseImage = ImageIO.read(Files.newInputStream(Paths.get(outputFloorplanDirectoryName + File.separator + "base.png")));
             
-            for (String group : lightsGroups.keySet())
+            for (String group : lightsGroups.keySet()) {
+                // Check if the rendering process is canceled
+                if (isCanceled) break;
                 yaml += generateGroupRenders(group, baseImage);
-
-            List<StateIcon> stateIcons = generateLightsStateIcons();
-            stateIcons.addAll(generateSensorsStateIcons());
-            moveStateIconsToAvoidIntersection(stateIcons);
-            yaml += generateStateIconsYaml(stateIcons);
-
-            Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+            }
+            
+            if (!isCanceled) {
+                List<StateIcon> stateIcons = generateLightsStateIcons();
+                stateIcons.addAll(generateSensorsStateIcons());
+                moveStateIconsToAvoidIntersection(stateIcons);
+                yaml += generateStateIconsYaml(stateIcons);
+                Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+            }
         } catch (IOException e) {
             throw e;
         } finally {
-            restorLightsPower(lightsPower);
+            restoreLightsPower(lightsPower);
         }
     }
 
@@ -342,10 +351,12 @@ public class Controller {
 
     private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException {
         List<String> groupLights = new ArrayList<String>(lightsGroups.get(group).keySet());
-
         List<List<String>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
+    
         for (List<String> onLights : lightCombinations) {
+            // Check if the rendering process is canceled
+            if (isCanceled) break;
             String fileName = String.join("_", onLights) + ".png";
             BufferedImage image = generateImage(onLights, outputRendersDirectoryName + File.separator + fileName);
             generateFloorPlanImage(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName);
@@ -353,8 +364,10 @@ public class Controller {
         }
         return yaml;
     }
-
+    
     private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException {
+        // Check if the rendering process is canceled
+        if (isCanceled) return null;
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
@@ -470,7 +483,7 @@ public class Controller {
             lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
-    private void restorLightsPower(Map<HomeLight, Float> lightsPower) {
+    private void restoreLightsPower(Map<HomeLight, Float> lightsPower) {
         for(HomeLight light : lightsPower.keySet()) {
             light.setPower(lightsPower.get(light));
         }

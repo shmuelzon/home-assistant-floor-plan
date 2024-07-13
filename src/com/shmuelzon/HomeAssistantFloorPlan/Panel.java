@@ -114,12 +114,16 @@ public class Panel extends JPanel implements DialogView {
                 renderExecutor.execute(new Runnable() {
                     public void run() {
                         setComponentsEnabled(false);
+                        // Enable close button during rendering
+                        closeButton.setEnabled(true);
                         try {
                             controller.render();
                         } catch (Exception e) {
                             JOptionPane.showMessageDialog(null, "Failed to render floor plan: " + e);
                         }
                         setComponentsEnabled(true);
+                        // Ensure close button is enabled after rendering
+                        closeButton.setEnabled(true);
                     }
                 });
             }
@@ -127,6 +131,10 @@ public class Panel extends JPanel implements DialogView {
         actions.put(ActionType.CLOSE, new ResourceAction(preferences, Panel.class, ActionType.CLOSE.name(), true) {
             @Override
             public void actionPerformed(ActionEvent ev) {
+                if (renderExecutor != null && !renderExecutor.isShutdown()) {
+                    // Cancel the rendering process
+                    controller.cancelRender();
+                }
                 close();
             }
         });
@@ -310,7 +318,6 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         startButton.setEnabled(enabled);
-        closeButton.setEnabled(enabled);
     }
 
     private void layoutComponents() {
@@ -408,6 +415,13 @@ public class Panel extends JPanel implements DialogView {
             @Override
             public void windowClosed(WindowEvent ev) {
                 currentPanel = null;
+            }
+            @Override
+            public void windowClosing(WindowEvent ev) {
+                if (renderExecutor != null && !renderExecutor.isShutdown()) {
+                    // Cancel the rendering process
+                    controller.cancelRender();
+                }
             }
         });
 
