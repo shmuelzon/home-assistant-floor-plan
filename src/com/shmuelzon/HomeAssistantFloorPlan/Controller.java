@@ -39,6 +39,7 @@ public class Controller {
     public enum Quality {HIGH, LOW}
 
     private Home home;
+    private Camera camera;
     private Map<String, List<HomeLight>> lights;
     private Map<String, Map<String, List<HomeLight>>> lightsGroups;
     private List<String> lightsNames;
@@ -77,6 +78,7 @@ public class Controller {
 
     public Controller(Home home) {
         this.home = home;
+        camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
         lightsGroups = getLightsGroups(lights);
@@ -330,7 +332,6 @@ public class Controller {
     }
 
     private void build3dProjection() {
-        Camera camera = home.getCamera();
         cameraPosition = new Vector4d(camera.getX(), camera.getZ(), camera.getY(), 0);
 
         Transform3D yawRotation = new Transform3D();
@@ -398,7 +399,7 @@ public class Controller {
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
-        photoRenderer.render(image, home.getCamera(), null);
+        photoRenderer.render(image, camera, null);
 
         return image;
     }
