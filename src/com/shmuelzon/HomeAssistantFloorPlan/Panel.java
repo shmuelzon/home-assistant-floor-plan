@@ -389,9 +389,9 @@ public class Panel extends JPanel implements DialogView {
     }
 
     public void displayView(View parentView) {
-        // Check if a project is open
         if (controller.isProjectEmpty()) {
-            JOptionPane.showMessageDialog(null, "No project is open. Please open a project before proceeding.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.emptyProject.text"),
+                resource.getString("HomeAssistantFloorPlan.Panel.error.title"), JOptionPane.ERROR_MESSAGE);
             return;
         }
         if (currentPanel == this) {
