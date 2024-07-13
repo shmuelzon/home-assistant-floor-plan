@@ -75,13 +75,13 @@ public class Panel extends JPanel implements DialogView {
     private JLabel heightLabel;
     private JSpinner heightSpinner;
     private JLabel lightMixingModeLabel;
-    private JComboBox lightMixingModeComboBox;
+    private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
     private JLabel sensitivityLabel;
     private JSpinner sensitivitySpinner;
     private JLabel rendererLabel;
-    private JComboBox rendererComboBox;
+    private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
-    private JComboBox qualityComboBox;
+    private JComboBox<Controller.Quality> qualityComboBox;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
     private JButton outputDirectoryBrowseButton;
