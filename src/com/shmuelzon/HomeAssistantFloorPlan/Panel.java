@@ -62,7 +62,7 @@ import com.eteks.sweethome3d.viewcontroller.View;
 
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
-    private enum ActionType {BROWSE, START, CLOSE}
+    private enum ActionType {BROWSE, START, STOP, CLOSE}
 
     private static Panel currentPanel;
     private Controller controller;
@@ -119,17 +119,26 @@ public class Panel extends JPanel implements DialogView {
                         try {
                             controller.render();
                             JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.info.finishedRendering.text"));
+                        } catch (InterruptedException e) {
                         } catch (Exception e) {
                             JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + " " + e);
                         }
                         setComponentsEnabled(true);
+                        renderExecutor = null;
                     }
                 });
+            }
+        });
+        actions.put(ActionType.STOP, new ResourceAction(preferences, Panel.class, ActionType.STOP.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                stop();
             }
         });
         actions.put(ActionType.CLOSE, new ResourceAction(preferences, Panel.class, ActionType.CLOSE.name(), true) {
             @Override
             public void actionPerformed(ActionEvent ev) {
+                stop();
                 close();
             }
         });
@@ -330,8 +339,13 @@ public class Panel extends JPanel implements DialogView {
         qualityComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
-        startButton.setEnabled(enabled);
-        closeButton.setEnabled(enabled);
+        if (enabled) {
+            startButton.setAction(getActionMap().get(ActionType.START));
+            startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
+        } else {
+            startButton.setAction(getActionMap().get(ActionType.STOP));
+            startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.stopButton.text"));
+        }
     }
 
     private void layoutComponents() {
@@ -441,6 +455,10 @@ public class Panel extends JPanel implements DialogView {
             public void windowClosed(WindowEvent ev) {
                 currentPanel = null;
             }
+            @Override
+            public void windowClosing(WindowEvent ev) {
+                stop();
+            }
         });
 
         dialog.setVisible(true);
@@ -467,6 +485,12 @@ public class Panel extends JPanel implements DialogView {
         for (int i = 0; i < detectedLightsTree.getRowCount(); i++) {
             detectedLightsTree.expandRow(i);
         }
+    }
+
+    private void stop() {
+        if (renderExecutor != null)
+            renderExecutor.shutdownNow();
+        controller.stop();
     }
 
     private void close() {

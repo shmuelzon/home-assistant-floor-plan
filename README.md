@@ -181,7 +181,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [ ] Allow selecting date/time of render
 - [ ] Create multiple renders for multiple hours of the day and display in Home
       Assistant according to local time
-- [ ] Allow stopping rendering thread
+- [x] Allow stopping rendering thread
 - [ ] Allow enabling/disabling/configuring state-icon
 - [x] Support including sensors state-icons/labels for other items
 - [ ] Support fans with animated gif/png with css3 image rotation

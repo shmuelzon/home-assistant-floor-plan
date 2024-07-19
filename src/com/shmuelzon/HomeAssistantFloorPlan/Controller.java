@@ -5,6 +5,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
+import java.lang.InterruptedException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -59,6 +60,7 @@ public class Controller {
     private boolean useExistingRenders = true;
     private Renderer renderer = Renderer.YAFARAY;
     private Quality quality = Quality.HIGH;
+    private AbstractPhotoRenderer photoRenderer;
 
     class StateIcon {
         public String name;
@@ -177,11 +179,18 @@ public class Controller {
         this.quality = quality;
     }
 
+    public void stop() {
+        if (photoRenderer != null) {
+            photoRenderer.stop();
+            photoRenderer = null;
+        }
+    }
+
     public boolean isProjectEmpty() {
         return home == null || home.getFurniture().isEmpty();
     }
 
-    public void render() throws Exception {
+    public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
 
@@ -205,7 +214,7 @@ public class Controller {
         } catch (IOException e) {
             throw e;
         } finally {
-            restorLightsPower(lightsPower);
+            restoreLightsPower(lightsPower);
         }
     }
 
@@ -346,7 +355,7 @@ public class Controller {
         perspectiveTransform.mul(yawRotation);
     }
 
-    private String generateBaseRender() throws IOException {
+    private String generateBaseRender() throws IOException, InterruptedException {
         generateImage(new ArrayList<String>(), outputFloorplanDirectoryName + File.separator + "base.png");
         return String.format(
             "type: picture-elements\n" +
@@ -354,7 +363,7 @@ public class Controller {
             "elements:\n", renderHash("base.png"));
     }
 
-    private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException {
+    private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException, InterruptedException {
         List<String> groupLights = new ArrayList<String>(lightsGroups.get(group).keySet());
 
         List<List<String>> lightCombinations = getCombinations(groupLights);
@@ -368,7 +377,7 @@ public class Controller {
         return yaml;
     }
 
-    private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException {
+    private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException, InterruptedException {
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
@@ -390,16 +399,22 @@ public class Controller {
         }
     }
 
-    private BufferedImage renderScene() throws IOException {
+    private BufferedImage renderScene() throws IOException, InterruptedException {
         Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
             put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
             put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
         }};
-        AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
+        photoRenderer = AbstractPhotoRenderer.createInstance(
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, camera, null);
+        if (photoRenderer != null) {
+            photoRenderer.dispose();
+            photoRenderer = null;
+        }
+        if (Thread.interrupted())
+            throw new InterruptedException();
 
         return image;
     }
@@ -488,7 +503,7 @@ public class Controller {
             lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
-    private void restorLightsPower(Map<HomeLight, Float> lightsPower) {
+    private void restoreLightsPower(Map<HomeLight, Float> lightsPower) {
         for(HomeLight light : lightsPower.keySet()) {
             light.setPower(lightsPower.get(light));
         }
