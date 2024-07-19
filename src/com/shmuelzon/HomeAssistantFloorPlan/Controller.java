@@ -5,6 +5,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
+import java.lang.InterruptedException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -59,7 +60,7 @@ public class Controller {
     private boolean useExistingRenders = true;
     private Renderer renderer = Renderer.YAFARAY;
     private Quality quality = Quality.HIGH;
-    private volatile boolean isCanceled = false;
+    private AbstractPhotoRenderer photoRenderer;
 
     class StateIcon {
         public String name;
@@ -178,39 +179,38 @@ public class Controller {
         this.quality = quality;
     }
 
-    public void cancelRender() {
-        isCanceled = true;
-    }    
+    public void stop() {
+        if (photoRenderer != null) {
+            photoRenderer.stop();
+            photoRenderer = null;
+        }
+    }
 
     public boolean isProjectEmpty() {
         return home == null || home.getFurniture().isEmpty();
     }
 
-    public void render() throws Exception {
+    public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
-        isCanceled = false;
-    
+
         try {
             new File(outputRendersDirectoryName).mkdirs();
             new File(outputFloorplanDirectoryName).mkdirs();
+
             build3dProjection();
             String yaml = generateBaseRender();
             BufferedImage baseImage = ImageIO.read(Files.newInputStream(Paths.get(outputFloorplanDirectoryName + File.separator + "base.png")));
             
-            for (String group : lightsGroups.keySet()) {
-                // Check if the rendering process is canceled
-                if (isCanceled) break;
+            for (String group : lightsGroups.keySet())
                 yaml += generateGroupRenders(group, baseImage);
-            }
-            
-            if (!isCanceled) {
-                List<StateIcon> stateIcons = generateLightsStateIcons();
-                stateIcons.addAll(generateSensorsStateIcons());
-                moveStateIconsToAvoidIntersection(stateIcons);
-                yaml += generateStateIconsYaml(stateIcons);
-                Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
-            }
+
+            List<StateIcon> stateIcons = generateLightsStateIcons();
+            stateIcons.addAll(generateSensorsStateIcons());
+            moveStateIconsToAvoidIntersection(stateIcons);
+            yaml += generateStateIconsYaml(stateIcons);
+
+            Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (IOException e) {
             throw e;
         } finally {
@@ -355,7 +355,7 @@ public class Controller {
         perspectiveTransform.mul(yawRotation);
     }
 
-    private String generateBaseRender() throws IOException {
+    private String generateBaseRender() throws IOException, InterruptedException {
         generateImage(new ArrayList<String>(), outputFloorplanDirectoryName + File.separator + "base.png");
         return String.format(
             "type: picture-elements\n" +
@@ -363,14 +363,12 @@ public class Controller {
             "elements:\n", renderHash("base.png"));
     }
 
-    private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException {
+    private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException, InterruptedException {
         List<String> groupLights = new ArrayList<String>(lightsGroups.get(group).keySet());
+
         List<List<String>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
-    
         for (List<String> onLights : lightCombinations) {
-            // Check if the rendering process is canceled
-            if (isCanceled) break;
             String fileName = String.join("_", onLights) + ".png";
             BufferedImage image = generateImage(onLights, outputRendersDirectoryName + File.separator + fileName);
             generateFloorPlanImage(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName);
@@ -378,10 +376,8 @@ public class Controller {
         }
         return yaml;
     }
-    
-    private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException {
-        // Check if the rendering process is canceled
-        if (isCanceled) return null;
+
+    private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException, InterruptedException {
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
@@ -403,16 +399,22 @@ public class Controller {
         }
     }
 
-    private BufferedImage renderScene() throws IOException {
+    private BufferedImage renderScene() throws IOException, InterruptedException {
         Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
             put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
             put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
         }};
-        AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
+        photoRenderer = AbstractPhotoRenderer.createInstance(
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, camera, null);
+        if (photoRenderer != null) {
+            photoRenderer.dispose();
+            photoRenderer = null;
+        }
+        if (Thread.interrupted())
+            throw new InterruptedException();
 
         return image;
     }
