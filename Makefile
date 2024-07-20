@@ -28,7 +28,7 @@ $(J3D_VECMATH_JAR):
 	$(call download,$@,https://jogamp.org/deployment/java3d/1.6.0-final/vecmath.jar)
 
 build/%.class: src/%.java $(JAVA_DEPENDENCIES)
-	javac -classpath "dl/*:build" -target 1.5 -source 1.5 -d build $<
+	javac -classpath "dl/*:src" -target 1.5 -source 1.5 -d build $<
 
 build/%.properties: src/%.properties
 	mkdir -p $(dir $@)
