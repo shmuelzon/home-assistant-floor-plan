@@ -6,6 +6,7 @@ import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
 import java.lang.InterruptedException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -211,6 +212,8 @@ public class Controller {
             yaml += generateStateIconsYaml(stateIcons);
 
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+        } catch (ClosedByInterruptException e) {
+            throw new InterruptedException();
         } catch (IOException e) {
             throw e;
         } finally {
