@@ -2,6 +2,7 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Component;
 import java.awt.ComponentOrientation;
+import java.awt.EventQueue;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -123,8 +124,12 @@ public class Panel extends JPanel implements DialogView {
                         } catch (Exception e) {
                             JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + " " + e);
                         }
-                        setComponentsEnabled(true);
-                        renderExecutor = null;
+                        EventQueue.invokeLater(new Runnable() {
+                            public void run() {
+                                setComponentsEnabled(true);
+                                renderExecutor = null;
+                            }
+                        });
                     }
                 });
             }
