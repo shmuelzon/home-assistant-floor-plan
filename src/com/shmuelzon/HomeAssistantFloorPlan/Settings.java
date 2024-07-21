@@ -17,7 +17,11 @@ public class Settings {
             return defaultValue;
         return value;
     }
-
+    
+    public String get(String name) {
+        return get(name, null);
+    }
+    
     public boolean getBoolean(String name, boolean defaultValue) {
         return Boolean.valueOf(get(name, String.valueOf(defaultValue)));
     }
@@ -27,7 +31,7 @@ public class Settings {
     }
 
     public void set(String name, String value) {
-        String oldValue = get(PROPERTY_PREFIX + name, null);
+        String oldValue = get(PROPERTY_PREFIX + name);
         
         if (oldValue == value)
             return;
