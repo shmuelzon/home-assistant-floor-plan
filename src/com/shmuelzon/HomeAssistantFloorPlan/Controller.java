@@ -40,7 +40,17 @@ public class Controller {
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
 
+    private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
+    private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
+    private static final String CONTROLLER_LIGHT_MIXING_MODE = "lightMixingMode";
+    private static final String CONTROLLER_SENSITIVTY = "sensitivity";
+    private static final String CONTROLLER_RENDERER = "renderer";
+    private static final String CONTROLLER_QUALITY = "quality";
+    private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
+    private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
+
     private Home home;
+    private Settings settings;
     private Camera camera;
     private Map<String, List<HomeLight>> lights;
     private Map<String, Map<String, List<HomeLight>>> lightsGroups;
@@ -51,17 +61,17 @@ public class Controller {
     private Transform3D perspectiveTransform;
     private PropertyChangeSupport propertyChangeSupport;
     private int numberOfCompletedRenders;
-    private String outputDirectoryName = System.getProperty("user.home");
-    private String outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
-    private String outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
-    private int sensitivity = 10;
-    private LightMixingMode lightMixingMode = LightMixingMode.CSS;
-    private int renderWidth = 1024;
-    private int renderHeight = 576;
-    private boolean useExistingRenders = true;
-    private Renderer renderer = Renderer.YAFARAY;
-    private Quality quality = Quality.HIGH;
     private AbstractPhotoRenderer photoRenderer;
+    private int renderWidth;
+    private int renderHeight;
+    private LightMixingMode lightMixingMode;
+    private int sensitivity;
+    private Renderer renderer;
+    private Quality quality;
+    private String outputDirectoryName;
+    private String outputRendersDirectoryName;
+    private String outputFloorplanDirectoryName;
+    private boolean useExistingRenders;
 
     class StateIcon {
         public String name;
@@ -81,6 +91,8 @@ public class Controller {
 
     public Controller(Home home) {
         this.home = home;
+        settings = new Settings(home);
+        loadDefaultSettings();
         camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
@@ -88,6 +100,19 @@ public class Controller {
         lightsNames = new ArrayList<String>(lights.keySet());
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = getHomeAssistantEntities();
+    }
+
+    public void loadDefaultSettings() {
+        renderWidth = settings.getInteger(CONTROLLER_RENDER_WIDTH, 1024);
+        renderHeight = settings.getInteger(CONTROLLER_RENDER_HEIGHT, 576);
+        lightMixingMode = LightMixingMode.valueOf(settings.get(CONTROLLER_LIGHT_MIXING_MODE, LightMixingMode.CSS.name()));
+        sensitivity = settings.getInteger(CONTROLLER_SENSITIVTY, 10);
+        renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
+        quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
+        outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
+        outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
+        outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
+        useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -117,6 +142,7 @@ public class Controller {
 
     public void setRenderHeight(int renderHeight) {
         this.renderHeight = renderHeight;
+        settings.setInteger(CONTROLLER_RENDER_HEIGHT, renderHeight);
     }
 
     public int getRenderWidth() {
@@ -125,6 +151,7 @@ public class Controller {
 
     public void setRenderWidth(int renderWidth) {
         this.renderWidth = renderWidth;
+        settings.setInteger(CONTROLLER_RENDER_WIDTH, renderWidth);
     }
 
     public int getSensitivity() {
@@ -133,6 +160,7 @@ public class Controller {
 
     public void setSensitivity(int sensitivity) {
         this.sensitivity = sensitivity;
+        settings.setInteger(CONTROLLER_SENSITIVTY, sensitivity);
     }
 
     public LightMixingMode getLightMixingMode() {
@@ -143,6 +171,7 @@ public class Controller {
         LightMixingMode oldValue = this.lightMixingMode;
         this.lightMixingMode = lightMixingMode;
         lightsGroups = getLightsGroups(lights);
+        settings.set(CONTROLLER_LIGHT_MIXING_MODE, lightMixingMode.name());
         propertyChangeSupport.firePropertyChange(Property.LIGHT_MIXING_MODE.name(), oldValue, lightMixingMode);
     }
 
@@ -154,6 +183,7 @@ public class Controller {
         this.outputDirectoryName = outputDirectoryName;
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
+        settings.set(CONTROLLER_OUTPUT_DIRECTORY_NAME, outputDirectoryName);
     }
 
     public boolean getUserExistingRenders() {
@@ -162,6 +192,7 @@ public class Controller {
 
     public void setUserExistingRenders(boolean useExistingRenders) {
         this.useExistingRenders = useExistingRenders;
+        settings.setBoolean(CONTROLLER_USE_EXISTING_RENDERS, useExistingRenders);
     }
 
     public Renderer getRenderer() {
@@ -170,6 +201,7 @@ public class Controller {
 
     public void setRenderer(Renderer renderer) {
         this.renderer = renderer;
+        settings.set(CONTROLLER_RENDERER, renderer.name());
     }
 
     public Quality getQuality() {
@@ -178,6 +210,7 @@ public class Controller {
 
     public void setQuality(Quality quality) {
         this.quality = quality;
+        settings.set(CONTROLLER_QUALITY, quality.name());
     }
 
     public void stop() {
