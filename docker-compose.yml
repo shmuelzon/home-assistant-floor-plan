@@ -1,0 +1,9 @@
+services:
+  plugin-builder:
+    image: home-assistant-floor-plan
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    entrypoint: ["make"]

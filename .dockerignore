@@ -1,0 +1,17 @@
+# Ignore .git directory
+.github/
+.vim/
+
+# Ignore build artifacts
+build/
+
+# Ignore downloaded dependencies (these will be re-downloaded in the container)
+dl/
+
+# Ignore documentation
+doc/
+
+# General ignores
+*.swp
+*.swo
+tags
