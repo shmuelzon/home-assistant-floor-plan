@@ -69,6 +69,7 @@ public class Controller {
     private Renderer renderer;
     private Quality quality;
     private String outputDirectoryName;
+    private Long renderDateTime;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
@@ -94,6 +95,7 @@ public class Controller {
         settings = new Settings(home);
         loadDefaultSettings();
         camera = home.getCamera().clone();
+        renderDateTime = camera.getTime();
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
         lightsGroups = getLightsGroups(lights);
@@ -211,6 +213,14 @@ public class Controller {
     public void setQuality(Quality quality) {
         this.quality = quality;
         settings.set(CONTROLLER_QUALITY, quality.name());
+    }
+
+    public Long getRenderDateTime() {
+        return renderDateTime;
+    }
+
+    public void setRenderDateTime(Long renderDateTime) {
+        this.renderDateTime = renderDateTime;
     }
 
     public void stop() {
@@ -419,6 +429,7 @@ public class Controller {
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
         }
         prepareScene(onLights);
+        camera.setTime(renderDateTime);
         BufferedImage image = renderScene();
         File imageFile = new File(fileName);
         ImageIO.write(image, "png", imageFile);
