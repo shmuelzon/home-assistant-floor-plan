@@ -178,7 +178,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 ## Possible Future Enhancements
 - [x] Allow selecting renderer (SunFlow/Yafaray)
 - [x] Allow selecting quality (high/low)
-- [ ] Allow selecting date/time of render
+- [x] Allow selecting date/time of render
 - [ ] Create multiple renders for multiple hours of the day and display in Home
       Assistant according to local time
 - [x] Allow stopping rendering thread
