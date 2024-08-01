@@ -12,10 +12,29 @@ J3D_VECMATH_JAR=dl/vecmath.jar
 JAVA_DEPENDENCIES=$(SWEET_HOME_JAR) $(J3D_CORE_JAR) $(J3D_VECMATH_JAR)
 PLUGIN=HomeAssistantFloorPlanPlugin-$(VERSION).sh3p
 
+DOCKER_CMD :=
+ifeq ($(wildcard /.dockerenv),)
+ifneq ($(shell which docker),)
+  DOCKER_CMD := docker run $(if $(TERM),-it )--rm --user $(shell id -u):$(shell id -g) --volume $(PWD):$(PWD) --workdir $(PWD) eclipse-temurin:8-noble
+endif
+endif
+
+ifneq ($(V),)
+  Q :=
+define exec
+	$3
+endef
+else
+  Q := @
+define exec
+	@echo "$1\\t$2"
+	@output=`$3 2>&1` || (echo "$$output"; false)
+endef
+endif
+
 define download
-	@echo "Downloading $(notdir $1)"
-	@mkdir -p dl/
-	@wget -4 --quiet --show-progress -O $1 $2
+	$(Q)mkdir -p dl/
+	$(call exec,DL,$2,wget -4 --quiet --show-progress -O $1 $2)
 endef
 
 $(SWEET_HOME_JAR):
@@ -28,28 +47,28 @@ $(J3D_VECMATH_JAR):
 	$(call download,$@,https://jogamp.org/deployment/java3d/1.6.0-final/vecmath.jar)
 
 build/%.class: src/%.java $(JAVA_DEPENDENCIES)
-	javac -classpath "dl/*:src" -target 1.5 -source 1.5 -d build $<
+	$(call exec,JAVA,$@,$(DOCKER_CMD) javac -classpath "dl/*:src" -target 1.5 -source 1.5 -Xlint:-options -d build $<)
 
 build/%.properties: src/%.properties
-	mkdir -p $(dir $@)
-	envsubst < $< > $@
+	$(Q)mkdir -p $(dir $@)
+	$(call exec,GEN,$@,envsubst < $< > $@)
 
 $(PLUGIN): $(OBJS)
-	jar -cf $@ -C build .
+	$(call exec,JAR,$@,$(DOCKER_CMD) jar -cf $@ -C build .)
 
 build: $(PLUGIN)
 
 clean:
-	rm -rf build *.sh3p
+	$(Q)rm -rf build *.sh3p
 
 distclean: clean
-	rm -rf dl
+	$(Q)rm -rf dl
 
 install: $(PLUGIN)
-	install -D $(PLUGIN) -t ~/.eteks/sweethome3d/plugins/
+	$(call exec,INSTALL,$(PLUGIN),install -D $(PLUGIN) -t ~/.eteks/sweethome3d/plugins/)
 
 test: install
-	java -jar $(SWEET_HOME_JAR)
+	$(Q)java -jar $(SWEET_HOME_JAR)
 
 .DEFAULT_GOAL:=build
 .PHONY:=build clean distclean install test
