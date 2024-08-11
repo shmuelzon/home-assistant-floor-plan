@@ -279,30 +279,15 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        outputDirectoryLabel = new JLabel();
-        outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
-        outputDirectoryTextField = new JTextField();
-        outputDirectoryTextField.setText(controller.getOutputDirectory());
-        outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
-            @Override
-            public void executeUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
-                controller.setOutputDirectory(outputDirectoryTextField.getText());
-            }
-        });
-        outputDirectoryBrowseButton = new JButton(actionMap.get(ActionType.BROWSE));
-        outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
-        outputDirectoryChooser = new FileContentManager(preferences);
-
-        renderTimeLabel= new JLabel();
+        renderTimeLabel = new JLabel();
         renderTimeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.text"));
-        SpinnerDateModel model = new SpinnerDateModel();
+        final SpinnerDateModel model = new SpinnerDateModel();
         renderTimeSpinner = new JSpinner(model);
-        JSpinner.DateEditor editor = new JSpinner.DateEditor(renderTimeSpinner);
-        editor.getFormat().setTimeZone(TimeZone.getTimeZone("UTC")); // The time displayed in the normal PhotoEditor is also UTC in the picker
+        final JSpinner.DateEditor editor = new JSpinner.DateEditor(renderTimeSpinner);
+        editor.getFormat().setTimeZone(TimeZone.getTimeZone("UTC")); /* The time displayed in the normal PhotoEditor is also UTC in the picker */
         editor.getFormat().applyPattern("HH:mm dd/MM/yyyy");
         renderTimeSpinner.setEditor(editor);
-        DateFormatter formatter = (DateFormatter)editor.getTextField().getFormatter();
+        final DateFormatter formatter = (DateFormatter) editor.getTextField().getFormatter();
         formatter.setAllowsInvalid(false);
         formatter.setOverwriteMode(true);
         model.setValue(new Date(controller.getRenderDateTime()));
@@ -318,9 +303,24 @@ public class Panel extends JPanel implements DialogView {
         useExistingRendersCheckbox.setSelected(controller.getUserExistingRenders());
         useExistingRendersCheckbox.addItemListener(new ItemListener() {
             public void itemStateChanged(ItemEvent ev) {
-              controller.setUserExistingRenders(useExistingRendersCheckbox.isSelected());
+                controller.setUserExistingRenders(useExistingRendersCheckbox.isSelected());
             }
         });
+
+        outputDirectoryLabel = new JLabel();
+        outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
+        outputDirectoryTextField = new JTextField();
+        outputDirectoryTextField.setText(controller.getOutputDirectory());
+        outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
+                controller.setOutputDirectory(outputDirectoryTextField.getText());
+            }
+        });
+        outputDirectoryBrowseButton = new JButton(actionMap.get(ActionType.BROWSE));
+        outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
+        outputDirectoryChooser = new FileContentManager(preferences);
 
         progressBar = new JProgressBar() {
             @Override
@@ -375,19 +375,21 @@ public class Panel extends JPanel implements DialogView {
         Insets insets = new Insets(0, standardGap, 0, standardGap);
         int currentGridYIndex = 0;
 
-        // Detected lights caption
+        /* Detected lights caption */
         add(detectedLightsLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Detected lights tree
+        /* Detected lights tree */
         add(detectedLightsTree, new GridBagConstraints(
-            0, ++currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Resolution
+        /* Resolution */
         add(widthLabel, new GridBagConstraints(
-            0, ++currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         widthLabel.setHorizontalAlignment(labelAlignment);
         add(widthSpinner, new GridBagConstraints(
@@ -400,10 +402,11 @@ public class Panel extends JPanel implements DialogView {
         add(heightSpinner, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Light mixing mode and sensitivity
+        /* Light mixing mode and sensitivity */
         add(lightMixingModeLabel, new GridBagConstraints(
-            0, ++currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(lightMixingModeComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -414,10 +417,11 @@ public class Panel extends JPanel implements DialogView {
         add(sensitivitySpinner, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Renderer + Quality
+        /* Renderer + Quality */
         add(rendererLabel, new GridBagConstraints(
-            0, ++currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(rendererComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -428,10 +432,20 @@ public class Panel extends JPanel implements DialogView {
         add(qualityComboBox, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Output directory
+        /* Time selection */
+        add(renderTimeLabel, new GridBagConstraints(
+                0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+                GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(renderTimeSpinner, new GridBagConstraints(
+                1, currentGridYIndex, 3, 1, 0, 0, GridBagConstraints.CENTER,
+                GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(
-            0, ++currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryTextField, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
@@ -439,23 +453,17 @@ public class Panel extends JPanel implements DialogView {
         add(outputDirectoryBrowseButton, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Time selection
-        add(renderTimeLabel, new GridBagConstraints(
-                0, ++currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-                GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeSpinner, new GridBagConstraints(
-                1, currentGridYIndex, 3, 1, 0, 0, GridBagConstraints.CENTER,
-                GridBagConstraints.HORIZONTAL, insets, 0, 0));
-
-        // Options
+        /* Options */
         add(useExistingRendersCheckbox, new GridBagConstraints(
-            0, ++currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        // Progress bar
+        /* Progress bar */
         add(progressBar, new GridBagConstraints(
-            0, ++currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
     }
 
