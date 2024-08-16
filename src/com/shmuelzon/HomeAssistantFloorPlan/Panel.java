@@ -15,10 +15,12 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -37,14 +39,15 @@ import javax.swing.JProgressBar;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.JTree;
+import javax.swing.SpinnerDateModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.LineBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicTreeUI;
+import javax.swing.text.DateFormatter;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -85,6 +88,8 @@ public class Panel extends JPanel implements DialogView {
     private JComboBox<Controller.Quality> qualityComboBox;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
+    private JLabel renderTimeLabel;
+    private JSpinner renderTimeSpinner;
     private JButton outputDirectoryBrowseButton;
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
@@ -274,27 +279,23 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        outputDirectoryLabel = new JLabel();
-        outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
-        outputDirectoryTextField = new JTextField();
-        outputDirectoryTextField.setText(controller.getOutputDirectory());
-        outputDirectoryTextField.getDocument().addDocumentListener(new DocumentListener() {
-            public void insertUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
-                controller.setOutputDirectory(outputDirectoryTextField.getText());
-            }
-            public void removeUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
-                controller.setOutputDirectory(outputDirectoryTextField.getText());
-            }
-            public void changedUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
-                controller.setOutputDirectory(outputDirectoryTextField.getText());
+        renderTimeLabel = new JLabel();
+        renderTimeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.text"));
+        final SpinnerDateModel model = new SpinnerDateModel();
+        renderTimeSpinner = new JSpinner(model);
+        final JSpinner.DateEditor editor = new JSpinner.DateEditor(renderTimeSpinner);
+        editor.getFormat().setTimeZone(TimeZone.getTimeZone("UTC"));
+        editor.getFormat().applyPattern("HH:mm dd/MM/yyyy");
+        renderTimeSpinner.setEditor(editor);
+        final DateFormatter formatter = (DateFormatter)editor.getTextField().getFormatter();
+        formatter.setAllowsInvalid(false);
+        formatter.setOverwriteMode(true);
+        model.setValue(new Date(controller.getRenderDateTime()));
+        renderTimeSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                controller.setRenderDateTime(((Date) renderTimeSpinner.getValue()).getTime());
             }
         });
-        outputDirectoryBrowseButton = new JButton(actionMap.get(ActionType.BROWSE));
-        outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
-        outputDirectoryChooser = new FileContentManager(preferences);
 
         useExistingRendersCheckbox = new JCheckBox();
         useExistingRendersCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.text"));
@@ -302,9 +303,24 @@ public class Panel extends JPanel implements DialogView {
         useExistingRendersCheckbox.setSelected(controller.getUserExistingRenders());
         useExistingRendersCheckbox.addItemListener(new ItemListener() {
             public void itemStateChanged(ItemEvent ev) {
-              controller.setUserExistingRenders(useExistingRendersCheckbox.isSelected());
+                controller.setUserExistingRenders(useExistingRendersCheckbox.isSelected());
             }
         });
+
+        outputDirectoryLabel = new JLabel();
+        outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
+        outputDirectoryTextField = new JTextField();
+        outputDirectoryTextField.setText(controller.getOutputDirectory());
+        outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
+                controller.setOutputDirectory(outputDirectoryTextField.getText());
+            }
+        });
+        outputDirectoryBrowseButton = new JButton(actionMap.get(ActionType.BROWSE));
+        outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
+        outputDirectoryChooser = new FileContentManager(preferences);
 
         progressBar = new JProgressBar() {
             @Override
@@ -357,80 +373,97 @@ public class Panel extends JPanel implements DialogView {
         int labelAlignment = OperatingSystem.isMacOSX() ? JLabel.TRAILING : JLabel.LEADING;
         int standardGap = Math.round(2 * SwingTools.getResolutionScale());
         Insets insets = new Insets(0, standardGap, 0, standardGap);
+        int currentGridYIndex = 0;
 
-        /* First row (Detected lights caption) */
+        /* Detected lights caption */
         add(detectedLightsLabel, new GridBagConstraints(
-            0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Second row (Detected lights tree) */
+        /* Detected lights tree */
         add(detectedLightsTree, new GridBagConstraints(
-            0, 1, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Third row (Resolution) */
+        /* Resolution */
         add(widthLabel, new GridBagConstraints(
-            0, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         widthLabel.setHorizontalAlignment(labelAlignment);
         add(widthSpinner, new GridBagConstraints(
-            1, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(heightLabel, new GridBagConstraints(
-            2, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         heightLabel.setHorizontalAlignment(labelAlignment);
         add(heightSpinner, new GridBagConstraints(
-            3, 2, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Fourth row (Light mixing mode and sensitivity) */
+        /* Light mixing mode and sensitivity */
         add(lightMixingModeLabel, new GridBagConstraints(
-            0, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(lightMixingModeComboBox, new GridBagConstraints(
-            1, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(sensitivityLabel, new GridBagConstraints(
-            2, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(sensitivitySpinner, new GridBagConstraints(
-            3, 3, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Fifth row (Renderer + Quality) */
+        /* Renderer + Quality */
         add(rendererLabel, new GridBagConstraints(
-            0, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(rendererComboBox, new GridBagConstraints(
-            1, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(qualityLabel, new GridBagConstraints(
-            2, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(qualityComboBox, new GridBagConstraints(
-            3, 4, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Sixth row (Output directory) */
+        /* Time selection */
+        add(renderTimeLabel, new GridBagConstraints(
+                0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+                GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(renderTimeSpinner, new GridBagConstraints(
+                1, currentGridYIndex, 3, 1, 0, 0, GridBagConstraints.CENTER,
+                GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(
-            0, 5, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryTextField, new GridBagConstraints(
-            1, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(outputDirectoryBrowseButton, new GridBagConstraints(
-            3, 5, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Seventh row (Options) */
+        /* Options */
         add(useExistingRendersCheckbox, new GridBagConstraints(
-            0, 6, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
 
-        /* Eighth row (progress bar) */
+        /* Progress bar */
         add(progressBar, new GridBagConstraints(
-            0, 7, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
     }
 
@@ -443,7 +476,7 @@ public class Panel extends JPanel implements DialogView {
         if (currentPanel == this) {
             SwingUtilities.getWindowAncestor(Panel.this).toFront();
             return;
-        } 
+        }
         if (currentPanel != null)
             currentPanel.close();
         final JOptionPane optionPane = new JOptionPane(this,

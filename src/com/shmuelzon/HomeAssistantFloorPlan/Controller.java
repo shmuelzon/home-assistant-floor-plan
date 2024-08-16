@@ -46,6 +46,7 @@ public class Controller {
     private static final String CONTROLLER_SENSITIVTY = "sensitivity";
     private static final String CONTROLLER_RENDERER = "renderer";
     private static final String CONTROLLER_QUALITY = "quality";
+    private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
 
@@ -68,6 +69,7 @@ public class Controller {
     private int sensitivity;
     private Renderer renderer;
     private Quality quality;
+    private long renderDateTime;
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
@@ -92,8 +94,8 @@ public class Controller {
     public Controller(Home home) {
         this.home = home;
         settings = new Settings(home);
-        loadDefaultSettings();
         camera = home.getCamera().clone();
+        loadDefaultSettings();
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
         lightsGroups = getLightsGroups(lights);
@@ -109,6 +111,7 @@ public class Controller {
         sensitivity = settings.getInteger(CONTROLLER_SENSITIVTY, 10);
         renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
+        renderDateTime = settings.getLong(CONTROLLER_RENDER_TIME, camera.getTime());
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
@@ -213,6 +216,15 @@ public class Controller {
         settings.set(CONTROLLER_QUALITY, quality.name());
     }
 
+    public long getRenderDateTime() {
+        return renderDateTime;
+    }
+
+    public void setRenderDateTime(long renderDateTime) {
+        this.renderDateTime = renderDateTime;
+        settings.setLong(CONTROLLER_RENDER_TIME, renderDateTime);
+    }
+
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();
@@ -231,6 +243,7 @@ public class Controller {
         try {
             new File(outputRendersDirectoryName).mkdirs();
             new File(outputFloorplanDirectoryName).mkdirs();
+            camera.setTime(renderDateTime);
 
             build3dProjection();
             String yaml = generateBaseRender();
