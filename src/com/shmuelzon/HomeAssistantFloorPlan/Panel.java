@@ -284,10 +284,10 @@ public class Panel extends JPanel implements DialogView {
         final SpinnerDateModel model = new SpinnerDateModel();
         renderTimeSpinner = new JSpinner(model);
         final JSpinner.DateEditor editor = new JSpinner.DateEditor(renderTimeSpinner);
-        editor.getFormat().setTimeZone(TimeZone.getTimeZone("UTC")); /* The time displayed in the normal PhotoEditor is also UTC in the picker */
+        editor.getFormat().setTimeZone(TimeZone.getTimeZone("UTC"));
         editor.getFormat().applyPattern("HH:mm dd/MM/yyyy");
         renderTimeSpinner.setEditor(editor);
-        final DateFormatter formatter = (DateFormatter) editor.getTextField().getFormatter();
+        final DateFormatter formatter = (DateFormatter)editor.getTextField().getFormatter();
         formatter.setAllowsInvalid(false);
         formatter.setOverwriteMode(true);
         model.setValue(new Date(controller.getRenderDateTime()));
