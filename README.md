@@ -98,6 +98,16 @@ the room they're located in. Please verify the list matches your expectations.
 The progress bar at the bottom will indicate how many images need to be rendered
 for the complete floor plan and will progress as they are ready.
 
+You can also double-click on any entity from the list to reveal additional
+settings that allow you to customize the entity according to your needs.
+
+<img src="doc/entityOptions.png" />
+
+* Display type - Configure how the entity is displayed on the floorplan, see
+  [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
+* Tap Action - Define what to do when the entity is tapped/clicked on, see
+  [Tap Action](https://www.home-assistant.io/dashboards/actions/#tap-action)
+
 ## Preparation
 
 * Set each light in SW3D with the entity name of Home Assistant, i.e.,
@@ -184,7 +194,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [ ] Create multiple renders for multiple hours of the day and display in Home
       Assistant according to local time
 - [x] Allow stopping rendering thread
-- [ ] Allow enabling/disabling/configuring state-icon
+- [X] Allow enabling/disabling/configuring state-icon
 - [x] Support including sensors state-icons/labels for other items
 - [ ] Support fans with animated gif/png with css3 image rotation
 - [x] Make sure state-icons/labels do not overlap

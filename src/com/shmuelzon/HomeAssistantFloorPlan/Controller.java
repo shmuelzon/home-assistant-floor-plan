@@ -39,6 +39,8 @@ public class Controller {
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
+    public enum EntityDisplayType {BADGE, ICON, LABEL}
+    public enum EntityTapAction {MORE_INFO, NONE, TOGGLE}
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
@@ -49,6 +51,8 @@ public class Controller {
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
+    private static final String CONTROLLER_ENTITY_DISPLAY_TYPE = "displayType";
+    private static final String CONTROLLER_ENTITY_TAP_ACTION = "tapAction";
 
     private Home home;
     private Settings settings;
@@ -57,7 +61,7 @@ public class Controller {
     private Map<String, Map<String, List<HomeLight>>> lightsGroups;
     private List<String> lightsNames;
     private Map<HomeLight, Float> lightsPower;
-    private List<HomePieceOfFurniture> homeAssistantEntities;
+    private Map<String, Entity> homeAssistantEntities;
     private Vector4d cameraPosition;
     private Transform3D perspectiveTransform;
     private PropertyChangeSupport propertyChangeSupport;
@@ -75,18 +79,18 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
 
-    class StateIcon {
+    private class Entity {
         public String name;
         public Point2d position;
-        public String type;
-        public String action;
+        public EntityDisplayType displayType;
+        public EntityTapAction tapAction;
         public String title;
 
-        public StateIcon(String name, Point2d position, String type, String action, String title) {
+        public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityTapAction defaultTapAction, String title) {
             this.name = name;
             this.position = position;
-            this.type = type;
-            this.action = action;
+            this.displayType = EntityDisplayType.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType.name()));
+            this.tapAction = EntityTapAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction.name()));
             this.title = title;
         }
     }
@@ -95,13 +99,14 @@ public class Controller {
         this.home = home;
         settings = new Settings(home);
         camera = home.getCamera().clone();
-        loadDefaultSettings();
         propertyChangeSupport = new PropertyChangeSupport(this);
         lights = getEnabledLights();
-        lightsGroups = getLightsGroups(lights);
         lightsNames = new ArrayList<String>(lights.keySet());
+        loadDefaultSettings();
+        lightsGroups = getLightsGroups(lights);
         lightsPower = getLightsPower(lights);
-        homeAssistantEntities = getHomeAssistantEntities();
+        build3dProjection();
+        homeAssistantEntities = generateHomeAssistantEntities();
     }
 
     public void loadDefaultSettings() {
@@ -225,6 +230,24 @@ public class Controller {
         settings.setLong(CONTROLLER_RENDER_TIME, renderDateTime);
     }
 
+    public EntityDisplayType getEntityDisplayType(String entityName) {
+        return homeAssistantEntities.get(entityName).displayType;
+    }
+
+    public void setEntityDisplayType(String entityName, EntityDisplayType displayType) {
+        homeAssistantEntities.get(entityName).displayType = displayType;
+        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, displayType.name());
+    }
+
+    public EntityTapAction getEntityTapAction(String entityName) {
+        return homeAssistantEntities.get(entityName).tapAction;
+    }
+
+    public void setEntityTapAction(String entityName, EntityTapAction tapAction) {
+        homeAssistantEntities.get(entityName).tapAction = tapAction;
+        settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, tapAction.name());
+    }
+
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();
@@ -245,17 +268,14 @@ public class Controller {
             new File(outputFloorplanDirectoryName).mkdirs();
             camera.setTime(renderDateTime);
 
-            build3dProjection();
             String yaml = generateBaseRender();
             BufferedImage baseImage = ImageIO.read(Files.newInputStream(Paths.get(outputFloorplanDirectoryName + File.separator + "base.png")));
             
             for (String group : lightsGroups.keySet())
                 yaml += generateGroupRenders(group, baseImage);
 
-            List<StateIcon> stateIcons = generateLightsStateIcons();
-            stateIcons.addAll(generateSensorsStateIcons());
-            moveStateIconsToAvoidIntersection(stateIcons);
-            yaml += generateStateIconsYaml(stateIcons);
+            moveEntityIconsToAvoidIntersection();
+            yaml += generateEntitiesYaml();
 
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (ClosedByInterruptException e) {
@@ -587,9 +607,20 @@ public class Controller {
         return new Point2d((objectPosition.x * 0.5 + 0.5) * renderWidth, (objectPosition.y * 0.5 + 0.5) * renderHeight);
     }
 
-    private String generateStateIconYaml(String name, Point2d position, String type, String action, String title) {
+    private String generateEntityYaml(Entity entity) {
+        final Map<EntityDisplayType, String> entityDisplayTypeToYamlString = new HashMap<EntityDisplayType, String>() {{
+            put(EntityDisplayType.BADGE, "state-badge");
+            put(EntityDisplayType.ICON, "state-icon");
+            put(EntityDisplayType.LABEL, "state-label");
+        }};
+        final Map<EntityTapAction, String> entityTapActionToYamlString = new HashMap<EntityTapAction, String>() {{
+            put(EntityTapAction.MORE_INFO, "more-info");
+            put(EntityTapAction.NONE, "none");
+            put(EntityTapAction.TOGGLE, "toggle");
+        }};
+
         String yaml = String.format(Locale.US,
-            "  - type: state-%s\n" +
+            "  - type: %s\n" +
             "    entity: %s\n" +
             "    title: %s\n" +
             "    style:\n" +
@@ -597,41 +628,45 @@ public class Controller {
             "      left: %.2f%%\n" +
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
-            "      background-color: rgba(255, 255, 255, 0.3)\n",
-            type, name, title, 100.0 * (position.y / renderHeight), 100.0 * (position.x / renderWidth));
-
-        if (action != null) {
-            yaml += String.format(
-                "    tap_action:\n" +
-                "      action: %s\n", action);
-        }
+            "      background-color: rgba(255, 255, 255, 0.3)\n" +
+            "    tap_action:\n" +
+            "      action: %s\n",
+            entityDisplayTypeToYamlString.get(entity.displayType), entity.name, entity.title,
+            100.0 * (entity.position.y / renderHeight), 100.0 * (entity.position.x / renderWidth),
+            entityTapActionToYamlString.get(entity.tapAction));
 
         return yaml;
     }
 
-    private String generateStateIconsYaml(List<StateIcon> stateIcons) {
+    private String generateEntitiesYaml() {
         String yaml = "";
 
-        for (StateIcon stateIcon : stateIcons)
-            yaml += generateStateIconYaml(stateIcon.name, stateIcon.position, stateIcon.type, stateIcon.action, stateIcon.title);
+        for (Entity entity : homeAssistantEntities.values())
+            yaml += generateEntityYaml(entity);
 
         return yaml;
     }
 
-    private List<StateIcon> generateLightsStateIcons() {
-        List<StateIcon> stateIcons = new ArrayList<StateIcon>();
+    private Map<String, Entity> generateHomeAssistantEntities() {
+        Map<String, Entity> homeAssistantEntities = new HashMap<String, Entity>();
 
+        generateLightEntities(homeAssistantEntities);
+        generateSensorEntities(homeAssistantEntities);
+
+        return homeAssistantEntities;
+    }
+
+    private void generateLightEntities(Map<String, Entity> homeAssistantEntities) {
         for (List<HomeLight> lightsList : lights.values()) {
             Point2d lightsCenter = new Point2d();
             for (HomeLight light : lightsList )
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            stateIcons.add(new StateIcon(lightsList.get(0).getName(), lightsCenter, "icon", "toggle",
+            String name = lightsList.get(0).getName();
+            homeAssistantEntities.put(name, new Entity(name, lightsCenter, EntityDisplayType.ICON, EntityTapAction.TOGGLE,
                 lightsList.get(0).getDescription()));
         }
-
-        return stateIcons;
     }
 
     private boolean isHomeAssistantEntityActionable(String name) {
@@ -649,19 +684,19 @@ public class Controller {
         return false;
     }
 
-    private List<StateIcon> generateSensorsStateIcons() {
-        List<StateIcon> stateIcons = new ArrayList<StateIcon>();
-
-        for (HomePieceOfFurniture piece : homeAssistantEntities) {
+    private void generateSensorEntities(Map<String, Entity> homeAssistantEntities) {
+        for (HomePieceOfFurniture piece : getHomeAssistantEntities()) {
             Point2d location = getFurniture2dLocation(piece);
-            stateIcons.add(new StateIcon(piece.getName(), location, piece.getName().startsWith("sensor.") ? "label" : "icon",
-                isHomeAssistantEntityActionable(piece.getName()) ? "toggle" : null, piece.getDescription()));
-        }
+            String name = piece.getName();
 
-        return stateIcons;
+            homeAssistantEntities.put(name, new Entity(name, location,
+                name.startsWith("sensor.") ? EntityDisplayType.LABEL : EntityDisplayType.ICON,
+                isHomeAssistantEntityActionable(piece.getName()) ?  EntityTapAction.TOGGLE : EntityTapAction.MORE_INFO,
+                piece.getDescription()));
+        }
     }
 
-    private boolean doStateIconsIntersect(StateIcon first, StateIcon second) {
+    private boolean doStateIconsIntersect(Entity first, Entity second) {
         final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
 
         double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
@@ -669,46 +704,46 @@ public class Controller {
         return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
     }
 
-    private boolean doesStateIconIntersectWithSet(StateIcon stateIcon, Set<StateIcon> stateIcons) {
-        for (StateIcon other : stateIcons) {
-            if (doStateIconsIntersect(stateIcon, other))
+    private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
+        for (Entity other : entities) {
+            if (doStateIconsIntersect(entity, other))
                 return true;
         }
         return false;
     }
 
-    private Set<StateIcon> setWithWhichStateIconIntersects(StateIcon stateIcon, List<Set<StateIcon>> stateIcons) {
-        for (Set<StateIcon> set : stateIcons) {
-            if (doesStateIconIntersectWithSet(stateIcon, set))
+    private Set<Entity> setWithWhichStateIconIntersects(Entity entity, List<Set<Entity>> entities) {
+        for (Set<Entity> set : entities) {
+            if (doesStateIconIntersectWithSet(entity, set))
                 return set;
         }
         return null;
     }
 
-    private StateIcon stateIconWithWhichStateIconIntersects(StateIcon stateIcon, List<StateIcon> stateIcons) {
-        for (StateIcon other : stateIcons) {
-            if (stateIcon == other)
+    private Entity stateIconWithWhichStateIconIntersects(Entity entity) {
+        for (Entity other : homeAssistantEntities.values()) {
+            if (entity == other)
                 continue;
-            if (doStateIconsIntersect(stateIcon, other))
+            if (doStateIconsIntersect(entity, other))
                 return other;
         }
         return null;
     }
 
-    private List<Set<StateIcon>> findIntersectingStateIcons(List<StateIcon> stateIcons) {
-        List<Set<StateIcon>> intersectingStateIcons = new ArrayList<Set<StateIcon>>();
+    private List<Set<Entity>> findIntersectingStateIcons() {
+        List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
 
-        for (StateIcon stateIcon : stateIcons) {
-            Set<StateIcon> interectingSet = setWithWhichStateIconIntersects(stateIcon, intersectingStateIcons);
+        for (Entity entity : homeAssistantEntities.values()) {
+            Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
             if (interectingSet != null) {
-                interectingSet.add(stateIcon);
+                interectingSet.add(entity);
                 continue;
             }
-            StateIcon intersectingStateIcon = stateIconWithWhichStateIconIntersects(stateIcon, stateIcons);
+            Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
             if (intersectingStateIcon == null)
                 continue;
-            Set<StateIcon> intersectingGroup = new HashSet<StateIcon>();
-            intersectingGroup.add(stateIcon);
+            Set<Entity> intersectingGroup = new HashSet<Entity>();
+            intersectingGroup.add(entity);
             intersectingGroup.add(intersectingStateIcon);
             intersectingStateIcons.add(intersectingGroup);
         }
@@ -716,33 +751,33 @@ public class Controller {
         return intersectingStateIcons;
     }
 
-    private Point2d getCenterOfStateIcons(Set<StateIcon> stateIcons) {
+    private Point2d getCenterOfStateIcons(Set<Entity> entities) {
         Point2d centerPostition = new Point2d();
-        for (StateIcon stateIcon : stateIcons )
-            centerPostition.add(stateIcon.position);
-        centerPostition.scale(1.0 / stateIcons.size());
+        for (Entity entity : entities )
+            centerPostition.add(entity.position);
+        centerPostition.scale(1.0 / entities.size());
         return centerPostition;
     }
-    private void separateStateIcons(Set<StateIcon> stateIcons) {
+
+    private void separateStateIcons(Set<Entity> entities) {
         final double STEP_SIZE = 2.0;
 
-        Point2d centerPostition = getCenterOfStateIcons(stateIcons);
+        Point2d centerPostition = getCenterOfStateIcons(entities);
 
-        for (StateIcon stateIcon : stateIcons) {
-            Vector2d direction = new Vector2d(stateIcon.position.x - centerPostition.x, stateIcon.position.y - centerPostition.y);
+        for (Entity entity : entities) {
+            Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
             direction.normalize();
             direction.scale(STEP_SIZE);
-            stateIcon.position.add(direction);
+            entity.position.add(direction);
         }
-
     }
 
-    private void moveStateIconsToAvoidIntersection(List<StateIcon> stateIcons) {
+    private void moveEntityIconsToAvoidIntersection() {
         for (int i = 0; i < 100; i++) {
-            List<Set<StateIcon>> intersectingStateIcons = findIntersectingStateIcons(stateIcons);
+            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons();
             if (intersectingStateIcons.size() == 0)
                 break;
-            for (Set<StateIcon> set : intersectingStateIcons)
+            for (Set<Entity> set : intersectingStateIcons)
                 separateStateIcons(set);
         }
     }
