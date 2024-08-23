@@ -4,7 +4,7 @@ SRC_DIR=src/com/shmuelzon/HomeAssistantFloorPlan
 SRCS=$(wildcard $(SRC_DIR)/*)
 OBJS=$(subst src/,build/,$(SRCS:.java=.class))
 
-SWEET_HOME_VERSION=7.4
+SWEET_HOME_VERSION=7.5
 
 SWEET_HOME_JAR=dl/SweetHome3D-$(SWEET_HOME_VERSION).jar
 J3D_CORE_JAR=dl/j3dcore.jar
