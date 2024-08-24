@@ -107,6 +107,8 @@ settings that allow you to customize the entity according to your needs.
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
 * Tap Action - Define what to do when the entity is tapped/clicked on, see
   [Tap Action](https://www.home-assistant.io/dashboards/actions/#tap-action)
+* Always on - Only for lights, set light as always on removing its icon and it
+  won't be affected by the matching Home Assistant state
 
 ## Preparation
 
