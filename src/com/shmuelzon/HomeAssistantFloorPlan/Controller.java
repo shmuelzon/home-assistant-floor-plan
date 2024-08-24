@@ -39,7 +39,7 @@ public class Controller {
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
-    public enum EntityDisplayType {BADGE, ICON, LABEL}
+    public enum EntityDisplayType {BADGE, ICON, LABEL, NONE}
     public enum EntityTapAction {MORE_INFO, NONE, TOGGLE}
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
@@ -618,6 +618,9 @@ public class Controller {
             put(EntityTapAction.NONE, "none");
             put(EntityTapAction.TOGGLE, "toggle");
         }};
+
+        if (entity.displayType == EntityDisplayType.NONE)
+            return "";
 
         String yaml = String.format(Locale.US,
             "  - type: %s\n" +
