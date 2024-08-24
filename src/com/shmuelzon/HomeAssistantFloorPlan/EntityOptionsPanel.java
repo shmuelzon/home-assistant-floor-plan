@@ -14,6 +14,7 @@ import java.util.ResourceBundle;
 import javax.swing.ActionMap;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -36,6 +37,8 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Controller.EntityDisplayType> displayTypeComboBox;
     private JLabel tapActionLabel;
     private JComboBox<Controller.EntityTapAction> tapActionComboBox;
+    private JLabel alwaysOnLabel;
+    private JCheckBox alwaysOnCheckbox;
     private JButton closeButton;
     private ResourceBundle resource;
 
@@ -97,6 +100,16 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        alwaysOnLabel = new JLabel();
+        alwaysOnLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.text"));
+        alwaysOnCheckbox = new JCheckBox();
+        alwaysOnCheckbox.setSelected(controller.getEntityAlwaysOn(entityName));
+        alwaysOnCheckbox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setEntityAlwaysOn(entityName, alwaysOnCheckbox.isSelected());
+            }
+        });
+
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
     }
@@ -123,6 +136,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         tapActionLabel.setHorizontalAlignment(labelAlignment);
         add(tapActionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Always on */
+        add(alwaysOnLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        alwaysOnLabel.setHorizontalAlignment(labelAlignment);
+        add(alwaysOnCheckbox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;

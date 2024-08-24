@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +36,7 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, LIGHT_MIXING_MODE}
+    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
@@ -53,6 +54,7 @@ public class Controller {
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
     private static final String CONTROLLER_ENTITY_DISPLAY_TYPE = "displayType";
     private static final String CONTROLLER_ENTITY_TAP_ACTION = "tapAction";
+    private static final String CONTROLLER_ENTITY_ALWAYS_ON = "alwaysOn";
 
     private Home home;
     private Settings settings;
@@ -85,6 +87,7 @@ public class Controller {
         public EntityDisplayType displayType;
         public EntityTapAction tapAction;
         public String title;
+        public boolean alwaysOn;
 
         public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityTapAction defaultTapAction, String title) {
             this.name = name;
@@ -92,6 +95,7 @@ public class Controller {
             this.displayType = EntityDisplayType.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType.name()));
             this.tapAction = EntityTapAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction.name()));
             this.title = title;
+            this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
         }
     }
 
@@ -135,11 +139,20 @@ public class Controller {
         return lightsGroups;
     }
 
+    private int getNumberOfControllableLights(Set<String> lights) {
+        int numberOfControllableLights = 0;
+
+        for (String lightName : lights)
+            numberOfControllableLights += getEntityAlwaysOn(lightName) ? 0 : 1;
+
+        return numberOfControllableLights;
+    }
+
     public int getNumberOfTotalRenders() {
         int numberOfTotalRenders = 1;
 
         for (Map<String, List<HomeLight>> groupLights : lightsGroups.values()) {
-            numberOfTotalRenders += (1 << groupLights.keySet().size()) - 1;
+            numberOfTotalRenders += (1 << getNumberOfControllableLights(groupLights.keySet())) - 1;
         }
         return numberOfTotalRenders;
     }
@@ -176,11 +189,11 @@ public class Controller {
     }
 
     public void setLightMixingMode(LightMixingMode lightMixingMode) {
-        LightMixingMode oldValue = this.lightMixingMode;
+        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         this.lightMixingMode = lightMixingMode;
         lightsGroups = getLightsGroups(lights);
         settings.set(CONTROLLER_LIGHT_MIXING_MODE, lightMixingMode.name());
-        propertyChangeSupport.firePropertyChange(Property.LIGHT_MIXING_MODE.name(), oldValue, lightMixingMode);
+        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
     public String getOutputDirectory() {
@@ -246,6 +259,17 @@ public class Controller {
     public void setEntityTapAction(String entityName, EntityTapAction tapAction) {
         homeAssistantEntities.get(entityName).tapAction = tapAction;
         settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, tapAction.name());
+    }
+
+    public boolean getEntityAlwaysOn(String entityName) {
+        return homeAssistantEntities.get(entityName).alwaysOn;
+    }
+
+    public void setEntityAlwaysOn(String entityName, boolean alwaysOn) {
+        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
+        homeAssistantEntities.get(entityName).alwaysOn = alwaysOn;
+        settings.setBoolean(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, alwaysOn);
+        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
     public void stop() {
@@ -461,7 +485,7 @@ public class Controller {
 
     private void prepareScene(List<String> onLights) {
         for (String lightName : lightsNames) {
-            boolean isOn = onLights.contains(lightName);
+            boolean isOn = onLights.contains(lightName) || getEntityAlwaysOn(lightName);
             for (HomeLight light : lights.get(lightName)) {
                 light.setPower(isOn ? lightsPower.get(light) : 0f);
             }
@@ -578,10 +602,21 @@ public class Controller {
         }
     }
 
+    private void removeAlwaysOnLights(List<String> inputList) {
+        ListIterator<String> iter = inputList.listIterator();
+
+        while (iter.hasNext()) {
+            if (getEntityAlwaysOn(iter.next()))
+                iter.remove();
+        }
+    }
+
     public List<List<String>> getCombinations(List<String> inputSet) {
         List<List<String>> combinations = new ArrayList<List<String>>();
+        List<String> inputList = new ArrayList<String>(inputSet);
 
-        _getCombinations(new ArrayList<String>(inputSet), 0, new ArrayList<String>(), combinations);
+        removeAlwaysOnLights(inputList);
+        _getCombinations(inputList, 0, new ArrayList<String>(), combinations);
 
         return combinations;
     }
@@ -619,7 +654,7 @@ public class Controller {
             put(EntityTapAction.TOGGLE, "toggle");
         }};
 
-        if (entity.displayType == EntityDisplayType.NONE)
+        if (entity.displayType == EntityDisplayType.NONE || entity.alwaysOn)
             return "";
 
         String yaml = String.format(Locale.US,

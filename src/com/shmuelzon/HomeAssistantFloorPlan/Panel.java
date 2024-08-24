@@ -15,6 +15,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -97,6 +98,23 @@ public class Panel extends JPanel implements DialogView {
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
+
+    private class EntityNode {
+        public String name;
+        public List<String> attributes;
+
+        public EntityNode(String name, List<String> attributes) {
+            this.name = name;
+            this.attributes = attributes;
+        }
+
+        @Override
+        public String toString() {
+            if (attributes.size() == 0)
+                return name;
+            return name + " " + attributes.toString();
+        }
+    }
 
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
         super(new GridBagLayout());
@@ -188,12 +206,12 @@ public class Panel extends JPanel implements DialogView {
                 if (!node.isLeaf())
                     return;
 
-                String entityName = (String)node.getUserObject();
-                openEntityOptionsPanel(entityName);
+                EntityNode entityNode = (EntityNode)node.getUserObject();
+                openEntityOptionsPanel(entityNode.name);
             }
         });
         buildLightsGroupsTree(lightsGroups);
-        controller.addPropertyChangeListener(Controller.Property.LIGHT_MIXING_MODE, new PropertyChangeListener() {
+        controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
                 buildLightsGroupsTree(controller.getLightsGroups());
                 detectedLightsTree.repaint();
@@ -355,7 +373,7 @@ public class Panel extends JPanel implements DialogView {
                 progressBar.setValue(((Number)ev.getNewValue()).intValue());
             }
         });
-        controller.addPropertyChangeListener(Controller.Property.LIGHT_MIXING_MODE, new PropertyChangeListener() {
+        controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
                 progressBar.setMaximum(controller.getNumberOfTotalRenders());
                 progressBar.setValue(0);
@@ -522,6 +540,15 @@ public class Panel extends JPanel implements DialogView {
         currentPanel = this;
     }
 
+    private EntityNode generateLightEntityNode(String lightName) {
+        List<String> attributes = new ArrayList<String>();
+
+        if (controller.getEntityAlwaysOn(lightName))
+            attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.alwaysOn.text"));
+
+        return new EntityNode(lightName, attributes);
+    }
+
     private void buildLightsGroupsTree(Map<String, Map<String, List<HomeLight>>> lightsGroups) {
         DefaultTreeModel model = (DefaultTreeModel)detectedLightsTree.getModel();
         DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
@@ -530,12 +557,15 @@ public class Panel extends JPanel implements DialogView {
         model.reload();
 
         for (String group : lightsGroups.keySet()) {
-            DefaultMutableTreeNode groupNode = new DefaultMutableTreeNode(group);
+            DefaultMutableTreeNode groupNode;
             if (lightsGroups.get(group).size() != 1 || lightsGroups.get(group).get(group) == null)
             {
+                groupNode = new DefaultMutableTreeNode(group);
                 for (String lightName : lightsGroups.get(group).keySet())
-                    groupNode.add(new DefaultMutableTreeNode(lightName));
+                    groupNode.add(new DefaultMutableTreeNode(generateLightEntityNode(lightName)));
             }
+            else
+                groupNode = new DefaultMutableTreeNode(generateLightEntityNode(group));
             model.insertNodeInto(groupNode, root, root.getChildCount());
         }
 
