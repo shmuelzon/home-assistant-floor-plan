@@ -69,6 +69,7 @@ public class Panel extends JPanel implements DialogView {
     private enum ActionType {BROWSE, START, STOP, CLOSE}
 
     private static Panel currentPanel;
+    private UserPreferences preferences;
     private Controller controller;
     private ResourceBundle resource;
     private ExecutorService renderExecutor;
@@ -99,6 +100,7 @@ public class Panel extends JPanel implements DialogView {
 
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
         super(new GridBagLayout());
+        this.preferences = preferences;
         this.controller = controller;
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
@@ -173,6 +175,23 @@ public class Panel extends JPanel implements DialogView {
                 }
             }
         };
+        detectedLightsTree.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (event.getClickCount() != 2)
+                    return;
+
+                TreePath selectedPath = detectedLightsTree.getSelectionPath();
+                if (selectedPath == null)
+                    return;
+
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode)selectedPath.getLastPathComponent();
+                if (!node.isLeaf())
+                    return;
+
+                String entityName = (String)node.getUserObject();
+                openEntityOptionsPanel(entityName);
+            }
+        });
         buildLightsGroupsTree(lightsGroups);
         controller.addPropertyChangeListener(Controller.Property.LIGHT_MIXING_MODE, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
@@ -523,6 +542,12 @@ public class Panel extends JPanel implements DialogView {
         for (int i = 0; i < detectedLightsTree.getRowCount(); i++) {
             detectedLightsTree.expandRow(i);
         }
+    }
+
+    /* Method to open the new panel */
+    private void openEntityOptionsPanel(String entityName) {
+        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, controller, entityName);
+        entityOptionsPanel.displayView(this);
     }
 
     private void stop() {
