@@ -13,6 +13,10 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.Cursor;
+import java.awt.Font;
+import java.awt.event.MouseEvent;
+import java.awt.Dimension;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
@@ -53,6 +57,7 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeCellRenderer;
 
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.UserPreferences;
@@ -193,6 +198,45 @@ public class Panel extends JPanel implements DialogView {
                 }
             }
         };
+
+        /* Custom renderer to make the text bold when hovering on leaf nodes (entities) */
+        DefaultTreeCellRenderer renderer = new DefaultTreeCellRenderer() {
+            private Font originalFont;
+            private Font boldFont;
+
+            @Override
+            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+                JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+
+                /* Apply custom styling only to leaf nodes (entities) */
+                if (leaf) {
+                    if (originalFont == null) {
+                        originalFont = label.getFont();
+                        boldFont = originalFont.deriveFont(Font.BOLD);
+                    }
+
+                    if (tree.getSelectionPath() != null && tree.getSelectionPath().equals(tree.getPathForRow(row))) {
+                        label.setFont(boldFont);
+                    } else {
+                        label.setFont(originalFont);
+                    }
+
+                    if (selected) {
+                        /* Avoid background color change */
+                        label.setBackground(tree.getBackground());
+                    }
+
+                    /* Ensure label preferred size can accommodate the full text */
+                    label.setPreferredSize(new Dimension(label.getPreferredSize().width + 20, label.getPreferredSize().height));
+                } else {
+                    /* Reset to original font for non-leaf nodes (groups) */
+                    label.setFont(originalFont);
+                }
+
+                return label;
+            }
+        };
+
         detectedLightsTree.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent event) {
                 if (event.getClickCount() != 2)
@@ -203,13 +247,31 @@ public class Panel extends JPanel implements DialogView {
                     return;
 
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode)selectedPath.getLastPathComponent();
-                if (!node.isLeaf())
+                if (!node.isLeaf() || !(node.getUserObject() instanceof EntityNode)) {
+                    /* Do nothing if not a leaf or not an EntityNode */
                     return;
+                }
 
                 EntityNode entityNode = (EntityNode)node.getUserObject();
                 openEntityOptionsPanel(entityNode.name);
             }
         });
+
+        /* Handling mouse movement to change cursor */
+        detectedLightsTree.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                TreePath path = detectedLightsTree.getPathForLocation(e.getX(), e.getY());
+                if (path != null) {
+                    detectedLightsTree.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    detectedLightsTree.setSelectionPath(path);
+                } else {
+                    detectedLightsTree.setCursor(Cursor.getDefaultCursor());
+                    detectedLightsTree.clearSelection();
+                }
+            }
+        });
+
         buildLightsGroupsTree(lightsGroups);
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
@@ -225,10 +287,10 @@ public class Panel extends JPanel implements DialogView {
                 return false;
             }
         });
-        DefaultTreeCellRenderer renderer = (DefaultTreeCellRenderer)detectedLightsTree.getCellRenderer();
-        renderer.setLeafIcon(null);
-        renderer.setOpenIcon(null);
-        renderer.setClosedIcon(null);
+        DefaultTreeCellRenderer defaultRenderer = (DefaultTreeCellRenderer)detectedLightsTree.getCellRenderer();
+        defaultRenderer.setLeafIcon(null);
+        defaultRenderer.setOpenIcon(null);
+        defaultRenderer.setClosedIcon(null);
         detectedLightsTree.setBorder(LineBorder.createGrayLineBorder());
 
         widthLabel = new JLabel();
