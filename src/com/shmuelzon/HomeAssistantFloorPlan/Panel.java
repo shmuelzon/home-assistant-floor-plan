@@ -2,15 +2,17 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Component;
 import java.awt.ComponentOrientation;
+import java.awt.Cursor;
 import java.awt.EventQueue;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
@@ -195,19 +197,32 @@ public class Panel extends JPanel implements DialogView {
         };
         detectedLightsTree.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent event) {
-                if (event.getClickCount() != 2)
-                    return;
-
                 TreePath selectedPath = detectedLightsTree.getSelectionPath();
                 if (selectedPath == null)
                     return;
 
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode)selectedPath.getLastPathComponent();
-                if (!node.isLeaf())
+                if (!node.isLeaf()) {
+                    detectedLightsTree.clearSelection();
                     return;
+                }
 
                 EntityNode entityNode = (EntityNode)node.getUserObject();
                 openEntityOptionsPanel(entityNode.name);
+            }
+        });
+        detectedLightsTree.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                TreePath path = detectedLightsTree.getPathForLocation(e.getX(), e.getY());
+
+                if (path != null && ((DefaultMutableTreeNode)path.getLastPathComponent()).isLeaf()) {
+                    detectedLightsTree.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    detectedLightsTree.setSelectionPath(path);
+                } else {
+                    detectedLightsTree.setCursor(Cursor.getDefaultCursor());
+                    detectedLightsTree.clearSelection();
+                }
             }
         });
         buildLightsGroupsTree(lightsGroups);
