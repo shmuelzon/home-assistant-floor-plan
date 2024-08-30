@@ -199,44 +199,6 @@ public class Panel extends JPanel implements DialogView {
             }
         };
 
-        /* Custom renderer to make the text bold when hovering on leaf nodes (entities) */
-        DefaultTreeCellRenderer renderer = new DefaultTreeCellRenderer() {
-            private Font originalFont;
-            private Font boldFont;
-
-            @Override
-            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-                JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-
-                /* Apply custom styling only to leaf nodes (entities) */
-                if (leaf) {
-                    if (originalFont == null) {
-                        originalFont = label.getFont();
-                        boldFont = originalFont.deriveFont(Font.BOLD);
-                    }
-
-                    if (tree.getSelectionPath() != null && tree.getSelectionPath().equals(tree.getPathForRow(row))) {
-                        label.setFont(boldFont);
-                    } else {
-                        label.setFont(originalFont);
-                    }
-
-                    if (selected) {
-                        /* Avoid background color change */
-                        label.setBackground(tree.getBackground());
-                    }
-
-                    /* Ensure label preferred size can accommodate the full text */
-                    label.setPreferredSize(new Dimension(label.getPreferredSize().width + 20, label.getPreferredSize().height));
-                } else {
-                    /* Reset to original font for non-leaf nodes (groups) */
-                    label.setFont(originalFont);
-                }
-
-                return label;
-            }
-        };
-
         detectedLightsTree.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent event) {
                 if (event.getClickCount() != 2)
