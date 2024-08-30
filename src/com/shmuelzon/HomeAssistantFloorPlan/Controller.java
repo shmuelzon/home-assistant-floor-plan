@@ -272,6 +272,15 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
+    public void resetEntitySettings(String entityName) {
+        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, null);
+        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
+        homeAssistantEntities = generateHomeAssistantEntities();
+        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
+    }
+
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();

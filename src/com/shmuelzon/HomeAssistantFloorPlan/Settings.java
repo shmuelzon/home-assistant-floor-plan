@@ -35,7 +35,7 @@ public class Settings {
     }
 
     public void set(String name, String value) {
-        String oldValue = get(PROPERTY_PREFIX + name);
+        String oldValue = get(name);
 
         if (oldValue == value)
             return;

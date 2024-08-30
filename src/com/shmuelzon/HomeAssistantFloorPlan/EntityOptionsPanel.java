@@ -29,7 +29,7 @@ import com.eteks.sweethome3d.swing.SwingTools;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 
 public class EntityOptionsPanel extends JPanel {
-    private enum ActionType {CLOSE}
+    private enum ActionType {CLOSE, RESET_TO_DEFAULTS}
 
     private Controller controller;
     private String entityName;
@@ -40,6 +40,7 @@ public class EntityOptionsPanel extends JPanel {
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
     private JButton closeButton;
+    private JButton resetToDefaultsButton;
     private ResourceBundle resource;
 
     public EntityOptionsPanel(UserPreferences preferences, Controller controller, String entityName) {
@@ -58,6 +59,13 @@ public class EntityOptionsPanel extends JPanel {
         actions.put(ActionType.CLOSE, new ResourceAction(preferences, Panel.class, ActionType.CLOSE.name(), true) {
             @Override
             public void actionPerformed(ActionEvent ev) {
+                close();
+            }
+        });
+        actions.put(ActionType.RESET_TO_DEFAULTS, new ResourceAction(preferences, Panel.class, ActionType.RESET_TO_DEFAULTS.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                controller.resetEntitySettings(entityName);
                 close();
             }
         });
@@ -112,6 +120,9 @@ public class EntityOptionsPanel extends JPanel {
 
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
+
+        resetToDefaultsButton = new JButton(actionMap.get(ActionType.RESET_TO_DEFAULTS));
+        resetToDefaultsButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.resetToDefaultsButton.text"));
     }
 
     private void layoutComponents() {
@@ -154,7 +165,7 @@ public class EntityOptionsPanel extends JPanel {
     public void displayView(Component parentComponent) {
         final JOptionPane optionPane = new JOptionPane(this,
                 JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION,
-                null, new Object [] {closeButton}, closeButton);
+                null, new Object [] {closeButton, resetToDefaultsButton}, closeButton);
         final JDialog dialog = 
             optionPane.createDialog(SwingUtilities.getRootPane(parentComponent), entityName);
         dialog.applyComponentOrientation(parentComponent != null ?
