@@ -2,21 +2,19 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Component;
 import java.awt.ComponentOrientation;
+import java.awt.Cursor;
 import java.awt.EventQueue;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.Cursor;
-import java.awt.Font;
-import java.awt.event.MouseEvent;
-import java.awt.Dimension;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
@@ -57,7 +55,6 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
-import javax.swing.tree.TreeCellRenderer;
 
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.UserPreferences;
@@ -198,19 +195,15 @@ public class Panel extends JPanel implements DialogView {
                 }
             }
         };
-
         detectedLightsTree.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent event) {
-                if (event.getClickCount() != 2)
-                    return;
-
                 TreePath selectedPath = detectedLightsTree.getSelectionPath();
                 if (selectedPath == null)
                     return;
 
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode)selectedPath.getLastPathComponent();
-                if (!node.isLeaf() || !(node.getUserObject() instanceof EntityNode)) {
-                    /* Do nothing if not a leaf or not an EntityNode */
+                if (!node.isLeaf()) {
+                    detectedLightsTree.clearSelection();
                     return;
                 }
 
@@ -218,13 +211,12 @@ public class Panel extends JPanel implements DialogView {
                 openEntityOptionsPanel(entityNode.name);
             }
         });
-
-        /* Handling mouse movement to change cursor */
         detectedLightsTree.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
                 TreePath path = detectedLightsTree.getPathForLocation(e.getX(), e.getY());
-                if (path != null) {
+
+                if (path != null && ((DefaultMutableTreeNode)path.getLastPathComponent()).isLeaf()) {
                     detectedLightsTree.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                     detectedLightsTree.setSelectionPath(path);
                 } else {
@@ -233,7 +225,6 @@ public class Panel extends JPanel implements DialogView {
                 }
             }
         });
-
         buildLightsGroupsTree(lightsGroups);
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
@@ -249,10 +240,10 @@ public class Panel extends JPanel implements DialogView {
                 return false;
             }
         });
-        DefaultTreeCellRenderer defaultRenderer = (DefaultTreeCellRenderer)detectedLightsTree.getCellRenderer();
-        defaultRenderer.setLeafIcon(null);
-        defaultRenderer.setOpenIcon(null);
-        defaultRenderer.setClosedIcon(null);
+        DefaultTreeCellRenderer renderer = (DefaultTreeCellRenderer)detectedLightsTree.getCellRenderer();
+        renderer.setLeafIcon(null);
+        renderer.setOpenIcon(null);
+        renderer.setClosedIcon(null);
         detectedLightsTree.setBorder(LineBorder.createGrayLineBorder());
 
         widthLabel = new JLabel();
