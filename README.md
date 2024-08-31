@@ -98,8 +98,8 @@ the room they're located in. Please verify the list matches your expectations.
 The progress bar at the bottom will indicate how many images need to be rendered
 for the complete floor plan and will progress as they are ready.
 
-You can also double-click on any entity from the list to reveal additional
-settings that allow you to customize the entity according to your needs.
+You can also click on any entity from the list to reveal additional settings
+that allow you to customize the entity according to your needs.
 
 <img src="doc/entityOptions.png" />
 

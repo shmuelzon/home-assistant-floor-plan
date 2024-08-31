@@ -331,6 +331,8 @@ public class Controller {
             HomeLight light = (HomeLight)piece;
             if (light.getPower() == 0f || !light.isVisible())
                 continue;
+            if (!home.getEnvironment().isAllLevelsVisible() && light.getLevel() != home.getSelectedLevel())
+                continue;
             if (!lights.containsKey(light.getName()))
                 lights.put(light.getName(), new ArrayList<HomeLight>());
             lights.get(light.getName()).add(light);
@@ -350,10 +352,12 @@ public class Controller {
         List<Room> homeRooms = home.getRooms();
 
         for (Room room : homeRooms) {
+            if (!home.getEnvironment().isAllLevelsVisible() && room.getLevel() != home.getSelectedLevel())
+                continue;
             String roomName = room.getName() != null ? room.getName() : room.getId();
             for (List<HomeLight> subLights : lights.values()) {
                 HomeLight subLight = subLights.get(0);
-                if (room.containsPoint(subLight.getX(), subLight.getY(), 0)) {
+                if (room.containsPoint(subLight.getX(), subLight.getY(), 0) && room.getLevel() == subLight.getLevel()) {
                     if (!lightsGroups.containsKey(roomName))
                         lightsGroups.put(roomName, new HashMap<String, List<HomeLight>>());
                     lightsGroups.get(roomName).put(subLight.getName(), subLights);
@@ -435,6 +439,8 @@ public class Controller {
 
         for (HomePieceOfFurniture piece : home.getFurniture()) {
             if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible() || piece instanceof HomeLight)
+                continue;
+            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel())
                 continue;
             homeAssistantEntities.add(piece);
         }
