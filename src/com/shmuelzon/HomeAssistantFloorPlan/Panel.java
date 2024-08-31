@@ -361,7 +361,7 @@ public class Panel extends JPanel implements DialogView {
 
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
-        outputDirectoryTextField = new JTextField();
+        outputDirectoryTextField = new JTextField(20);
         outputDirectoryTextField.setText(controller.getOutputDirectory());
         outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
