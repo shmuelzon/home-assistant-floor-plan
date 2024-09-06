@@ -226,13 +226,15 @@ public class Panel extends JPanel implements DialogView {
             }
         });
         buildLightsGroupsTree(lightsGroups);
-        controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
+        PropertyChangeListener updateTreeOnProperyChanged = new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
                 buildLightsGroupsTree(controller.getLightsGroups());
                 detectedLightsTree.repaint();
                 SwingUtilities.getWindowAncestor(Panel.this).pack();
             }
-        });
+        };
+        controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, updateTreeOnProperyChanged);
+        controller.addPropertyChangeListener(Controller.Property.ENTITY_ATTRIBUTE_CHANGED, updateTreeOnProperyChanged);
         detectedLightsTree.putClientProperty("JTree.lineStyle", "Angled");
         detectedLightsTree.setUI(new BasicTreeUI() {
             @Override
@@ -560,6 +562,8 @@ public class Panel extends JPanel implements DialogView {
 
         if (controller.getEntityAlwaysOn(lightName))
             attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.alwaysOn.text"));
+        if (controller.getEntityIsRgb(lightName))
+            attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
 
         return new EntityNode(lightName, attributes);
     }

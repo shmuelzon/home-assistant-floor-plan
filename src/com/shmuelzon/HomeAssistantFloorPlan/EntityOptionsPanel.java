@@ -39,6 +39,8 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Controller.EntityTapAction> tapActionComboBox;
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
+    private JLabel isRgbLabel;
+    private JCheckBox isRgbCheckbox;
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
@@ -118,6 +120,16 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        isRgbLabel = new JLabel();
+        isRgbLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.isRgbLabel.text"));
+        isRgbCheckbox = new JCheckBox();
+        isRgbCheckbox.setSelected(controller.getEntityIsRgb(entityName));
+        isRgbCheckbox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setEntityIsRgb(entityName, isRgbCheckbox.isSelected());
+            }
+        });
+
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
 
@@ -157,6 +169,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         alwaysOnLabel.setHorizontalAlignment(labelAlignment);
         add(alwaysOnCheckbox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Is RGB */
+        add(isRgbLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        isRgbLabel.setHorizontalAlignment(labelAlignment);
+        add(isRgbCheckbox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;

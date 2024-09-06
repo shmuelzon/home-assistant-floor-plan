@@ -1,5 +1,6 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -36,12 +37,14 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
+    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, ENTITY_ATTRIBUTE_CHANGED}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum EntityDisplayType {BADGE, ICON, LABEL, NONE}
     public enum EntityTapAction {MORE_INFO, NONE, TOGGLE}
+
+    private static final String TRANSPARENT_FILE_NAME = "transparent.png";
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
@@ -55,6 +58,7 @@ public class Controller {
     private static final String CONTROLLER_ENTITY_DISPLAY_TYPE = "displayType";
     private static final String CONTROLLER_ENTITY_TAP_ACTION = "tapAction";
     private static final String CONTROLLER_ENTITY_ALWAYS_ON = "alwaysOn";
+    private static final String CONTROLLER_ENTITY_IS_RGB = "isRgb";
 
     private Home home;
     private Settings settings;
@@ -88,6 +92,7 @@ public class Controller {
         public EntityTapAction tapAction;
         public String title;
         public boolean alwaysOn;
+        public boolean isRgb;
 
         public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityTapAction defaultTapAction, String title) {
             this.name = name;
@@ -96,6 +101,7 @@ public class Controller {
             this.tapAction = EntityTapAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction.name()));
             this.title = title;
             this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
+            this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
         }
     }
 
@@ -266,19 +272,37 @@ public class Controller {
     }
 
     public void setEntityAlwaysOn(String entityName, boolean alwaysOn) {
-        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
+        int oldNumberOfTotalRenders = getNumberOfTotalRenders();
+        boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
         homeAssistantEntities.get(entityName).alwaysOn = alwaysOn;
         settings.setBoolean(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, alwaysOn);
-        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
+        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotalRenders, getNumberOfTotalRenders());
+        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldAlwaysOn, alwaysOn);
+    }
+
+    public boolean getEntityIsRgb(String entityName) {
+        return homeAssistantEntities.get(entityName).isRgb;
+    }
+
+    public void setEntityIsRgb(String entityName, boolean isRgb) {
+        boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
+        homeAssistantEntities.get(entityName).isRgb = isRgb;
+        settings.setBoolean(entityName + "." + CONTROLLER_ENTITY_IS_RGB, isRgb);
+        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, isRgb);
     }
 
     public void resetEntitySettings(String entityName) {
+        boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
+        boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
         settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_IS_RGB, null);
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         homeAssistantEntities = generateHomeAssistantEntities();
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
+        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldAlwaysOn, getEntityAlwaysOn(entityName));
+        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, getEntityIsRgb(entityName));
     }
 
     public void stop() {
@@ -302,6 +326,7 @@ public class Controller {
             camera.setTime(renderDateTime);
 
             String yaml = generateBaseRender();
+            generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_FILE_NAME);
             BufferedImage baseImage = ImageIO.read(Files.newInputStream(Paths.get(outputFloorplanDirectoryName + File.separator + "base.png")));
             
             for (String group : lightsGroups.keySet())
@@ -481,10 +506,24 @@ public class Controller {
         for (List<String> onLights : lightCombinations) {
             String fileName = String.join("_", onLights) + ".png";
             BufferedImage image = generateImage(onLights, outputRendersDirectoryName + File.separator + fileName);
-            generateFloorPlanImage(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName);
-            yaml += generateLightYaml(groupLights, onLights, fileName);
+            boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && getEntityIsRgb(onLights.get(0)));
+            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName, createOverlayImage);
+            if (getEntityIsRgb(onLights.get(0))) {
+                String redTintedFileName = String.join("_", onLights) + ".red.png";
+                generateRedTintedImage(floorPlanImage, outputFloorplanDirectoryName + File.separator + redTintedFileName);
+                yaml += generateRgbLightYaml(onLights.get(0), fileName, redTintedFileName);
+            }
+            else
+                yaml += generateLightYaml(groupLights, onLights, fileName);
         }
         return yaml;
+    }
+
+    private void generateTransparentImage(String fileName) throws IOException {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        image.setRGB(0, 0, 0);
+        File imageFile = new File(fileName);
+        ImageIO.write(image, "png", imageFile);
     }
 
     private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException, InterruptedException {
@@ -529,12 +568,12 @@ public class Controller {
         return image;
     }
 
-    private void generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String fileName) throws IOException {
+    private BufferedImage generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String fileName, boolean createOverlayImage) throws IOException {
         File floorPlanFile = new File(fileName);
 
-        if (lightMixingMode != LightMixingMode.OVERLAY) {
+        if (!createOverlayImage) {
             ImageIO.write(image, "png", floorPlanFile);
-            return;
+            return image;
         }
 
         BufferedImage overlay = new BufferedImage(baseImage.getWidth(), baseImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
@@ -545,7 +584,9 @@ public class Controller {
                 overlay.setRGB(x, y, diff > sensitivity ? image.getRGB(x, y) : 0);
             }
         }
+
         ImageIO.write(overlay, "png", floorPlanFile);
+        return overlay;
     }
 
     private int pixelDifference(int first, int second) {
@@ -554,6 +595,26 @@ public class Controller {
             Math.abs(((first >> 8) & 0xff) - ((second >> 8) & 0xff)) +
             Math.abs(((first >> 16) & 0xff) - ((second >> 16) & 0xff));
         return diff / 3;
+    }
+
+    private BufferedImage generateRedTintedImage(BufferedImage image, String fileName) throws IOException {
+        File redTintedFile = new File(fileName);
+        BufferedImage tintedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+
+        for(int x = 0; x < image.getWidth(); x++) {
+            for(int y = 0; y < image.getHeight(); y++) {
+                int rgb = image.getRGB(x, y);
+                if (rgb == 0)
+                    continue;
+                Color original = new Color(rgb, true);
+                float hsb[] = Color.RGBtoHSB(original.getRed(), original.getGreen(), original.getBlue(), null);
+                Color redTint = Color.getHSBColor(1.0f, 0.75f, hsb[2]);
+                tintedImage.setRGB(x, y, redTint.getRGB());
+            }
+        }
+
+        ImageIO.write(tintedImage, "png", redTintedFile);
+        return tintedImage;
     }
 
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
@@ -611,6 +672,37 @@ public class Controller {
             "          width: 100%%\n%s",
             conditions, entities, fileName, renderHash(fileName),
             lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
+    }
+
+    private String generateRgbLightYaml(String lightName, String fileName, String redTintedFileName) throws IOException {
+        return String.format(
+            "  - type: custom:config-template-card\n" +
+            "    variables:\n" +
+            "      LIGHT_STATE: states['%s'].state\n" +
+            "      COLOR_MODE: states['%s'].attributes.color_mode\n" +
+            "      LIGHT_COLOR: states['%s'].attributes.hs_color\n" +
+            "      BRIGHTNESS: states['%s'].attributes.brightness\n" +
+            "    entities:\n" +
+            "      - %s\n" +
+            "    element:\n" +
+            "      type: image\n" +
+            "      image: /local/floorplan/%s?version=%s\n" +
+            "      state_image:\n" +
+            "        'on': >-\n" +
+            "          ${COLOR_MODE === 'color_temp' || (COLOR_MODE === 'rgb' && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
+            "          '/local/floorplan/%s?version=%s' :\n" +
+            "          '/local/floorplan/%s?version=%s' }\n" +
+            "      entity: %s\n" +
+            "    style:\n" +
+            "      filter: '${ \"hue-rotate(\" + (LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
+            "      opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
+            "      mix-blend-mode: lighten\n" +
+            "      pointer-events: none\n" +
+            "      left: 50%%\n" +
+            "      top: 50%%\n" +
+            "      width: 100%%\n",
+            lightName, lightName, lightName, lightName, lightName, TRANSPARENT_FILE_NAME, renderHash(TRANSPARENT_FILE_NAME),
+            fileName, renderHash(fileName), redTintedFileName, renderHash(redTintedFileName), lightName);
     }
 
     private void restoreLightsPower(Map<HomeLight, Float> lightsPower) {
