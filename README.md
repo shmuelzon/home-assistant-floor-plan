@@ -87,7 +87,7 @@ the room they're located in. Please verify the list matches your expectations.
 * Light mixing mode - See [Rendering Modes](#rendering-modes)
 * Sensitivity - [1, 100] The degree by which two pixels need to be different
   from one another to be taken into account for the generated overlay image.
-  Only relevant for "room overlay" light mixing mode
+  Only relevant for "room overlay" light mixing mode and RGB lights
 * Renderer - Select which rendering engine to use, YafaRay or SunFlow
 * Quality - Choose the rendering quality (low or high)
 * Render Time - The date and time of the rendered image, affects the sun
@@ -109,6 +109,13 @@ that allow you to customize the entity according to your needs.
   [Tap Action](https://www.home-assistant.io/dashboards/actions/#tap-action)
 * Always on - Only for lights, set light as always on removing its icon and it
   won't be affected by the matching Home Assistant state
+* Is RGB(W) light - Only for lights, set light as an RGB light that will change
+  its color in the floorplan according to the color set in Home Assistant. This
+  requires installing the
+  [config-template-card](https://github.com/iantrich/config-template-card)
+  custom Lovelace card.
+
+  :warning: **Note:** RGB lights are only supported in the CSS rendering mode.
 
 ## Preparation
 
