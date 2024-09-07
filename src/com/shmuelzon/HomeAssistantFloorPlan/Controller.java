@@ -423,9 +423,11 @@ public class Controller {
             "climate.",
             "cover.",
             "fan.",
+            "input_boolean.",
             "media_player.",
             "sensor.",
             "switch.",
+            "vacuum.",
         };
 
         if (name == null)

@@ -130,9 +130,11 @@ that allow you to customize the entity according to your needs.
   * `climate.xxx`
   * `cover.xxx`
   * `fan.xxx`
+  * `input_boolean.xxx`
   * `media_player.xxx`
   * `sensor.xxx`
   * `switch.xxx`
+  * `vacuum.xxx`
 
 ## Suggestions
 
