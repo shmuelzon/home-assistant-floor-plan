@@ -18,11 +18,14 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -78,7 +81,7 @@ public class Panel extends JPanel implements DialogView {
     private ResourceBundle resource;
     private ExecutorService renderExecutor;
     private JTabbedPane tabbedPane;
-    private JLabel lightsTab;
+    private JLabel detectedLightsTab;
     private JLabel detectedLightsLabel;
     private JTree detectedLightsTree;
     private JLabel otherEntitiesTab;
@@ -131,7 +134,7 @@ public class Panel extends JPanel implements DialogView {
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
         createActions(preferences);
-        createComponents(preferences, this.controller.getLightsGroups());
+        createComponents(preferences, this.controller.getLightsGroups(), this.controller.getHomeAssistantEntityMap());
         layoutComponents();
     }
 
@@ -232,11 +235,11 @@ public class Panel extends JPanel implements DialogView {
             outputDirectoryTextField.setText(selectedDirectory);
     }
 
-    private void createComponents(UserPreferences preferences, Map<String, Map<String, List<HomeLight>>> lightsGroups) {
+    private void createComponents(UserPreferences preferences, Map<String, Map<String, List<HomeLight>>> lightsGroups, Map<String, Controller.Entity> homeAssistantEntities) {
         final ActionMap actionMap = getActionMap();
 
         tabbedPane = new JTabbedPane();
-        lightsTab = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.lightsTab.text"));
+        detectedLightsTab = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTab.text"));
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
         otherEntitiesTab = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTab.text"));
         otherEntitiesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTreeLabel.text"));        
@@ -249,12 +252,20 @@ public class Panel extends JPanel implements DialogView {
             }
         };
         /* Other entities tree (for the "Other Entities" tab) */
-        otherEntitiesTree = new JTree(new DefaultMutableTreeNode(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text")));
+        otherEntitiesTree = new JTree(new DefaultMutableTreeNode(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text"))) {
+            @Override
+            protected void setExpandedState(TreePath path, boolean state) {
+                if (state) {
+                    super.setExpandedState(path, state);
+                }
+            }            
+        };
 
         /* Call to create listeners after initializing trees */
         createListeners();
 
         buildLightsGroupsTree(lightsGroups);
+        buildOtherEntitiesGroupsTree(controller.getHomeAssistantEntityMap(), controller.getLightsGroups());
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
                 buildLightsGroupsTree(controller.getLightsGroups());
@@ -480,7 +491,7 @@ public class Panel extends JPanel implements DialogView {
     
         /* First tab: Lights */
         JPanel lightsPanel = new JPanel(new GridBagLayout());
-        tabbedPane.addTab(lightsTab.getText(), lightsPanel);
+        tabbedPane.addTab(detectedLightsTab.getText(), lightsPanel);
     
         /* Detected lights caption */
         lightsPanel.add(detectedLightsLabel, new GridBagConstraints(
@@ -655,6 +666,33 @@ public class Panel extends JPanel implements DialogView {
 
         for (int i = 0; i < detectedLightsTree.getRowCount(); i++) {
             detectedLightsTree.expandRow(i);
+        }
+    }
+
+    private void buildOtherEntitiesGroupsTree(Map<String, Controller.Entity> homeAssistantEntities, Map<String, Map<String, List<HomeLight>>> lightsGroups) {
+        DefaultTreeModel model = (DefaultTreeModel) otherEntitiesTree.getModel();
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
+
+        root.removeAllChildren();
+        model.reload();
+
+        // Collect all light names from lightsGroups to exclude them from this tree
+        Set<String> lightsGroupEntities = new HashSet<>();
+        for (String group : lightsGroups.keySet()) {
+            lightsGroupEntities.addAll(lightsGroups.get(group).keySet());
+        }
+
+        // Iterate over homeAssistantEntities and only add those not in lightsGroups
+        for (String entityName : homeAssistantEntities.keySet()) {
+            if (!lightsGroupEntities.contains(entityName)) {
+                String entityNameValue = homeAssistantEntities.get(entityName).name;
+                DefaultMutableTreeNode entityNode = new DefaultMutableTreeNode(new EntityNode(entityNameValue, new ArrayList<>()));
+                model.insertNodeInto(entityNode, root, root.getChildCount());
+            }
+        }
+
+        for (int i = 0; i < otherEntitiesTree.getRowCount(); i++) {
+            otherEntitiesTree.expandRow(i);
         }
     }
 

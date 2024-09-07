@@ -81,7 +81,7 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
 
-    private class Entity {
+    public class Entity {
         public String name;
         public Point2d position;
         public EntityDisplayType displayType;
@@ -318,6 +318,10 @@ public class Controller {
         } finally {
             restoreLightsPower(lightsPower);
         }
+    }
+
+    public Map<String, Entity> getHomeAssistantEntityMap() {
+        return homeAssistantEntities;
     }
 
     private void addEnabledLightsInList(Map<String, List<HomeLight>> lights, List<HomePieceOfFurniture> furnitureList ) {
