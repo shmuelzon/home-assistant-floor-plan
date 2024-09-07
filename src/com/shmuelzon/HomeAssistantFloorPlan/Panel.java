@@ -676,17 +676,17 @@ public class Panel extends JPanel implements DialogView {
         root.removeAllChildren();
         model.reload();
 
-        // Collect all light names from lightsGroups to exclude them from this tree
-        Set<String> lightsGroupEntities = new HashSet<>();
+        /* Collect all light names from lightsGroups to exclude them from this tree */
+        Set<String> lightsGroupEntities = new HashSet<String>();
         for (String group : lightsGroups.keySet()) {
             lightsGroupEntities.addAll(lightsGroups.get(group).keySet());
         }
 
-        // Iterate over homeAssistantEntities and only add those not in lightsGroups
+        /* Iterate over homeAssistantEntities and only add those not in lightsGroups */
         for (String entityName : homeAssistantEntities.keySet()) {
             if (!lightsGroupEntities.contains(entityName)) {
                 String entityNameValue = homeAssistantEntities.get(entityName).name;
-                DefaultMutableTreeNode entityNode = new DefaultMutableTreeNode(new EntityNode(entityNameValue, new ArrayList<>()));
+                DefaultMutableTreeNode entityNode = new DefaultMutableTreeNode(new EntityNode(entityNameValue, new ArrayList<String>()));
                 model.insertNodeInto(entityNode, root, root.getChildCount());
             }
         }
