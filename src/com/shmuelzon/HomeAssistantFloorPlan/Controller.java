@@ -461,7 +461,7 @@ public class Controller {
         return false;
     }
 
-    private List<HomePieceOfFurniture> getHomeAssistantEntities() {
+    public List<HomePieceOfFurniture> getHomeAssistantEntities() {
        List<HomePieceOfFurniture> homeAssistantEntities = new ArrayList<HomePieceOfFurniture>();
 
         for (HomePieceOfFurniture piece : home.getFurniture()) {

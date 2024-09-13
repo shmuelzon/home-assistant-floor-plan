@@ -45,7 +45,7 @@ public class EntityOptionsPanel extends JPanel {
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
 
-    public EntityOptionsPanel(UserPreferences preferences, Controller controller, String entityName) {
+    public EntityOptionsPanel(UserPreferences preferences, Controller controller, String entityName, boolean isLight) {
         super(new GridBagLayout());
         this.controller = controller;
         this.entityName = entityName;
@@ -53,7 +53,7 @@ public class EntityOptionsPanel extends JPanel {
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault());
         createActions(preferences);
         createComponents();
-        layoutComponents();
+        layoutComponents(isLight);
     }
 
     private void createActions(UserPreferences preferences) {
@@ -137,7 +137,7 @@ public class EntityOptionsPanel extends JPanel {
         resetToDefaultsButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.resetToDefaultsButton.text"));
     }
 
-    private void layoutComponents() {
+    private void layoutComponents(boolean isLight) {
         int labelAlignment = OperatingSystem.isMacOSX() ? JLabel.TRAILING : JLabel.LEADING;
         int standardGap = Math.round(2 * SwingTools.getResolutionScale());
         Insets insets = new Insets(0, standardGap, 0, standardGap);
@@ -162,6 +162,9 @@ public class EntityOptionsPanel extends JPanel {
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
+
+        if (!isLight)
+            return;
 
         /* Always on */
         add(alwaysOnLabel, new GridBagConstraints(
