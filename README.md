@@ -212,5 +212,5 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [x] Allow using existing rendered images and just re-create overlays and YAML
 - [ ] After rendering is complete, show preview of overlay images
 - [ ] Allow overriding state-icons/labels positions, and save persistently
-- [ ] Allow defining, per entity, if it should be an icon or label, and save
+- [X] Allow defining, per entity, if it should be an icon or label, and save
       that persistently
