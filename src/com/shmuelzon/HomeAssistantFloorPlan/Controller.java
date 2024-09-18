@@ -59,6 +59,8 @@ public class Controller {
     private static final String CONTROLLER_ENTITY_TAP_ACTION = "tapAction";
     private static final String CONTROLLER_ENTITY_ALWAYS_ON = "alwaysOn";
     private static final String CONTROLLER_ENTITY_IS_RGB = "isRgb";
+    private static final String CONTROLLER_ENTITY_TOP_POSITION = "topPosition";
+    private static final String CONTROLLER_ENTITY_LEFT_POSITION = "leftPosition";
 
     private Home home;
     private Settings settings;
@@ -93,6 +95,8 @@ public class Controller {
         public String title;
         public boolean alwaysOn;
         public boolean isRgb;
+        public String topPosition;
+        public String leftPosition;
 
         public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityTapAction defaultTapAction, String title) {
             this.name = name;
@@ -102,6 +106,8 @@ public class Controller {
             this.title = title;
             this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
             this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
+            this.topPosition = settings.get(name + "." + CONTROLLER_ENTITY_TOP_POSITION, String.format(Locale.US, "%.2f", 100.0 * (position.y / renderHeight)));
+            this.leftPosition = settings.get(name + "." + CONTROLLER_ENTITY_LEFT_POSITION, String.format(Locale.US, "%.2f", 100.0 * (position.x / renderWidth)));
         }
     }
 
@@ -291,6 +297,32 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, isRgb);
     }
 
+    public String getEntityTopPosition(String entityName) {
+        Entity entity = homeAssistantEntities.get(entityName);
+        return entity.topPosition;
+    }
+    
+    public void setEntityTopPosition(String entityName, String topPosition) {
+        Entity entity = homeAssistantEntities.get(entityName);
+        if (topPosition != null && !topPosition.isEmpty()) {
+            entity.topPosition = topPosition;
+            settings.set(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, topPosition);
+        }
+    }
+    
+    public String getEntityLeftPosition(String entityName) {
+        Entity entity = homeAssistantEntities.get(entityName);
+        return entity.leftPosition; 
+    }
+    
+    public void setEntityLeftPosition(String entityName, String leftPosition) {
+        Entity entity = homeAssistantEntities.get(entityName);
+        if (leftPosition != null && !leftPosition.isEmpty()) {
+            entity.leftPosition = leftPosition;
+            settings.set(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, leftPosition);
+        }
+    }
+
     public void resetEntitySettings(String entityName) {
         boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
         boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
@@ -298,6 +330,8 @@ public class Controller {
         settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_IS_RGB, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, null);
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         homeAssistantEntities = generateHomeAssistantEntities();
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
@@ -771,15 +805,15 @@ public class Controller {
             "    entity: %s\n" +
             "    title: %s\n" +
             "    style:\n" +
-            "      top: %.2f%%\n" +
-            "      left: %.2f%%\n" +
+            "      top: %s%%\n" +
+            "      left: %s%%\n" +
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
             "      background-color: rgba(255, 255, 255, 0.3)\n" +
             "    tap_action:\n" +
             "      action: %s\n",
             entityDisplayTypeToYamlString.get(entity.displayType), entity.name, entity.title,
-            100.0 * (entity.position.y / renderHeight), 100.0 * (entity.position.x / renderWidth),
+            entity.topPosition, entity.leftPosition,
             entityTapActionToYamlString.get(entity.tapAction));
 
         return yaml;
