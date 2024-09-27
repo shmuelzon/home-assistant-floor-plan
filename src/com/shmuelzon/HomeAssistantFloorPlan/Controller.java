@@ -115,8 +115,8 @@ public class Controller {
         loadDefaultSettings();
         lightsGroups = getLightsGroups(lights);
         lightsPower = getLightsPower(lights);
-        build3dProjection();
-        homeAssistantEntities = generateHomeAssistantEntities();
+        homeAssistantEntities = new HashMap<String, Entity>();
+        generateHomeAssistantEntities();
     }
 
     public void loadDefaultSettings() {
@@ -170,6 +170,7 @@ public class Controller {
     public void setRenderHeight(int renderHeight) {
         this.renderHeight = renderHeight;
         settings.setInteger(CONTROLLER_RENDER_HEIGHT, renderHeight);
+        generateHomeAssistantEntities();
     }
 
     public int getRenderWidth() {
@@ -179,6 +180,7 @@ public class Controller {
     public void setRenderWidth(int renderWidth) {
         this.renderWidth = renderWidth;
         settings.setInteger(CONTROLLER_RENDER_WIDTH, renderWidth);
+        generateHomeAssistantEntities();
     }
 
     public int getSensitivity() {
@@ -299,7 +301,7 @@ public class Controller {
         settings.set(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_IS_RGB, null);
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
-        homeAssistantEntities = generateHomeAssistantEntities();
+        generateHomeAssistantEntities();
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
         propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldAlwaysOn, getEntityAlwaysOn(entityName));
         propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, getEntityIsRgb(entityName));
@@ -332,7 +334,6 @@ public class Controller {
             for (String group : lightsGroups.keySet())
                 yaml += generateGroupRenders(group, baseImage);
 
-            moveEntityIconsToAvoidIntersection();
             yaml += generateEntitiesYaml();
 
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
@@ -794,13 +795,13 @@ public class Controller {
         return yaml;
     }
 
-    private Map<String, Entity> generateHomeAssistantEntities() {
-        Map<String, Entity> homeAssistantEntities = new HashMap<String, Entity>();
+    private void generateHomeAssistantEntities() {
+        homeAssistantEntities.clear();
 
+        build3dProjection();
         generateLightEntities(homeAssistantEntities);
         generateSensorEntities(homeAssistantEntities);
-
-        return homeAssistantEntities;
+        moveEntityIconsToAvoidIntersection();
     }
 
     private void generateLightEntities(Map<String, Entity> homeAssistantEntities) {
