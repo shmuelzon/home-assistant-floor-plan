@@ -743,7 +743,8 @@ public class Controller {
     }
 
     private Point2d getFurniture2dLocation(HomePieceOfFurniture piece) {
-        Vector4d objectPosition = new Vector4d(piece.getX(), ((piece.getElevation() * 2) + piece.getHeight()) / 2, piece.getY(), 0);
+        float levelOffset = piece.getLevel() != null ? piece.getLevel().getElevation() : 0;
+        Vector4d objectPosition = new Vector4d(piece.getX(), (((piece.getElevation() * 2) + piece.getHeight()) / 2) + levelOffset, piece.getY(), 0);
 
         objectPosition.sub(cameraPosition);
         perspectiveTransform.transform(objectPosition);
