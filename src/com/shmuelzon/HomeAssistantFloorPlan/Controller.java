@@ -446,6 +446,7 @@ public class Controller {
             "cover.",
             "fan.",
             "input_boolean.",
+            "lock.",
             "media_player.",
             "sensor.",
             "switch.",
@@ -822,6 +823,7 @@ public class Controller {
         String[] actionableEntityPrefixes = {
             "cover.",
             "fan.",
+            "lock.",
             "media_player.",
             "switch.",
         };
