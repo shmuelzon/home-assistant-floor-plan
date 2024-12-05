@@ -323,8 +323,9 @@ public class Controller {
         numberOfCompletedRenders = 0;
 
         try {
-            new File(outputRendersDirectoryName).mkdirs();
-            new File(outputFloorplanDirectoryName).mkdirs();
+            Files.createDirectories(Paths.get(outputRendersDirectoryName));
+            Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
+
             camera.setTime(renderDateTime);
 
             String yaml = generateBaseRender();
