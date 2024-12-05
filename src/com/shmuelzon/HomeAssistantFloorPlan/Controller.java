@@ -441,11 +441,13 @@ public class Controller {
     private boolean isHomeAssistantEntity(String name) {
         String[] sensorPrefixes = {
             "binary_sensor.",
+            "button.",
             "camera.",
             "climate.",
             "cover.",
             "fan.",
             "input_boolean.",
+            "input_button.",
             "lock.",
             "media_player.",
             "sensor.",
@@ -821,6 +823,7 @@ public class Controller {
 
     private boolean isHomeAssistantEntityActionable(String name) {
         String[] actionableEntityPrefixes = {
+            "button.",
             "cover.",
             "fan.",
             "lock.",
