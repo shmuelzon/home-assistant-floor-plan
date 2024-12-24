@@ -466,16 +466,24 @@ public class Controller {
         return false;
     }
 
-    public List<HomePieceOfFurniture> getHomeAssistantEntities() {
-       List<HomePieceOfFurniture> homeAssistantEntities = new ArrayList<HomePieceOfFurniture>();
-
-        for (HomePieceOfFurniture piece : home.getFurniture()) {
+    public void addHomeAssistantEntitiesFromList(List<HomePieceOfFurniture> homeAssistantEntities, List<HomePieceOfFurniture> furnitureList) {
+        for (HomePieceOfFurniture piece : furnitureList) {
+            if (piece instanceof HomeFurnitureGroup) {
+                addHomeAssistantEntitiesFromList(homeAssistantEntities, ((HomeFurnitureGroup)piece).getFurniture());
+                continue;
+            }
             if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible() || piece instanceof HomeLight)
                 continue;
             if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel())
                 continue;
             homeAssistantEntities.add(piece);
         }
+    }
+
+    public List<HomePieceOfFurniture> getHomeAssistantEntities() {
+        List<HomePieceOfFurniture> homeAssistantEntities = new ArrayList<HomePieceOfFurniture>();
+
+        addHomeAssistantEntitiesFromList(homeAssistantEntities, home.getFurniture());
 
         return homeAssistantEntities;
     }
