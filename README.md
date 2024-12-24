@@ -90,8 +90,9 @@ the room they're located in. Please verify the list matches your expectations.
   Only relevant for "room overlay" light mixing mode and RGB lights
 * Renderer - Select which rendering engine to use, YafaRay or SunFlow
 * Quality - Choose the rendering quality (low or high)
-* Render Time - The date and time of the rendered image, affects the sun
+* Render time - The date and time of the rendered image, affects the sun
   position
+* Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 

@@ -99,6 +99,8 @@ public class Panel extends JPanel implements DialogView {
     private JTextField outputDirectoryTextField;
     private JLabel renderTimeLabel;
     private JSpinner renderTimeSpinner;
+    private JLabel imageFormatLabel;
+    private JComboBox<Controller.ImageFormat> imageFormatComboBox;
     private JButton outputDirectoryBrowseButton;
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
@@ -371,6 +373,23 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        imageFormatLabel = new JLabel();
+        imageFormatLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.text"));
+        imageFormatComboBox = new JComboBox<Controller.ImageFormat>(Controller.ImageFormat.values());
+        imageFormatComboBox.setSelectedItem(controller.getImageFormat());
+        imageFormatComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.imageFormatComboBox.%s.text", ((Controller.ImageFormat)o).name())));
+                return rendererComponent;
+            }
+        });
+        imageFormatComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setImageFormat((Controller.ImageFormat)imageFormatComboBox.getSelectedItem());
+            }
+        });
+
         useExistingRendersCheckbox = new JCheckBox();
         useExistingRendersCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.text"));
         useExistingRendersCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.tooltip"));
@@ -432,6 +451,8 @@ public class Panel extends JPanel implements DialogView {
         sensitivitySpinner.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
+        renderTimeSpinner.setEnabled(enabled);
+        imageFormatComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         if (enabled) {
@@ -523,8 +544,14 @@ public class Panel extends JPanel implements DialogView {
                 0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
                 GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(renderTimeSpinner, new GridBagConstraints(
-                1, currentGridYIndex, 3, 1, 0, 0, GridBagConstraints.CENTER,
+                1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
                 GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(imageFormatLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(imageFormatComboBox, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Output directory */

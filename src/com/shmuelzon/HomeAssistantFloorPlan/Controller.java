@@ -41,10 +41,11 @@ public class Controller {
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
+    public enum ImageFormat {PNG, JPEG}
     public enum EntityDisplayType {BADGE, ICON, LABEL, NONE}
     public enum EntityTapAction {MORE_INFO, NONE, TOGGLE}
 
-    private static final String TRANSPARENT_FILE_NAME = "transparent.png";
+    private static final String TRANSPARENT_IMAGE_NAME = "transparent";
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
@@ -52,6 +53,7 @@ public class Controller {
     private static final String CONTROLLER_SENSITIVTY = "sensitivity";
     private static final String CONTROLLER_RENDERER = "renderer";
     private static final String CONTROLLER_QUALITY = "quality";
+    private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
@@ -79,6 +81,7 @@ public class Controller {
     private int sensitivity;
     private Renderer renderer;
     private Quality quality;
+    private ImageFormat imageFormat;
     private long renderDateTime;
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
@@ -126,6 +129,7 @@ public class Controller {
         sensitivity = settings.getInteger(CONTROLLER_SENSITIVTY, 10);
         renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
+        imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTime = settings.getLong(CONTROLLER_RENDER_TIME, camera.getTime());
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
@@ -242,6 +246,15 @@ public class Controller {
         settings.set(CONTROLLER_QUALITY, quality.name());
     }
 
+    public ImageFormat getImageFormat() {
+        return imageFormat;
+    }
+
+    public void setImageFormat(ImageFormat imageFormat) {
+        this.imageFormat = imageFormat;
+        settings.set(CONTROLLER_IMAGE_FORMAT, imageFormat.name());
+    }
+
     public long getRenderDateTime() {
         return renderDateTime;
     }
@@ -328,9 +341,9 @@ public class Controller {
 
             camera.setTime(renderDateTime);
 
-            String yaml = generateBaseRender();
-            generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_FILE_NAME);
-            BufferedImage baseImage = ImageIO.read(Files.newInputStream(Paths.get(outputFloorplanDirectoryName + File.separator + "base.png")));
+            BufferedImage baseImage = generateBaseRender();
+            String yaml = generateBaseYaml();
+            generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             
             for (String group : lightsGroups.keySet())
                 yaml += generateGroupRenders(group, baseImage);
@@ -503,12 +516,22 @@ public class Controller {
         perspectiveTransform.mul(yawRotation);
     }
 
-    private String generateBaseRender() throws IOException, InterruptedException {
-        generateImage(new ArrayList<String>(), outputFloorplanDirectoryName + File.separator + "base.png");
+    private BufferedImage generateBaseRender() throws IOException, InterruptedException {
+        BufferedImage image = generateImage(new ArrayList<String>(), "base");
+        return generateFloorPlanImage(image, image, "base", false);
+    }
+
+    private String generateBaseYaml() throws IOException {
         return String.format(
             "type: picture-elements\n" +
-            "image: /local/floorplan/base.png?version=%s\n" +
-            "elements:\n", renderHash("base.png"));
+            "image: /local/floorplan/base.%s?version=%s\n" +
+            "elements:\n", getFloorplanImageExtention(), renderHash("base"));
+    }
+
+    private String getFloorplanImageExtention() {
+        if (this.lightMixingMode == LightMixingMode.OVERLAY)
+            return "png";
+        return this.imageFormat.name().toLowerCase();
     }
 
     private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException, InterruptedException {
@@ -517,17 +540,16 @@ public class Controller {
         List<List<String>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
         for (List<String> onLights : lightCombinations) {
-            String fileName = String.join("_", onLights) + ".png";
-            BufferedImage image = generateImage(onLights, outputRendersDirectoryName + File.separator + fileName);
+            String imageName = String.join("_", onLights);
+            BufferedImage image = generateImage(onLights, imageName);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && getEntityIsRgb(onLights.get(0)));
-            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, outputFloorplanDirectoryName + File.separator + fileName, createOverlayImage);
+            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, imageName, createOverlayImage);
             if (getEntityIsRgb(onLights.get(0))) {
-                String redTintedFileName = String.join("_", onLights) + ".red.png";
-                generateRedTintedImage(floorPlanImage, outputFloorplanDirectoryName + File.separator + redTintedFileName);
-                yaml += generateRgbLightYaml(onLights.get(0), fileName, redTintedFileName);
+                generateRedTintedImage(floorPlanImage, imageName);
+                yaml += generateRgbLightYaml(onLights.get(0), imageName);
             }
             else
-                yaml += generateLightYaml(groupLights, onLights, fileName);
+                yaml += generateLightYaml(groupLights, onLights, imageName);
         }
         return yaml;
     }
@@ -539,7 +561,9 @@ public class Controller {
         ImageIO.write(image, "png", imageFile);
     }
 
-    private BufferedImage generateImage(List<String> onLights, String fileName) throws IOException, InterruptedException {
+    private BufferedImage generateImage(List<String> onLights, String name) throws IOException, InterruptedException {
+        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
+
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
@@ -581,11 +605,12 @@ public class Controller {
         return image;
     }
 
-    private BufferedImage generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String fileName, boolean createOverlayImage) throws IOException {
-        File floorPlanFile = new File(fileName);
+    private BufferedImage generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String name, boolean createOverlayImage) throws IOException {
+        String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
+        File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + name + "." + imageExtension);
 
         if (!createOverlayImage) {
-            ImageIO.write(image, "png", floorPlanFile);
+            ImageIO.write(image, imageExtension, floorPlanFile);
             return image;
         }
 
@@ -610,8 +635,8 @@ public class Controller {
         return diff / 3;
     }
 
-    private BufferedImage generateRedTintedImage(BufferedImage image, String fileName) throws IOException {
-        File redTintedFile = new File(fileName);
+    private BufferedImage generateRedTintedImage(BufferedImage image, String imageName) throws IOException {
+        File redTintedFile = new File(outputFloorplanDirectoryName + File.separator + imageName + ".red.png");
         BufferedImage tintedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
         for(int x = 0; x < image.getWidth(); x++) {
@@ -641,8 +666,13 @@ public class Controller {
         return new String(hexChars);
     }
 
-    private String renderHash(String fileName) throws IOException {
-        byte[] content = Files.readAllBytes(Paths.get(outputFloorplanDirectoryName + File.separator + fileName));
+    private String renderHash(String imageName) throws IOException {
+        return renderHash(imageName, false);
+    }
+
+    private String renderHash(String imageName, boolean forcePng) throws IOException {
+        String imageExtension = forcePng ? "png" : getFloorplanImageExtention();
+        byte[] content = Files.readAllBytes(Paths.get(outputFloorplanDirectoryName + File.separator + imageName + "." + imageExtension));
         try {
             byte[] hash = MessageDigest.getInstance("MD5").digest(content);
             return bytesToHex(hash);
@@ -651,7 +681,7 @@ public class Controller {
         }
     }
 
-    private String generateLightYaml(List<String> lightsNames, List<String> onLights, String fileName) throws IOException {
+    private String generateLightYaml(List<String> lightsNames, List<String> onLights, String imageName) throws IOException {
         String conditions = "";
         for (String lightName : lightsNames) {
             conditions += String.format(
@@ -677,17 +707,17 @@ public class Controller {
             "        hold_action:\n" +
             "          action: none\n" +
             "        entity:\n%s" +
-            "        image: /local/floorplan/%s?version=%s\n" +
+            "        image: /local/floorplan/%s.%s?version=%s\n" +
             "        filter: none\n" +
             "        style:\n" +
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n%s",
-            conditions, entities, fileName, renderHash(fileName),
+            conditions, entities, imageName, getFloorplanImageExtention(), renderHash(imageName),
             lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
-    private String generateRgbLightYaml(String lightName, String fileName, String redTintedFileName) throws IOException {
+    private String generateRgbLightYaml(String lightName, String imageName) throws IOException {
         return String.format(
             "  - type: custom:config-template-card\n" +
             "    variables:\n" +
@@ -699,12 +729,12 @@ public class Controller {
             "      - %s\n" +
             "    element:\n" +
             "      type: image\n" +
-            "      image: /local/floorplan/%s?version=%s\n" +
+            "      image: /local/floorplan/%s.png?version=%s\n" +
             "      state_image:\n" +
             "        'on': >-\n" +
             "          ${COLOR_MODE === 'color_temp' || (COLOR_MODE === 'rgb' && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
-            "          '/local/floorplan/%s?version=%s' :\n" +
-            "          '/local/floorplan/%s?version=%s' }\n" +
+            "          '/local/floorplan/%s.png?version=%s' :\n" +
+            "          '/local/floorplan/%s.png?version=%s' }\n" +
             "      entity: %s\n" +
             "    style:\n" +
             "      filter: '${ \"hue-rotate(\" + (LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
@@ -714,8 +744,8 @@ public class Controller {
             "      left: 50%%\n" +
             "      top: 50%%\n" +
             "      width: 100%%\n",
-            lightName, lightName, lightName, lightName, lightName, TRANSPARENT_FILE_NAME, renderHash(TRANSPARENT_FILE_NAME),
-            fileName, renderHash(fileName), redTintedFileName, renderHash(redTintedFileName), lightName);
+            lightName, lightName, lightName, lightName, lightName, TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true),
+            imageName, renderHash(imageName, true), imageName + ".red", renderHash(imageName + ".red", true), lightName);
     }
 
     private void restoreLightsPower(Map<HomeLight, Float> lightsPower) {
