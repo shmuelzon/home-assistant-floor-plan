@@ -21,7 +21,10 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.swing.ResourceAction;
@@ -41,6 +44,10 @@ public class EntityOptionsPanel extends JPanel {
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
     private JCheckBox isRgbCheckbox;
+    private JLabel topPositionLabel;
+    private JTextField topPositionTextField;
+    private JLabel leftPositionLabel;
+    private JTextField leftPositionTextField;
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
@@ -54,6 +61,19 @@ public class EntityOptionsPanel extends JPanel {
         createActions(preferences);
         createComponents();
         layoutComponents(isLight);
+    }
+
+    public abstract class SimpleDocumentListener implements DocumentListener {
+        public void insertUpdate(DocumentEvent e) {
+            update(e);
+        }
+        public void removeUpdate(DocumentEvent e) {
+            update(e);
+        }
+        public void changedUpdate(DocumentEvent e) {
+            update(e);
+        }
+        public abstract void update(DocumentEvent e);
     }
 
     private void createActions(UserPreferences preferences) {
@@ -130,6 +150,34 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        topPositionLabel = new JLabel();
+        topPositionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.topPosition.text"));
+        topPositionTextField = new JTextField(20);
+        topPositionTextField.setText(controller.getEntityTopPosition(entityName));
+        topPositionTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void update(DocumentEvent e) {
+                String topPosition = topPositionTextField.getText().trim();
+                if (!topPosition.isEmpty()) {
+                    controller.setEntityTopPosition(entityName, topPosition);
+                }
+            }
+        });
+
+        leftPositionLabel = new JLabel();
+        leftPositionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.leftPosition.text"));
+        leftPositionTextField = new JTextField(20);
+        leftPositionTextField.setText(controller.getEntityLeftPosition(entityName));
+        leftPositionTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void update(DocumentEvent e) {
+                String leftPosition = leftPositionTextField.getText().trim();
+                if (!leftPosition.isEmpty()) {
+                    controller.setEntityLeftPosition(entityName, leftPosition);
+                }
+            }
+        });
+
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
 
@@ -159,6 +207,26 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         tapActionLabel.setHorizontalAlignment(labelAlignment);
         add(tapActionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Top Position */
+        add(topPositionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        topPositionLabel.setHorizontalAlignment(labelAlignment);
+        add(topPositionTextField, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Left Position */
+        add(leftPositionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        leftPositionLabel.setHorizontalAlignment(labelAlignment);
+        add(leftPositionTextField, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
