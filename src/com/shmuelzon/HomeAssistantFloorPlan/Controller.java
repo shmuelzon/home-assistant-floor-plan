@@ -962,14 +962,30 @@ public class Controller {
     private void separateStateIcons(Set<Entity> entities) {
         final double STEP_SIZE = 2.0;
 
-        Point2d centerPostition = getCenterOfStateIcons(entities);
-
-        for (Entity entity : entities) {
-            Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
-            direction.normalize();
-            direction.scale(STEP_SIZE);
-            entity.position.add(direction);
+        if (entities.isEmpty()) {
+            return;
         }
+
+        Entity entityToMove = entities.iterator().next();
+        // Round position-values because the entity's stored position can differ fractionally from the position in SH3D.
+        entityToMove.position.set(Math.round(entityToMove.position.x), Math.round(entityToMove.position.y));
+
+        Point2d centerPosition = getCenterOfStateIcons(entities);
+
+        Vector2d direction = new Vector2d(
+                entityToMove.position.x - centerPosition.x,
+                entityToMove.position.y - centerPosition.y
+        );
+
+        // Set the direction of the entity's movement to straight-right if it matches the center-position.
+        if (direction.length() == 0) {
+            direction.set(1, 0);
+        }
+
+        // Move the entity's position.
+        direction.normalize();
+        direction.scale(STEP_SIZE);
+        entityToMove.position.add(direction);
     }
 
     private void moveEntityIconsToAvoidIntersection() {
