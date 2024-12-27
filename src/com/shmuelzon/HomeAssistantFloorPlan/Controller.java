@@ -948,11 +948,11 @@ public class Controller {
     }
 
     private Point2d getCenterOfStateIcons(Set<Entity> entities) {
-        Point2d centerPostition = new Point2d();
+        Point2d centerPosition = new Point2d();
         for (Entity entity : entities )
-            centerPostition.add(entity.position);
-        centerPostition.scale(1.0 / entities.size());
-        return centerPostition;
+            centerPosition.add(entity.position);
+        centerPosition.scale(1.0 / entities.size());
+        return centerPosition;
     }
 
     private void separateStateIcons(Set<Entity> entities) {
