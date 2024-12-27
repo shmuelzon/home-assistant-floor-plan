@@ -892,9 +892,12 @@ public class Controller {
     private boolean doStateIconsIntersect(Entity first, Entity second) {
         final double STATE_ICON_RADIUS_INCLUDING_MARGIN = 20.0;
 
-        double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
+        double centerDistance = Math.sqrt(
+                Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2)
+        );
 
-        return x <= Math.pow(STATE_ICON_RADIUS_INCLUDING_MARGIN * 2, 2);
+        // Icons intersect or touching each-other?
+        return centerDistance <= STATE_ICON_RADIUS_INCLUDING_MARGIN * 2;
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
