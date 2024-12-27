@@ -949,8 +949,12 @@ public class Controller {
 
     private Point2d getCenterOfStateIcons(Set<Entity> entities) {
         Point2d centerPosition = new Point2d();
-        for (Entity entity : entities )
+
+        for (Entity entity : entities ) {
+            // Round position-values because the entity's stored position can differ fractionally from the position in SH3D.
+            entity.position.set(Math.round(entity.position.x), Math.round(entity.position.y));
             centerPosition.add(entity.position);
+        }
         centerPosition.scale(1.0 / entities.size());
         return centerPosition;
     }
