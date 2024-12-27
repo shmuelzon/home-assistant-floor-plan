@@ -991,7 +991,7 @@ public class Controller {
     private void moveEntityIconsToAvoidIntersection() {
         for (int i = 0; i < 100; i++) {
             List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons();
-            if (intersectingStateIcons.size() == 0)
+            if (intersectingStateIcons.isEmpty())
                 break;
             for (Set<Entity> set : intersectingStateIcons)
                 separateStateIcons(set);
