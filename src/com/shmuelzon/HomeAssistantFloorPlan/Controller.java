@@ -930,9 +930,9 @@ public class Controller {
         List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
 
         for (Entity entity : homeAssistantEntities.values()) {
-            Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
-            if (interectingSet != null) {
-                interectingSet.add(entity);
+            Set<Entity> intersectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
+            if (intersectingSet != null) {
+                intersectingSet.add(entity);
                 continue;
             }
             Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
