@@ -103,6 +103,56 @@ public class Controller {
         }
     }
 
+    private class ClusterEntity extends Entity {
+        private final Set<Entity> entities;
+
+        public ClusterEntity(Set<Entity> entities) {
+            super("cluster", new Point2d(), EntityDisplayType.NONE, EntityTapAction.NONE, null);
+            this.entities = entities;
+            this.position = getCenterOfStateIcons(entities);
+            this.distributeClusterEntities();
+            this.radius *= Math.min(entities.size(), 3);
+        }
+
+        private void distributeClusterEntities() {
+            if (this.entities.size() < 2) {
+                return;
+            }
+
+            final double STEP_SIZE = 1;
+
+            int originalMargin = stateIconMargin;
+            stateIconMargin = 1;
+
+            int index = 0;
+            for (Entity entity : this.entities) {
+                entity.position = new Point2d(this.position);
+
+                if (index++ == 0) {
+                    continue;
+                }
+
+                double angle = index * Math.PI / ((double) (this.entities.size() - 1) / 2);
+                Vector2d direction = new Vector2d(Math.cos(angle), Math.sin(angle));
+
+                direction.normalize();
+                direction.scale(STEP_SIZE);
+                while (stateIconWithWhichStateIconIntersects(entity, this.entities) != null) {
+                    entity.position.add(direction);
+                }
+            }
+
+            if (this.entities.size() == 2) {
+                for (Entity entity : this.entities) {
+                    entity.position.x -= entity.radius;
+                }
+                this.position = getCenterOfStateIcons(this.entities);
+            }
+
+            stateIconMargin = originalMargin;
+        }
+    }
+
     public Controller(Home home) {
         this.home = home;
         settings = new Settings(home);
