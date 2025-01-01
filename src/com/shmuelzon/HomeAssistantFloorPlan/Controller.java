@@ -87,6 +87,7 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private int stateIconMargin = 10;
 
     private class Entity {
         public String name;
@@ -96,6 +97,7 @@ public class Controller {
         public String title;
         public boolean alwaysOn;
         public boolean isRgb;
+        public double radius = 20;
 
         public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityTapAction defaultTapAction, String title) {
             this.name = name;
@@ -890,14 +892,12 @@ public class Controller {
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final double STATE_ICON_RADIUS_INCLUDING_MARGIN = 20.0;
-
         double centerDistance = Math.sqrt(
                 Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2)
         );
 
         // Icons intersect or touching each-other?
-        return centerDistance <= STATE_ICON_RADIUS_INCLUDING_MARGIN * 2;
+        return centerDistance <= first.radius + second.radius + stateIconMargin;
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
