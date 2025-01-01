@@ -951,8 +951,6 @@ public class Controller {
         Point2d centerPosition = new Point2d();
 
         for (Entity entity : entities ) {
-            // Round position-values because the entity's stored position can differ fractionally from the position in SH3D.
-            entity.position.set(Math.round(entity.position.x), Math.round(entity.position.y));
             centerPosition.add(entity.position);
         }
         centerPosition.scale(1.0 / entities.size());
@@ -965,10 +963,6 @@ public class Controller {
         if (entities.isEmpty()) {
             return;
         }
-
-        Entity entityToMove = entities.iterator().next();
-        // Round position-values because the entity's stored position can differ fractionally from the position in SH3D.
-        entityToMove.position.set(Math.round(entityToMove.position.x), Math.round(entityToMove.position.y));
 
         Point2d centerPosition = getCenterOfStateIcons(entities);
 
