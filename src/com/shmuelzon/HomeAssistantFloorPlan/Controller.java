@@ -959,8 +959,8 @@ public class Controller {
         return null;
     }
 
-    private Entity stateIconWithWhichStateIconIntersects(Entity entity) {
-        for (Entity other : homeAssistantEntities.values()) {
+    private Entity stateIconWithWhichStateIconIntersects(Entity entity, Collection<? extends Entity> entities) {
+        for (Entity other : entities) {
             if (entity == other)
                 continue;
             if (doStateIconsIntersect(entity, other))
@@ -969,19 +969,21 @@ public class Controller {
         return null;
     }
 
-    private List<Set<Entity>> findIntersectingStateIcons() {
-        List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
+    private List<Set<Entity>> findIntersectingStateIcons(Collection<? extends Entity> entities) {
+        List<Set<Entity>> intersectingStateIcons = new ArrayList<>();
 
-        for (Entity entity : homeAssistantEntities.values()) {
+        for (Entity entity : entities) {
             Set<Entity> intersectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
             if (intersectingSet != null) {
                 intersectingSet.add(entity);
                 continue;
             }
-            Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
+
+            Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity, entities);
             if (intersectingStateIcon == null)
                 continue;
-            Set<Entity> intersectingGroup = new HashSet<Entity>();
+
+            Set<Entity> intersectingGroup = new HashSet<>();
             intersectingGroup.add(entity);
             intersectingGroup.add(intersectingStateIcon);
             intersectingStateIcons.add(intersectingGroup);
