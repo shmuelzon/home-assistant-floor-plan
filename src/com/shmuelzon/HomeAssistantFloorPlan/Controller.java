@@ -732,7 +732,7 @@ public class Controller {
             "      image: /local/floorplan/%s.png?version=%s\n" +
             "      state_image:\n" +
             "        'on': >-\n" +
-            "          ${COLOR_MODE === 'color_temp' || (COLOR_MODE === 'rgb' && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
+            "          ${COLOR_MODE === 'color_temp' || ((COLOR_MODE === 'rgb' || COLOR_MODE === 'hs') && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
             "          '/local/floorplan/%s.png?version=%s' :\n" +
             "          '/local/floorplan/%s.png?version=%s' }\n" +
             "      entity: %s\n" +
