@@ -992,7 +992,7 @@ public class Controller {
         return intersectingStateIcons;
     }
 
-    private Point2d getCenterOfStateIcons(Set<Entity> entities) {
+    private Point2d getCenterOfStateIcons(Set<? extends Entity> entities) {
         Point2d centerPosition = new Point2d();
 
         for (Entity entity : entities ) {
@@ -1002,7 +1002,7 @@ public class Controller {
         return centerPosition;
     }
 
-    private void separateStateIcons(Set<Entity> entities) {
+    private void separateStateIcons(Set<? extends Entity> entities) {
         final double STEP_SIZE = 2.0;
 
         if (entities.isEmpty()) {
