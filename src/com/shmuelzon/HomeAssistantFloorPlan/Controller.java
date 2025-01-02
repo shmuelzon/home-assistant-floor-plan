@@ -12,14 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import javax.imageio.ImageIO;
 import javax.media.j3d.Transform3D;
@@ -87,6 +80,7 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private int stateIconMargin = 10;
 
     private class Entity {
         public String name;
@@ -96,6 +90,7 @@ public class Controller {
         public String title;
         public boolean alwaysOn;
         public boolean isRgb;
+        public double radius = 20;
 
         public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityTapAction defaultTapAction, String title) {
             this.name = name;
@@ -105,6 +100,64 @@ public class Controller {
             this.title = title;
             this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
             this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
+        }
+    }
+
+    private class ClusterEntity extends Entity {
+        private final Set<Entity> entities;
+
+        public ClusterEntity(Set<Entity> entities) {
+            super("cluster", new Point2d(), EntityDisplayType.NONE, EntityTapAction.NONE, null);
+            this.entities = entities;
+            this.position = getCenterOfStateIcons(entities);
+            this.distributeClusterEntities();
+            this.radius *= Math.min(entities.size(), 3);
+        }
+
+        private void distributeClusterEntities() {
+            if (this.entities.size() < 2) {
+                return;
+            }
+
+            final double STEP_SIZE = 1;
+
+            int originalMargin = stateIconMargin;
+            stateIconMargin = 1;
+
+            int index = 0;
+            for (Entity entity : this.entities) {
+                entity.position = new Point2d(this.position);
+
+                if (index++ == 0) {
+                    continue;
+                }
+
+                double angle = index * Math.PI / ((double) (this.entities.size() - 1) / 2);
+                Vector2d direction = new Vector2d(Math.cos(angle), Math.sin(angle));
+
+                direction.normalize();
+                direction.scale(STEP_SIZE);
+                while (stateIconWithWhichStateIconIntersects(entity, this.entities) != null) {
+                    entity.position.add(direction);
+                }
+            }
+
+            if (this.entities.size() == 2) {
+                for (Entity entity : this.entities) {
+                    entity.position.x -= entity.radius;
+                }
+                this.position = getCenterOfStateIcons(this.entities);
+            }
+
+            stateIconMargin = originalMargin;
+        }
+
+        public void move(Vector2d direction) {
+            for (Entity entity : this.entities) {
+                entity.position.add(direction);
+            }
+
+            this.position.add(direction);
         }
     }
 
@@ -890,11 +943,12 @@ public class Controller {
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
+        double centerDistance = Math.sqrt(
+                Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2)
+        );
 
-        double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
-
-        return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
+        // Icons intersect or touching each-other?
+        return centerDistance <= first.radius + second.radius + stateIconMargin;
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
@@ -913,8 +967,8 @@ public class Controller {
         return null;
     }
 
-    private Entity stateIconWithWhichStateIconIntersects(Entity entity) {
-        for (Entity other : homeAssistantEntities.values()) {
+    private Entity stateIconWithWhichStateIconIntersects(Entity entity, Collection<? extends Entity> entities) {
+        for (Entity other : entities) {
             if (entity == other)
                 continue;
             if (doStateIconsIntersect(entity, other))
@@ -923,19 +977,21 @@ public class Controller {
         return null;
     }
 
-    private List<Set<Entity>> findIntersectingStateIcons() {
-        List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
+    private List<Set<Entity>> findIntersectingStateIcons(Collection<? extends Entity> entities) {
+        List<Set<Entity>> intersectingStateIcons = new ArrayList<>();
 
-        for (Entity entity : homeAssistantEntities.values()) {
-            Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
-            if (interectingSet != null) {
-                interectingSet.add(entity);
+        for (Entity entity : entities) {
+            Set<Entity> intersectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
+            if (intersectingSet != null) {
+                intersectingSet.add(entity);
                 continue;
             }
-            Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
+
+            Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity, entities);
             if (intersectingStateIcon == null)
                 continue;
-            Set<Entity> intersectingGroup = new HashSet<Entity>();
+
+            Set<Entity> intersectingGroup = new HashSet<>();
             intersectingGroup.add(entity);
             intersectingGroup.add(intersectingStateIcon);
             intersectingStateIcons.add(intersectingGroup);
@@ -944,34 +1000,84 @@ public class Controller {
         return intersectingStateIcons;
     }
 
-    private Point2d getCenterOfStateIcons(Set<Entity> entities) {
-        Point2d centerPostition = new Point2d();
-        for (Entity entity : entities )
-            centerPostition.add(entity.position);
-        centerPostition.scale(1.0 / entities.size());
-        return centerPostition;
+    private Point2d getCenterOfStateIcons(Set<? extends Entity> entities) {
+        Point2d centerPosition = new Point2d();
+
+        for (Entity entity : entities ) {
+            centerPosition.add(entity.position);
+        }
+        centerPosition.scale(1.0 / entities.size());
+        return centerPosition;
     }
 
-    private void separateStateIcons(Set<Entity> entities) {
+    List<ClusterEntity> clusterEntities(Collection<Entity> entities) {
+        List<Entity> unclusteredEntities = new ArrayList<>(entities);
+        List<ClusterEntity> clusters = new ArrayList<>();
+
+        int originalMargin = stateIconMargin;
+        stateIconMargin = -39;
+
+        List<Set<Entity>> intersectingEntities = findIntersectingStateIcons(entities);
+
+        for (Set<Entity> set : intersectingEntities) {
+            clusters.add(new ClusterEntity(set));
+            unclusteredEntities.removeAll(set);
+        }
+
+        for (Entity entity : unclusteredEntities) {
+            Set<Entity> set = new HashSet<>();
+            set.add(entity);
+            clusters.add(new ClusterEntity(set));
+        }
+
+        stateIconMargin = originalMargin;
+
+        return clusters;
+    }
+
+    private void separateStateIcons(Set<? extends Entity> entities) {
         final double STEP_SIZE = 2.0;
 
-        Point2d centerPostition = getCenterOfStateIcons(entities);
+        if (entities.isEmpty()) {
+            return;
+        }
+
+        Point2d centerPosition = getCenterOfStateIcons(entities);
 
         for (Entity entity : entities) {
-            Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
+            Vector2d direction = new Vector2d(
+                    entity.position.x - centerPosition.x,
+                    entity.position.y - centerPosition.y
+            );
+
+            if (direction.length() == 0) {
+                continue;
+            }
+
             direction.normalize();
             direction.scale(STEP_SIZE);
+
+            if (entity instanceof ClusterEntity) {
+                ((ClusterEntity) entity).move(direction);
+                continue;
+            }
+
             entity.position.add(direction);
         }
     }
 
     private void moveEntityIconsToAvoidIntersection() {
+        List<ClusterEntity> clusters = clusterEntities(homeAssistantEntities.values());
+
         for (int i = 0; i < 100; i++) {
-            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons();
-            if (intersectingStateIcons.size() == 0)
+            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons(clusters);
+            if (intersectingStateIcons.isEmpty()) {
                 break;
-            for (Set<Entity> set : intersectingStateIcons)
+            }
+
+            for (Set<Entity> set : intersectingStateIcons) {
                 separateStateIcons(set);
+            }
         }
     }
-};
+}
