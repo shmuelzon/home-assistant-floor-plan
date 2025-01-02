@@ -1067,12 +1067,17 @@ public class Controller {
     }
 
     private void moveEntityIconsToAvoidIntersection() {
+        List<ClusterEntity> clusters = clusterEntities(homeAssistantEntities.values());
+
         for (int i = 0; i < 100; i++) {
-            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons();
-            if (intersectingStateIcons.isEmpty())
+            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons(clusters);
+            if (intersectingStateIcons.isEmpty()) {
                 break;
-            for (Set<Entity> set : intersectingStateIcons)
+            }
+
+            for (Set<Entity> set : intersectingStateIcons) {
                 separateStateIcons(set);
+            }
         }
     }
-};
+}
