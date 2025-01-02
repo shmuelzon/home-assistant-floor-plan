@@ -1044,20 +1044,26 @@ public class Controller {
 
         Point2d centerPosition = getCenterOfStateIcons(entities);
 
-        Vector2d direction = new Vector2d(
-                entityToMove.position.x - centerPosition.x,
-                entityToMove.position.y - centerPosition.y
-        );
+        for (Entity entity : entities) {
+            Vector2d direction = new Vector2d(
+                    entity.position.x - centerPosition.x,
+                    entity.position.y - centerPosition.y
+            );
 
-        // Set the direction of the entity's movement to straight-right if it matches the center-position.
-        if (direction.length() == 0) {
-            direction.set(1, 0);
+            if (direction.length() == 0) {
+                continue;
+            }
+
+            direction.normalize();
+            direction.scale(STEP_SIZE);
+
+            if (entity instanceof ClusterEntity) {
+                ((ClusterEntity) entity).move(direction);
+                continue;
+            }
+
+            entity.position.add(direction);
         }
-
-        // Move the entity's position.
-        direction.normalize();
-        direction.scale(STEP_SIZE);
-        entityToMove.position.add(direction);
     }
 
     private void moveEntityIconsToAvoidIntersection() {
