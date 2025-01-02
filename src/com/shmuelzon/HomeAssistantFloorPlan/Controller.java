@@ -1002,6 +1002,31 @@ public class Controller {
         return centerPosition;
     }
 
+    List<ClusterEntity> clusterEntities(Collection<Entity> entities) {
+        List<Entity> unclusteredEntities = new ArrayList<>(entities);
+        List<ClusterEntity> clusters = new ArrayList<>();
+
+        int originalMargin = stateIconMargin;
+        stateIconMargin = -39;
+
+        List<Set<Entity>> intersectingEntities = findIntersectingStateIcons(entities);
+
+        for (Set<Entity> set : intersectingEntities) {
+            clusters.add(new ClusterEntity(set));
+            unclusteredEntities.removeAll(set);
+        }
+
+        for (Entity entity : unclusteredEntities) {
+            Set<Entity> set = new HashSet<>();
+            set.add(entity);
+            clusters.add(new ClusterEntity(set));
+        }
+
+        stateIconMargin = originalMargin;
+
+        return clusters;
+    }
+
     private void separateStateIcons(Set<? extends Entity> entities) {
         final double STEP_SIZE = 2.0;
 
