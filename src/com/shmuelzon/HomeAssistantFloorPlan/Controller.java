@@ -151,6 +151,14 @@ public class Controller {
 
             stateIconMargin = originalMargin;
         }
+
+        public void move(Vector2d direction) {
+            for (Entity entity : this.entities) {
+                entity.position.add(direction);
+            }
+
+            this.position.add(direction);
+        }
     }
 
     public Controller(Home home) {
