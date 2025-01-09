@@ -106,8 +106,12 @@ that allow you to customize the entity according to your needs.
 
 * Display type - Configure how the entity is displayed on the floorplan, see
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
-* Tap Action - Define what to do when the entity is tapped/clicked on, see
-  [Tap Action](https://www.home-assistant.io/dashboards/actions/#tap-action)
+* Tap action - Define what to do when the entity is tapped/clicked on, see
+  [Tap action](https://www.home-assistant.io/dashboards/actions/#tap-action)
+* Double tap action - Define what to do when the entity is double-tapped/clicked
+  on, see [Double tap Action](https://www.home-assistant.io/dashboards/actions/#double-tap-action)
+* Hold Action - Define what to do when the entity is held/long-pressed, see
+  [Hold action](https://www.home-assistant.io/dashboards/actions/#hold-action)
 * Always on - Only for lights, set light as always on removing its icon and it
   won't be affected by the matching Home Assistant state
 * Is RGB(W) light - Only for lights, set light as an RGB light that will change
