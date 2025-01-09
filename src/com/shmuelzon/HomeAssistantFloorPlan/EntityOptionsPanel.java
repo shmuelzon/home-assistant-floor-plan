@@ -36,7 +36,11 @@ public class EntityOptionsPanel extends JPanel {
     private JLabel displayTypeLabel;
     private JComboBox<Controller.EntityDisplayType> displayTypeComboBox;
     private JLabel tapActionLabel;
-    private JComboBox<Controller.EntityTapAction> tapActionComboBox;
+    private JComboBox<Controller.EntityAction> tapActionComboBox;
+    private JLabel doubleTapActionLabel;
+    private JComboBox<Controller.EntityAction> doubleTapActionComboBox;
+    private JLabel holdActionLabel;
+    private JComboBox<Controller.EntityAction> holdActionComboBox;
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
@@ -95,18 +99,52 @@ public class EntityOptionsPanel extends JPanel {
 
         tapActionLabel = new JLabel();
         tapActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.tapActionLabel.text"));
-        tapActionComboBox = new JComboBox<Controller.EntityTapAction>(Controller.EntityTapAction.values());
+        tapActionComboBox = new JComboBox<Controller.EntityAction>(Controller.EntityAction.values());
         tapActionComboBox.setSelectedItem(controller.getEntityTapAction(entityName));
         tapActionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.tapActionComboBox.%s.text", ((Controller.EntityTapAction)o).name())));
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.actionComboBox.%s.text", ((Controller.EntityAction)o).name())));
                 return rendererComponent;
             }
         });
         tapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setEntityTapAction(entityName, (Controller.EntityTapAction)tapActionComboBox.getSelectedItem());
+                controller.setEntityTapAction(entityName, (Controller.EntityAction)tapActionComboBox.getSelectedItem());
+            }
+        });
+
+        doubleTapActionLabel = new JLabel();
+        doubleTapActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.doubleTapActionLabel.text"));
+        doubleTapActionComboBox = new JComboBox<Controller.EntityAction>(Controller.EntityAction.values());
+        doubleTapActionComboBox.setSelectedItem(controller.getEntityDoubleTapAction(entityName));
+        doubleTapActionComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.actionComboBox.%s.text", ((Controller.EntityAction)o).name())));
+                return rendererComponent;
+            }
+        });
+        doubleTapActionComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setEntityDoubleTapAction(entityName, (Controller.EntityAction)doubleTapActionComboBox.getSelectedItem());
+            }
+        });
+
+        holdActionLabel = new JLabel();
+        holdActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.holdActionLabel.text"));
+        holdActionComboBox = new JComboBox<Controller.EntityAction>(Controller.EntityAction.values());
+        holdActionComboBox.setSelectedItem(controller.getEntityHoldAction(entityName));
+        holdActionComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.actionComboBox.%s.text", ((Controller.EntityAction)o).name())));
+                return rendererComponent;
+            }
+        });
+        holdActionComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setEntityHoldAction(entityName, (Controller.EntityAction)holdActionComboBox.getSelectedItem());
             }
         });
 
@@ -159,6 +197,26 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         tapActionLabel.setHorizontalAlignment(labelAlignment);
         add(tapActionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Double tap action */
+        add(doubleTapActionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        doubleTapActionLabel.setHorizontalAlignment(labelAlignment);
+        add(doubleTapActionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Hold action */
+        add(holdActionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        holdActionLabel.setHorizontalAlignment(labelAlignment);
+        add(holdActionComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
