@@ -91,6 +91,7 @@ public class Controller {
     private boolean useExistingRenders;
 
     private class Entity {
+        public String id;
         public String name;
         public Point2d position;
         public EntityDisplayType displayType;
@@ -101,7 +102,8 @@ public class Controller {
         public boolean alwaysOn;
         public boolean isRgb;
 
-        public Entity(String name, Point2d position, EntityDisplayType defaultDisplayType, EntityAction defaultTapAction, String title) {
+        public Entity(String id, String name, Point2d position, EntityDisplayType defaultDisplayType, EntityAction defaultTapAction, String title) {
+            this.id = id;
             this.name = name;
             this.position = position;
             this.displayType = EntityDisplayType.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType.name()));
@@ -885,8 +887,9 @@ public class Controller {
                 lightsCenter.add(getFurniture2dLocation(light));
             lightsCenter.scale(1.0 / lightsList.size());
 
-            String name = lightsList.get(0).getName();
-            homeAssistantEntities.put(name, new Entity(name, lightsCenter, EntityDisplayType.ICON, EntityAction.TOGGLE,
+            HomeLight light = lightsList.get(0);
+            String name = light.getName();
+            homeAssistantEntities.put(name, new Entity(light.getId(), name, lightsCenter, EntityDisplayType.ICON, EntityAction.TOGGLE,
                 lightsList.get(0).getDescription()));
         }
     }
@@ -913,7 +916,7 @@ public class Controller {
             Point2d location = getFurniture2dLocation(piece);
             String name = piece.getName();
 
-            homeAssistantEntities.put(name, new Entity(name, location,
+            homeAssistantEntities.put(name, new Entity(piece.getId(), name, location,
                 name.startsWith("sensor.") ? EntityDisplayType.LABEL : EntityDisplayType.ICON,
                 isHomeAssistantEntityActionable(piece.getName()) ?  EntityAction.TOGGLE : EntityAction.MORE_INFO,
                 piece.getDescription()));
@@ -990,6 +993,12 @@ public class Controller {
 
         for (Entity entity : entities) {
             Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
+
+            if (direction.length() == 0) {
+                double[] randomRepeatableDirection = { entity.id.hashCode(), entity.name.hashCode() };
+                direction.set(randomRepeatableDirection);
+            }
+
             direction.normalize();
             direction.scale(STEP_SIZE);
             entity.position.add(direction);
