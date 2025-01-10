@@ -21,9 +21,15 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.vecmath.Point2d;
 
 import com.eteks.sweethome3d.model.UserPreferences;
+import com.eteks.sweethome3d.swing.AutoCommitSpinner;
 import com.eteks.sweethome3d.swing.ResourceAction;
 import com.eteks.sweethome3d.swing.SwingTools;
 import com.eteks.sweethome3d.tools.OperatingSystem;
@@ -41,6 +47,11 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Controller.EntityAction> doubleTapActionComboBox;
     private JLabel holdActionLabel;
     private JComboBox<Controller.EntityAction> holdActionComboBox;
+    private JLabel positionLabel;
+    private JLabel positionLeftLabel;
+    private JSpinner positionLeftSpinner;
+    private JLabel positionTopLabel;
+    private JSpinner positionTopSpinner;
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
@@ -148,6 +159,40 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        final Point2d position = controller.getEntityPosition(entityName);
+        positionLabel = new JLabel();
+        positionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.positionLabel.text"));
+        positionLeftLabel = new JLabel();
+        positionLeftLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.positionLeftLabel.text"));
+        final SpinnerNumberModel positionLeftSpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.001);
+        positionLeftSpinner = new AutoCommitSpinner(positionLeftSpinnerModel);
+        JSpinner.NumberEditor positionLeftEditor = new JSpinner.NumberEditor(positionLeftSpinner, "0.00 %");
+        ((JSpinner.DefaultEditor)positionLeftEditor).getTextField().setColumns(5);
+        positionLeftSpinner.setEditor(positionLeftEditor);
+        positionLeftSpinnerModel.setValue(position.x / 100.0);
+        positionLeftSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              final Point2d position = controller.getEntityPosition(entityName);
+              position.x = ((Number)positionLeftSpinnerModel.getValue()).doubleValue() * 100;
+              controller.setEntityPosition(entityName, position);
+            }
+        });
+        positionTopLabel = new JLabel();
+        positionTopLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.positionTopLabel.text"));
+        final SpinnerNumberModel positionTopSpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.001);
+        positionTopSpinner = new AutoCommitSpinner(positionTopSpinnerModel);
+        JSpinner.NumberEditor positionTopEditor = new JSpinner.NumberEditor(positionTopSpinner, "0.00 %");
+        ((JSpinner.DefaultEditor)positionTopEditor).getTextField().setColumns(5);
+        positionTopSpinner.setEditor(positionTopEditor);
+        positionTopSpinnerModel.setValue(position.y / 100.0);
+        positionTopSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              final Point2d position = controller.getEntityPosition(entityName);
+              position.y = ((Number)positionTopSpinnerModel.getValue()).doubleValue() * 100;
+              controller.setEntityPosition(entityName, position);
+            }
+        });
+
         alwaysOnLabel = new JLabel();
         alwaysOnLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.text"));
         alwaysOnCheckbox = new JCheckBox();
@@ -187,7 +232,7 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         displayTypeLabel.setHorizontalAlignment(labelAlignment);
         add(displayTypeComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -197,7 +242,7 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         tapActionLabel.setHorizontalAlignment(labelAlignment);
         add(tapActionComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -207,7 +252,7 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         doubleTapActionLabel.setHorizontalAlignment(labelAlignment);
         add(doubleTapActionComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -217,7 +262,25 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         holdActionLabel.setHorizontalAlignment(labelAlignment);
         add(holdActionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        add(positionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        positionLabel.setHorizontalAlignment(labelAlignment);
+        add(positionLeftLabel, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(positionLeftSpinner, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(positionTopLabel, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(positionTopSpinner, new GridBagConstraints(
+            4, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -230,17 +293,17 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         alwaysOnLabel.setHorizontalAlignment(labelAlignment);
         add(alwaysOnCheckbox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Is RGB */
         add(isRgbLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         isRgbLabel.setHorizontalAlignment(labelAlignment);
         add(isRgbCheckbox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
     }

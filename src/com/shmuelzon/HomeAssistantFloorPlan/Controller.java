@@ -63,6 +63,8 @@ public class Controller {
     private static final String CONTROLLER_ENTITY_HOLD_ACTION = "holdAction";
     private static final String CONTROLLER_ENTITY_ALWAYS_ON = "alwaysOn";
     private static final String CONTROLLER_ENTITY_IS_RGB = "isRgb";
+    private static final String CONTROLLER_ENTITY_LEFT_POSITION = "leftPosition";
+    private static final String CONTROLLER_ENTITY_TOP_POSITION = "topPosition";
 
     private Home home;
     private Settings settings;
@@ -101,11 +103,11 @@ public class Controller {
         public String title;
         public boolean alwaysOn;
         public boolean isRgb;
+        private boolean isStationary = false;
 
         public Entity(String id, String name, Point2d position, EntityDisplayType defaultDisplayType, EntityAction defaultTapAction, String title) {
             this.id = id;
             this.name = name;
-            this.position = position;
             this.displayType = EntityDisplayType.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType.name()));
             this.tapAction = EntityAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction.name()));
             this.doubleTapAction = EntityAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, EntityAction.NONE.name()));
@@ -113,6 +115,21 @@ public class Controller {
             this.title = title;
             this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
             this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
+
+            double leftPosition = settings.getDouble(name + "." + CONTROLLER_ENTITY_LEFT_POSITION, -1);
+            double topPosition = settings.getDouble(name + "." + CONTROLLER_ENTITY_TOP_POSITION, -1);
+            if (leftPosition != -1 || topPosition != -1) {
+                this.position = new Point2d(leftPosition / 100.0 * renderWidth, topPosition / 100 * renderHeight);
+                isStationary = true;
+            }
+            else
+                this.position = position;
+        }
+
+        public void move(Vector2d direction) {
+            if (isStationary)
+                return;
+            position.add(direction);
         }
     }
 
@@ -332,6 +349,17 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, isRgb);
     }
 
+    public Point2d getEntityPosition(String entityName) {
+        Entity entity = homeAssistantEntities.get(entityName);
+        return new Point2d(100 * (entity.position.x / renderWidth), 100 * (entity.position.y / renderHeight));
+    }
+
+    public void setEntityPosition(String entityName, Point2d position) {
+        settings.setDouble(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, position.x);
+        settings.setDouble(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, position.y);
+        generateHomeAssistantEntities();
+    }
+
     public void resetEntitySettings(String entityName) {
         boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
         boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
@@ -341,6 +369,8 @@ public class Controller {
         settings.set(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_IS_RGB, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, null);
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         generateHomeAssistantEntities();
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
@@ -1001,7 +1031,7 @@ public class Controller {
 
             direction.normalize();
             direction.scale(STEP_SIZE);
-            entity.position.add(direction);
+            entity.move(direction);
         }
     }
 

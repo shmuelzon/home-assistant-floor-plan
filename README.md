@@ -112,6 +112,7 @@ that allow you to customize the entity according to your needs.
   on, see [Double tap Action](https://www.home-assistant.io/dashboards/actions/#double-tap-action)
 * Hold Action - Define what to do when the entity is held/long-pressed, see
   [Hold action](https://www.home-assistant.io/dashboards/actions/#hold-action)
+* Position - Override the entity's icon/label position
 * Always on - Only for lights, set light as always on removing its icon and it
   won't be affected by the matching Home Assistant state
 * Is RGB(W) light - Only for lights, set light as an RGB light that will change
@@ -216,6 +217,6 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [x] Make sure state-icons/labels do not overlap
 - [x] Allow using existing rendered images and just re-create overlays and YAML
 - [ ] After rendering is complete, show preview of overlay images
-- [ ] Allow overriding state-icons/labels positions, and save persistently
+- [x] Allow overriding state-icons/labels positions, and save persistently
 - [X] Allow defining, per entity, if it should be an icon or label, and save
       that persistently
