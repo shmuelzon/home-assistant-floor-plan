@@ -34,6 +34,10 @@ public class Settings {
         return Long.parseLong(get(name, String.valueOf(defaultValue)));
     }
 
+    public double getDouble(String name, double defaultValue) {
+        return Double.parseDouble(get(name, String.valueOf(defaultValue)));
+    }
+
     public void set(String name, String value) {
         String oldValue = get(name);
 
@@ -52,6 +56,10 @@ public class Settings {
     }
 
     public void setLong(String name, long value) {
+        set(name, String.valueOf(value));
+    }
+
+    public void setDouble(String name, double value) {
         set(name, String.valueOf(value));
     }
 };
