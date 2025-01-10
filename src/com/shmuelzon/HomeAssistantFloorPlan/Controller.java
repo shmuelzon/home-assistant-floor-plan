@@ -298,6 +298,10 @@ public class Controller {
         settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, displayType.name());
     }
 
+    public boolean isEntityDisplayTypeModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE) != null;
+    }
+
     public EntityAction getEntityTapAction(String entityName) {
         return homeAssistantEntities.get(entityName).tapAction;
     }
@@ -305,6 +309,10 @@ public class Controller {
     public void setEntityTapAction(String entityName, EntityAction tapAction) {
         homeAssistantEntities.get(entityName).tapAction = tapAction;
         settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, tapAction.name());
+    }
+
+    public boolean isEntityTapActionModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION) != null;
     }
 
     public EntityAction getEntityDoubleTapAction(String entityName) {
@@ -316,6 +324,10 @@ public class Controller {
         settings.set(entityName + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, doubleTapAction.name());
     }
 
+    public boolean isEntityDoubleTapActionModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION) != null;
+    }
+
     public EntityAction getEntityHoldAction(String entityName) {
         return homeAssistantEntities.get(entityName).holdAction;
     }
@@ -323,6 +335,10 @@ public class Controller {
     public void setEntityHoldAction(String entityName, EntityAction holdAction) {
         homeAssistantEntities.get(entityName).holdAction = holdAction;
         settings.set(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION, holdAction.name());
+    }
+
+    public boolean isEntityHoldActionModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION) != null;
     }
 
     public boolean getEntityAlwaysOn(String entityName) {
@@ -338,6 +354,10 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldAlwaysOn, alwaysOn);
     }
 
+    public boolean isEntityAlwaysOnModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON) != null;
+    }
+
     public boolean getEntityIsRgb(String entityName) {
         return homeAssistantEntities.get(entityName).isRgb;
     }
@@ -349,6 +369,10 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, isRgb);
     }
 
+    public boolean isEntityIsRgbModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_IS_RGB) != null;
+    }
+
     public Point2d getEntityPosition(String entityName) {
         Entity entity = homeAssistantEntities.get(entityName);
         return new Point2d(100 * (entity.position.x / renderWidth), 100 * (entity.position.y / renderHeight));
@@ -358,6 +382,10 @@ public class Controller {
         settings.setDouble(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, position.x);
         settings.setDouble(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, position.y);
         generateHomeAssistantEntities();
+    }
+
+    public boolean isEntityPositionModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION) != null;
     }
 
     public void resetEntitySettings(String entityName) {

@@ -104,6 +104,9 @@ that allow you to customize the entity according to your needs.
 
 <img src="doc/entityOptions.png" />
 
+> [!NOTE]
+> Settings that were modified from their default values are displayed in red
+
 * Display type - Configure how the entity is displayed on the floorplan, see
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
 * Tap action - Define what to do when the entity is tapped/clicked on, see
