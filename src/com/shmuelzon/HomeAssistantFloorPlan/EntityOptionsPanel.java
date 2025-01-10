@@ -1,5 +1,6 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.ComponentOrientation;
 import java.awt.GridBagConstraints;
@@ -69,6 +70,7 @@ public class EntityOptionsPanel extends JPanel {
         createActions(preferences);
         createComponents();
         layoutComponents(isLight);
+        markModified();
     }
 
     private void createActions(UserPreferences preferences) {
@@ -105,6 +107,7 @@ public class EntityOptionsPanel extends JPanel {
         displayTypeComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityDisplayType(entityName, (Controller.EntityDisplayType)displayTypeComboBox.getSelectedItem());
+                markModified();
             }
         });
 
@@ -122,6 +125,7 @@ public class EntityOptionsPanel extends JPanel {
         tapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityTapAction(entityName, (Controller.EntityAction)tapActionComboBox.getSelectedItem());
+                markModified();
             }
         });
 
@@ -139,6 +143,7 @@ public class EntityOptionsPanel extends JPanel {
         doubleTapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityDoubleTapAction(entityName, (Controller.EntityAction)doubleTapActionComboBox.getSelectedItem());
+                markModified();
             }
         });
 
@@ -156,6 +161,7 @@ public class EntityOptionsPanel extends JPanel {
         holdActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityHoldAction(entityName, (Controller.EntityAction)holdActionComboBox.getSelectedItem());
+                markModified();
             }
         });
 
@@ -175,6 +181,7 @@ public class EntityOptionsPanel extends JPanel {
               final Point2d position = controller.getEntityPosition(entityName);
               position.x = ((Number)positionLeftSpinnerModel.getValue()).doubleValue() * 100;
               controller.setEntityPosition(entityName, position);
+              markModified();
             }
         });
         positionTopLabel = new JLabel();
@@ -190,6 +197,7 @@ public class EntityOptionsPanel extends JPanel {
               final Point2d position = controller.getEntityPosition(entityName);
               position.y = ((Number)positionTopSpinnerModel.getValue()).doubleValue() * 100;
               controller.setEntityPosition(entityName, position);
+              markModified();
             }
         });
 
@@ -200,6 +208,7 @@ public class EntityOptionsPanel extends JPanel {
         alwaysOnCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityAlwaysOn(entityName, alwaysOnCheckbox.isSelected());
+                markModified();
             }
         });
 
@@ -210,6 +219,7 @@ public class EntityOptionsPanel extends JPanel {
         isRgbCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityIsRgb(entityName, isRgbCheckbox.isSelected());
+                markModified();
             }
         });
 
@@ -306,6 +316,18 @@ public class EntityOptionsPanel extends JPanel {
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
+    }
+
+    private void markModified() {
+        Color modifiedColor = new Color(200, 0, 0);
+
+        displayTypeLabel.setForeground(controller.isEntityDisplayTypeModified(entityName) ? modifiedColor : Color.BLACK);
+        tapActionLabel.setForeground(controller.isEntityTapActionModified(entityName) ? modifiedColor : Color.BLACK);
+        doubleTapActionLabel.setForeground(controller.isEntityDoubleTapActionModified(entityName) ? modifiedColor : Color.BLACK);
+        holdActionLabel.setForeground(controller.isEntityHoldActionModified(entityName) ? modifiedColor : Color.BLACK);
+        positionLabel.setForeground(controller.isEntityPositionModified(entityName) ? modifiedColor : Color.BLACK);
+        alwaysOnLabel.setForeground(controller.isEntityAlwaysOnModified(entityName) ? modifiedColor : Color.BLACK);
+        isRgbLabel.setForeground(controller.isEntityIsRgbModified(entityName) ? modifiedColor : Color.BLACK);
     }
 
     public void displayView(Component parentComponent) {
