@@ -109,6 +109,7 @@ that allow you to customize the entity according to your needs.
 
 * Display type - Configure how the entity is displayed on the floorplan, see
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
+* Display Condition - Configure when the entity should be displayed
 * Tap action - Define what to do when the entity is tapped/clicked on, see
   [Tap action](https://www.home-assistant.io/dashboards/actions/#tap-action)
 * Double tap action - Define what to do when the entity is double-tapped/clicked
