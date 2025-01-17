@@ -540,19 +540,32 @@ public class Controller {
 
     private boolean isHomeAssistantEntity(String name) {
         String[] sensorPrefixes = {
+            "air_quality.",
+            "alarm_control_panel.",
+            "assist_satellite.",
             "binary_sensor.",
             "button.",
             "camera.",
             "climate.",
             "cover.",
+            "device_tracker.",
             "fan.",
+            "humidifier.",
             "input_boolean.",
             "input_button.",
+            "lawn_mower.",
             "lock.",
             "media_player.",
+            "remote.",
             "sensor.",
+            "siren.",
             "switch.",
+            "todo.",
+            "update.",
             "vacuum.",
+            "valve.",
+            "water_header.",
+            "weather.",
         };
 
         if (name == null)
@@ -954,12 +967,19 @@ public class Controller {
 
     private boolean isHomeAssistantEntityActionable(String name) {
         String[] actionableEntityPrefixes = {
+            "alarm_control_panel.",
             "button.",
+            "climate.",
             "cover.",
             "fan.",
+            "humidifier.",
+            "lawn_mower.",
             "lock.",
             "media_player.",
             "switch.",
+            "vacuum.",
+            "valve.",
+            "water_header.",
         };
 
         for (String prefix : actionableEntityPrefixes ) {
