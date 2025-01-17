@@ -42,6 +42,8 @@ public class EntityOptionsPanel extends JPanel {
     private String entityName;
     private JLabel displayTypeLabel;
     private JComboBox<Controller.EntityDisplayType> displayTypeComboBox;
+    private JLabel displayConditionLabel;
+    private JComboBox<Controller.EntityDisplayCondition> displayConditionComboBox;
     private JLabel tapActionLabel;
     private JComboBox<Controller.EntityAction> tapActionComboBox;
     private JLabel doubleTapActionLabel;
@@ -107,6 +109,24 @@ public class EntityOptionsPanel extends JPanel {
         displayTypeComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 controller.setEntityDisplayType(entityName, (Controller.EntityDisplayType)displayTypeComboBox.getSelectedItem());
+                markModified();
+            }
+        });
+
+        displayConditionLabel = new JLabel();
+        displayConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayConditionLabel.text"));
+        displayConditionComboBox = new JComboBox<Controller.EntityDisplayCondition>(Controller.EntityDisplayCondition.values());
+        displayConditionComboBox.setSelectedItem(controller.getEntityDisplayCondition(entityName));
+        displayConditionComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.displayConditionComboBox.%s.text", ((Controller.EntityDisplayCondition)o).name())));
+                return rendererComponent;
+            }
+        });
+        displayConditionComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setEntityDisplayCondition(entityName, (Controller.EntityDisplayCondition)displayConditionComboBox.getSelectedItem());
                 markModified();
             }
         });
@@ -246,6 +266,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Display Condition */
+        add(displayConditionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        displayConditionLabel.setHorizontalAlignment(labelAlignment);
+        add(displayConditionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Tap action */
         add(tapActionLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -322,6 +352,7 @@ public class EntityOptionsPanel extends JPanel {
         Color modifiedColor = new Color(200, 0, 0);
 
         displayTypeLabel.setForeground(controller.isEntityDisplayTypeModified(entityName) ? modifiedColor : Color.BLACK);
+        displayConditionLabel.setForeground(controller.isEntityDisplayConditionModified(entityName) ? modifiedColor : Color.BLACK);
         tapActionLabel.setForeground(controller.isEntityTapActionModified(entityName) ? modifiedColor : Color.BLACK);
         doubleTapActionLabel.setForeground(controller.isEntityDoubleTapActionModified(entityName) ? modifiedColor : Color.BLACK);
         holdActionLabel.setForeground(controller.isEntityHoldActionModified(entityName) ? modifiedColor : Color.BLACK);

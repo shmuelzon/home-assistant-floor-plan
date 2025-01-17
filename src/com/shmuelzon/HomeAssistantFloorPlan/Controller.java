@@ -42,7 +42,8 @@ public class Controller {
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
-    public enum EntityDisplayType {BADGE, ICON, LABEL, NONE}
+    public enum EntityDisplayType {BADGE, ICON, LABEL}
+    public enum EntityDisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
     public enum EntityAction {MORE_INFO, NONE, TOGGLE}
 
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
@@ -58,6 +59,7 @@ public class Controller {
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
     private static final String CONTROLLER_ENTITY_DISPLAY_TYPE = "displayType";
+    private static final String CONTROLLER_ENTITY_DISPLAY_CONDITION = "displayCondition";
     private static final String CONTROLLER_ENTITY_TAP_ACTION = "tapAction";
     private static final String CONTROLLER_ENTITY_DOUBLE_TAP_ACTION = "doubleTapAction";
     private static final String CONTROLLER_ENTITY_HOLD_ACTION = "holdAction";
@@ -97,6 +99,7 @@ public class Controller {
         public String name;
         public Point2d position;
         public EntityDisplayType displayType;
+        public EntityDisplayCondition displayCondition;
         public EntityAction tapAction;
         public EntityAction doubleTapAction;
         public EntityAction holdAction;
@@ -105,13 +108,23 @@ public class Controller {
         public boolean isRgb;
         private boolean isStationary = false;
 
-        public Entity(String id, String name, Point2d position, EntityDisplayType defaultDisplayType, EntityAction defaultTapAction, String title) {
+        private <T extends Enum<T>> T getSavedEnumValue(Class<T> type, String name, T defaultValue) {
+            try {
+                return Enum.valueOf(type, settings.get(name, defaultValue.name()));
+            } catch (IllegalArgumentException e) {
+                settings.set(name, null);
+            }
+            return defaultValue;
+        }
+
+        public Entity(String id, String name, Point2d position, EntityDisplayType defaultDisplayType, EntityDisplayCondition defaultDisplayCondition, EntityAction defaultTapAction, String title) {
             this.id = id;
             this.name = name;
-            this.displayType = EntityDisplayType.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType.name()));
-            this.tapAction = EntityAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction.name()));
-            this.doubleTapAction = EntityAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, EntityAction.NONE.name()));
-            this.holdAction = EntityAction.valueOf(settings.get(name + "." + CONTROLLER_ENTITY_HOLD_ACTION, EntityAction.MORE_INFO.name()));
+            this.displayType = getSavedEnumValue(EntityDisplayType.class, name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType);
+            this.displayCondition = getSavedEnumValue(EntityDisplayCondition.class, name + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION, defaultDisplayCondition);
+            this.tapAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction);
+            this.doubleTapAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, EntityAction.NONE);
+            this.holdAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_HOLD_ACTION, EntityAction.MORE_INFO);
             this.title = title;
             this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
             this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
@@ -302,6 +315,19 @@ public class Controller {
         return settings.get(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE) != null;
     }
 
+    public EntityDisplayCondition getEntityDisplayCondition(String entityName) {
+        return homeAssistantEntities.get(entityName).displayCondition;
+    }
+
+    public void setEntityDisplayCondition(String entityName, EntityDisplayCondition displayCondition) {
+        homeAssistantEntities.get(entityName).displayCondition = displayCondition;
+        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION, displayCondition.name());
+    }
+
+    public boolean isEntityDisplayConditionModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION) != null;
+    }
+
     public EntityAction getEntityTapAction(String entityName) {
         return homeAssistantEntities.get(entityName).tapAction;
     }
@@ -392,6 +418,7 @@ public class Controller {
         boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
         boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
         settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION, null);
@@ -906,7 +933,7 @@ public class Controller {
             put(EntityAction.TOGGLE, "toggle");
         }};
 
-        if (entity.displayType == EntityDisplayType.NONE || entity.alwaysOn)
+        if (entity.displayCondition == EntityDisplayCondition.NEVER || entity.alwaysOn)
             return "";
 
         String yaml = String.format(Locale.US,
@@ -930,7 +957,20 @@ public class Controller {
             entityTapActionToYamlString.get(entity.tapAction), entityTapActionToYamlString.get(entity.doubleTapAction),
             entityTapActionToYamlString.get(entity.holdAction));
 
-        return yaml;
+        if (entity.displayCondition == EntityDisplayCondition.ALWAYS)
+            return yaml;
+
+        return String.format(
+            "  - type: conditional\n" +
+            "    conditions:\n" +
+            "      - entity: %s\n" +
+            "        state: '%s'\n" +
+            "    elements:\n" +
+            "%s",
+            entity.name,
+            entity.displayCondition == EntityDisplayCondition.WHEN_ON ? "on" : "off",
+            yaml.replaceAll(".*\\R", "    $0")
+        );
     }
 
     private String generateEntitiesYaml() {
@@ -960,8 +1000,8 @@ public class Controller {
 
             HomeLight light = lightsList.get(0);
             String name = light.getName();
-            homeAssistantEntities.put(name, new Entity(light.getId(), name, lightsCenter, EntityDisplayType.ICON, EntityAction.TOGGLE,
-                lightsList.get(0).getDescription()));
+            homeAssistantEntities.put(name, new Entity(light.getId(), name, lightsCenter, EntityDisplayType.ICON, EntityDisplayCondition.ALWAYS,
+                EntityAction.TOGGLE, lightsList.get(0).getDescription()));
         }
     }
 
@@ -995,7 +1035,7 @@ public class Controller {
             String name = piece.getName();
 
             homeAssistantEntities.put(name, new Entity(piece.getId(), name, location,
-                name.startsWith("sensor.") ? EntityDisplayType.LABEL : EntityDisplayType.ICON,
+                name.startsWith("sensor.") ? EntityDisplayType.LABEL : EntityDisplayType.ICON, EntityDisplayCondition.ALWAYS,
                 isHomeAssistantEntityActionable(piece.getName()) ?  EntityAction.TOGGLE : EntityAction.MORE_INFO,
                 piece.getDescription()));
         }
