@@ -19,12 +19,15 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.TimeZone;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -632,12 +635,12 @@ public class Panel extends JPanel implements DialogView {
         root.removeAllChildren();
         model.reload();
 
-        for (String group : lightsGroups.keySet()) {
+        for (String group : new TreeSet<String>(lightsGroups.keySet())) {
             DefaultMutableTreeNode groupNode;
             if (lightsGroups.get(group).size() != 1 || lightsGroups.get(group).get(group) == null)
             {
                 groupNode = new DefaultMutableTreeNode(group);
-                for (String lightName : lightsGroups.get(group).keySet())
+                for (String lightName : new TreeSet<String>(lightsGroups.get(group).keySet()))
                     groupNode.add(new DefaultMutableTreeNode(generateLightEntityNode(lightName)));
             }
             else
@@ -656,6 +659,12 @@ public class Panel extends JPanel implements DialogView {
 
         root.removeAllChildren();
         model.reload();
+
+        Collections.sort(otherEntities, new Comparator<HomePieceOfFurniture>() {
+            public int compare(HomePieceOfFurniture piece1, HomePieceOfFurniture piece2) {
+                return piece1.getName().compareTo(piece2.getName());
+            }
+        });
 
         for (HomePieceOfFurniture entity : otherEntities ) {
             String entityName = entity.getName();
