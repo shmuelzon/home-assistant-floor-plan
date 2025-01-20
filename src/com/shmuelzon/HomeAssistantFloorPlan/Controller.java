@@ -13,6 +13,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,13 +28,8 @@ import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
 import javax.vecmath.Vector4d;
 
-import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
-import com.eteks.sweethome3d.model.Camera;
-import com.eteks.sweethome3d.model.Home;
-import com.eteks.sweethome3d.model.HomeFurnitureGroup;
-import com.eteks.sweethome3d.model.HomeLight;
-import com.eteks.sweethome3d.model.HomePieceOfFurniture;
-import com.eteks.sweethome3d.model.Room;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 public class Controller {
@@ -158,6 +154,23 @@ public class Controller {
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = new HashMap<String, Entity>();
         generateHomeAssistantEntities();
+    }
+
+    private static List<Set<Entity>> splitEntityList(List<Entity> entities, int setSize) {
+        if (entities == null || entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (setSize <= 0) {
+            throw new IllegalArgumentException("Set-size must be positive.");
+        }
+
+        return IntStream.range(0, (entities.size() + setSize - 1) / setSize)
+                        .mapToObj(i -> entities.stream()
+                                               .skip((long) i * setSize)
+                                               .limit(setSize)
+                                               .collect(Collectors.toSet()))
+                        .collect(Collectors.toList());
     }
 
     public void loadDefaultSettings() {
