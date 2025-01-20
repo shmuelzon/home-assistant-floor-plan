@@ -1,12 +1,24 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
+import com.eteks.sweethome3d.model.Camera;
+import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.HomeFurnitureGroup;
+import com.eteks.sweethome3d.model.HomeLight;
+import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.Room;
+
+import javax.imageio.ImageIO;
+import javax.media.j3d.Transform3D;
+import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
+import javax.vecmath.Vector4d;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
-import java.lang.InterruptedException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -23,11 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import javax.imageio.ImageIO;
-import javax.media.j3d.Transform3D;
-import javax.vecmath.Point2d;
-import javax.vecmath.Vector2d;
-import javax.vecmath.Vector4d;
 
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
