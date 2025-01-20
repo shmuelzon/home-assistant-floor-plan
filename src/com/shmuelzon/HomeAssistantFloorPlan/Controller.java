@@ -1235,10 +1235,16 @@ public class Controller {
     private void separateStateIcons(Set<Entity> entities) {
         final double STEP_SIZE = 2.0;
 
-        Point2d centerPostition = getCenterOfStateIcons(entities);
+        Point2d centerPosition = getCenterOfStateIcons(entities);
+        Set<Entity> movedEntities = new HashSet<>();
 
         for (Entity entity : entities) {
-            Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
+            if (movedEntities.contains(entity)) {
+                continue;
+            }
+
+            Vector2d direction = new Vector2d(entity.position.x - centerPosition.x, entity.position.y - centerPosition.y);
+            Cluster parentCluster = entityToClusterMap.get(entity);
 
             if (direction.length() == 0) {
                 double[] randomRepeatableDirection = { entity.id.hashCode(), entity.name.hashCode() };
@@ -1247,6 +1253,22 @@ public class Controller {
 
             direction.normalize();
             direction.scale(STEP_SIZE);
+
+            if (parentCluster != null) {
+                double degrees = 0;
+
+                do {
+                    parentCluster.rotate(++degrees);
+                } while (degrees < 360 && parentCluster.doesIntersectWith(entities));
+
+                if (degrees >= 360) {
+                    parentCluster.move(direction);
+                }
+
+                movedEntities.addAll(parentCluster.entities);
+                continue;
+            }
+
             entity.move(direction);
         }
     }
@@ -1260,4 +1282,4 @@ public class Controller {
                 separateStateIcons(set);
         }
     }
-};
+}
