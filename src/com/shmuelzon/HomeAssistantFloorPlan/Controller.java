@@ -1141,11 +1141,9 @@ public class Controller {
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
-
         double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
 
-        return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
+        return x <= Math.pow(STATE_ICON_DIAMETER + stateIconMargin, 2);
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
