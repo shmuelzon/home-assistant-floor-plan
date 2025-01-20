@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Locale;
@@ -64,6 +65,8 @@ public class Controller {
     private static final String CONTROLLER_ENTITY_LEFT_POSITION = "leftPosition";
     private static final String CONTROLLER_ENTITY_TOP_POSITION = "topPosition";
 
+    private static final double STATE_ICON_DIAMETER = 40;
+
     private Home home;
     private Settings settings;
     private Camera camera;
@@ -89,6 +92,7 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private double stateIconMargin = 10;
 
     private class Entity {
         public String id;
@@ -139,6 +143,86 @@ public class Controller {
             if (isStationary)
                 return;
             position.add(direction);
+        }
+    }
+
+    private class Cluster {
+        private Set<Entity> entities;
+        private Point2d centerPosition;
+
+        public Cluster(Set<Entity> entities) {
+            setEntities(entities);
+            distributeEntities();
+        }
+
+        private void setEntities(Set<Entity> entities) {
+            if (entities == null || entities.isEmpty()) {
+                throw new IllegalArgumentException("entities cannot be null or empty.");
+            }
+
+            this.entities = entities;
+            this.centerPosition = getCenterOfStateIcons(entities);
+        }
+
+        private void distributeEntities() {
+            if (centerPosition == null) {
+                throw new IllegalStateException("Center position cannot be null.");
+            }
+            List<Point2d> newPositions = CircleCenterPositioner.generatePositions(
+                this.entities.size(),
+                STATE_ICON_DIAMETER,
+                this.centerPosition,
+                2
+            );
+
+            if (newPositions.size() != this.entities.size()) {
+                throw new IllegalStateException("Number of new positions does not match the number of entities.");
+            }
+
+            Iterator<Entity> entityIterator = this.entities.iterator();
+            int i = 0;
+            while (entityIterator.hasNext()) {
+                Entity entity = entityIterator.next();
+                entity.position = newPositions.get(i++);
+            }
+        }
+
+        public void move(Vector2d direction) {
+            for (Entity entity : this.entities) {
+                entity.position.add(direction);
+            }
+        }
+
+        public void rotate(double degrees) {
+            degrees = degrees * Math.PI / 180;
+            double cos = Math.cos(degrees);
+            double sin = Math.sin(degrees);
+
+            for (Entity entity : this.entities) {
+                Point2d rotationPoint = new Point2d(
+                        entity.position.x - centerPosition.x,
+                        entity.position.y - centerPosition.y
+                );
+
+                entity.position.x = (rotationPoint.x * cos - rotationPoint.y * sin) + centerPosition.x;
+                entity.position.y = (rotationPoint.x * sin + rotationPoint.y * cos) + centerPosition.y;
+            }
+
+            this.centerPosition = getCenterOfStateIcons(this.entities);
+        }
+
+        public boolean doesIntersectWith(Set<Entity>entities) {
+            boolean doesIntersect = false;
+
+            for (Entity entity : entities) {
+                if (this.entities.contains(entity)) {
+                    continue;
+                }
+
+                doesIntersect = doesIntersect || doesStateIconIntersectWithSet(entity, this.entities);
+            }
+
+            return doesIntersect;
         }
     }
 
