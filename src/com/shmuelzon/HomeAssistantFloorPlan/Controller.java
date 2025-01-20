@@ -92,6 +92,7 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private Map<Entity, Cluster> entityToClusterMap = new HashMap<>();
     private double stateIconMargin = 10;
 
     private class Entity {
@@ -1085,6 +1086,7 @@ public class Controller {
         build3dProjection();
         generateLightEntities(homeAssistantEntities);
         generateSensorEntities(homeAssistantEntities);
+        clusterEntities();
         moveEntityIconsToAvoidIntersection();
     }
 
@@ -1199,6 +1201,35 @@ public class Controller {
             centerPostition.add(entity.position);
         centerPostition.scale(1.0 / entities.size());
         return centerPostition;
+    }
+
+    void clusterEntities() {
+        final int MAX_ENTITIES_PER_CLUSTER = 7;
+
+        double originalMargin = stateIconMargin;
+
+        try {
+            stateIconMargin = -STATE_ICON_DIAMETER + 1;
+            List<Set<Entity>> intersectingEntities = findIntersectingStateIcons();
+
+            if (!intersectingEntities.isEmpty()) {
+                entityToClusterMap = new HashMap<>();
+
+                intersectingEntities.forEach(intersectingSet -> {
+                    List<Entity> entityList = new ArrayList<>(intersectingSet);
+                    List<Set<Entity>> subSets = splitEntityList(entityList, MAX_ENTITIES_PER_CLUSTER);
+                    subSets.forEach(subset -> {
+                        if (subset.size() > 1) {
+                            for (Entity entity : subset) {
+                                entityToClusterMap.put(entity, new Cluster(subset));
+                            }
+                        }
+                    });
+                });
+            }
+        } finally {
+            stateIconMargin = originalMargin;
+        }
     }
 
     private void separateStateIcons(Set<Entity> entities) {
