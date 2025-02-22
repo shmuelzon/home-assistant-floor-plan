@@ -339,7 +339,7 @@ public class EntityOptionsPanel extends JPanel {
 
         /* Is RGB */
         add(isRgbLabel, new GridBagConstraints(
-            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         isRgbLabel.setHorizontalAlignment(labelAlignment);
         add(isRgbCheckbox, new GridBagConstraints(
