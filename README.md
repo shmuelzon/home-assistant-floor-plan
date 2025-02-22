@@ -117,6 +117,7 @@ that allow you to customize the entity according to your needs.
 * Hold Action - Define what to do when the entity is held/long-pressed, see
   [Hold action](https://www.home-assistant.io/dashboards/actions/#hold-action)
 * Position - Override the entity's icon/label position
+* Opacity - Define the opacity of the entity's icon/label
 * Always on - Only for lights, set light as always on removing its icon and it
   won't be affected by the matching Home Assistant state
 * Is RGB(W)/dimmable light - Only for lights, set light as an RGB or dimmable

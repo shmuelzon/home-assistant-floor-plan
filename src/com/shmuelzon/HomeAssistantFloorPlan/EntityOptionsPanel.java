@@ -55,6 +55,8 @@ public class EntityOptionsPanel extends JPanel {
     private JSpinner positionLeftSpinner;
     private JLabel positionTopLabel;
     private JSpinner positionTopSpinner;
+    private JLabel opacityLabel;
+    private JSpinner opacitySpinner;
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
@@ -221,6 +223,21 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        opacityLabel = new JLabel();
+        opacityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.opacityLabel.text"));
+        final SpinnerNumberModel opacitySpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.01);
+        opacitySpinner = new AutoCommitSpinner(opacitySpinnerModel);
+        JSpinner.NumberEditor opacityEditor = new JSpinner.NumberEditor(opacitySpinner, "0 %");
+        ((JSpinner.DefaultEditor)opacityEditor).getTextField().setColumns(5);
+        opacitySpinner.setEditor(opacityEditor);
+        opacitySpinnerModel.setValue(controller.getEntityOpacity(entityName) / 100.0);
+        opacitySpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              controller.setEntityOpacity(entityName, (int)(((Number)opacitySpinnerModel.getValue()).doubleValue() * 100));
+              markModified();
+            }
+        });
+
         alwaysOnLabel = new JLabel();
         alwaysOnLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.text"));
         alwaysOnCheckbox = new JCheckBox();
@@ -306,6 +323,7 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Position */
         add(positionLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
@@ -321,6 +339,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(positionTopSpinner, new GridBagConstraints(
             4, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Opacity */
+        add(opacityLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        opacityLabel.setHorizontalAlignment(labelAlignment);
+        add(opacitySpinner, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -359,6 +387,7 @@ public class EntityOptionsPanel extends JPanel {
         positionLabel.setForeground(controller.isEntityPositionModified(entityName) ? modifiedColor : Color.BLACK);
         alwaysOnLabel.setForeground(controller.isEntityAlwaysOnModified(entityName) ? modifiedColor : Color.BLACK);
         isRgbLabel.setForeground(controller.isEntityIsRgbModified(entityName) ? modifiedColor : Color.BLACK);
+        opacityLabel.setForeground(controller.isEntityOpacityModified(entityName) ? modifiedColor : Color.BLACK);
     }
 
     public void displayView(Component parentComponent) {

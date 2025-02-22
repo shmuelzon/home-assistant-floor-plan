@@ -67,6 +67,7 @@ public class Controller {
     private static final String CONTROLLER_ENTITY_IS_RGB = "isRgb";
     private static final String CONTROLLER_ENTITY_LEFT_POSITION = "leftPosition";
     private static final String CONTROLLER_ENTITY_TOP_POSITION = "topPosition";
+    private static final String CONTROLLER_ENTITY_OPACITY = "opacity";
 
     private Home home;
     private Settings settings;
@@ -98,6 +99,7 @@ public class Controller {
         public String id;
         public String name;
         public Point2d position;
+        public int opacity;
         public EntityDisplayType displayType;
         public EntityDisplayCondition displayCondition;
         public EntityAction tapAction;
@@ -126,6 +128,7 @@ public class Controller {
             this.doubleTapAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, EntityAction.NONE);
             this.holdAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_HOLD_ACTION, EntityAction.MORE_INFO);
             this.title = title;
+            this.opacity = settings.getInteger(name + "." + CONTROLLER_ENTITY_OPACITY, 100);
             this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
             this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
 
@@ -414,6 +417,19 @@ public class Controller {
         return settings.get(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION) != null;
     }
 
+    public int getEntityOpacity(String entityName) {
+        return homeAssistantEntities.get(entityName).opacity;
+    }
+
+    public void setEntityOpacity(String entityName, int opacity) {
+        homeAssistantEntities.get(entityName).opacity = opacity;
+        settings.setInteger(entityName + "." + CONTROLLER_ENTITY_OPACITY, opacity);
+    }
+
+    public boolean isEntityOpacityModified(String entityName) {
+        return settings.get(entityName + "." + CONTROLLER_ENTITY_OPACITY) != null;
+    }
+
     public void resetEntitySettings(String entityName) {
         boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
         boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
@@ -426,6 +442,7 @@ public class Controller {
         settings.set(entityName + "." + CONTROLLER_ENTITY_IS_RGB, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, null);
         settings.set(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, null);
+        settings.set(entityName + "." + CONTROLLER_ENTITY_OPACITY, null);
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         generateHomeAssistantEntities();
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
@@ -946,6 +963,7 @@ public class Controller {
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
             "      background-color: rgba(255, 255, 255, 0.3)\n" +
+            "      opacity: %d%%\n" +
             "    tap_action:\n" +
             "      action: %s\n" +
             "    double_tap_action:\n" +
@@ -953,7 +971,7 @@ public class Controller {
             "    hold_action:\n" +
             "      action: %s\n",
             entityDisplayTypeToYamlString.get(entity.displayType), entity.name, entity.title,
-            100.0 * (entity.position.y / renderHeight), 100.0 * (entity.position.x / renderWidth),
+            100.0 * (entity.position.y / renderHeight), 100.0 * (entity.position.x / renderWidth), entity.opacity,
             entityTapActionToYamlString.get(entity.tapAction), entityTapActionToYamlString.get(entity.doubleTapAction),
             entityTapActionToYamlString.get(entity.holdAction));
 
