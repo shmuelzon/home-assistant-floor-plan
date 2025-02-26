@@ -19,8 +19,7 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.stream.Collectors;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -61,8 +60,6 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
 
-import com.eteks.sweethome3d.model.HomeLight;
-import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.swing.AutoCommitSpinner;
 import com.eteks.sweethome3d.swing.FileContentManager;
@@ -112,19 +109,30 @@ public class Panel extends JPanel implements DialogView {
     private JButton closeButton;
 
     private class EntityNode {
-        public String name;
+        public Entity entity;
         public List<String> attributes;
 
-        public EntityNode(String name, List<String> attributes) {
-            this.name = name;
-            this.attributes = attributes;
+        public EntityNode(Entity entity) {
+            this.entity = entity;
         }
 
         @Override
         public String toString() {
+            List<String> attributes = attributesList();
             if (attributes.size() == 0)
-                return name;
-            return name + " " + attributes.toString();
+                return entity.getName();
+            return entity.getName() + " " + attributes.toString();
+        }
+
+        private List<String> attributesList() {
+            attributes = new ArrayList<>();
+
+            if (entity.getAlwaysOn())
+                attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.alwaysOn.text"));
+            if (entity.getIsRgb())
+                attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
+
+            return attributes;
         }
     }
 
@@ -134,12 +142,12 @@ public class Panel extends JPanel implements DialogView {
         this.controller = controller;
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
-        createActions(preferences);
-        createComponents(preferences, this.controller.getLightsGroups());
+        createActions();
+        createComponents();
         layoutComponents();
     }
 
-    private void createActions(UserPreferences preferences) {
+    private void createActions() {
         final ActionMap actions = getActionMap();
         actions.put(ActionType.BROWSE, new ResourceAction(preferences, Panel.class, ActionType.BROWSE.name(), true) {
             @Override
@@ -193,7 +201,7 @@ public class Panel extends JPanel implements DialogView {
             outputDirectoryTextField.setText(selectedDirectory);
     }
 
-    private JTree createTree(String rootName, final boolean isLight) {
+    private JTree createTree(String rootName) {
         final JTree tree = new JTree(new DefaultMutableTreeNode(rootName)) {
             @Override
             protected void setExpandedState(TreePath path, boolean state) {
@@ -204,6 +212,9 @@ public class Panel extends JPanel implements DialogView {
         };
         tree.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (!tree.isEnabled())
+                    return;
+
                 TreePath selectedPath = tree.getSelectionPath();
                 if (selectedPath == null)
                     return;
@@ -215,12 +226,15 @@ public class Panel extends JPanel implements DialogView {
                 }
 
                 EntityNode entityNode = (EntityNode)node.getUserObject();
-                openEntityOptionsPanel(entityNode.name, isLight);
+                openEntityOptionsPanel(entityNode.entity);
             }
         });
         tree.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
+                if (!tree.isEnabled())
+                    return;
+
                 TreePath path = tree.getPathForLocation(e.getX(), e.getY());
 
                 if (path != null && ((DefaultMutableTreeNode)path.getLastPathComponent()).isLeaf()) {
@@ -249,29 +263,28 @@ public class Panel extends JPanel implements DialogView {
         return tree;
     }
 
-    private void createComponents(UserPreferences preferences, Map<String, Map<String, List<HomeLight>>> lightsGroups) {
+    private void createComponents() {
         final ActionMap actionMap = getActionMap();
 
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
-        detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"), true);
-        buildLightsGroupsTree(lightsGroups);
+        detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"));
+        buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
         PropertyChangeListener updateTreeOnProperyChanged = new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
-                buildLightsGroupsTree(controller.getLightsGroups());
+                buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
             }
         };
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, updateTreeOnProperyChanged);
-        controller.addPropertyChangeListener(Controller.Property.ENTITY_ATTRIBUTE_CHANGED, updateTreeOnProperyChanged);
+        for (Entity light : controller.getLightEntities()) {
+            light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, updateTreeOnProperyChanged);
+            light.addPropertyChangeListener(Entity.Property.IS_RGB, updateTreeOnProperyChanged);
+        }
 
         otherEntitiesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTreeLabel.text"));
-        otherEntitiesTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text"), false);
-        buildOtherEntitiesGroupsTree(controller.getHomeAssistantEntities());
-        PropertyChangeListener updateEntitiesTreeOnProperyChanged = new PropertyChangeListener() {
-            public void propertyChange(PropertyChangeEvent ev) {
-                buildOtherEntitiesGroupsTree(controller.getHomeAssistantEntities());
-            }
-        };
-        controller.addPropertyChangeListener(Controller.Property.ENTITY_ATTRIBUTE_CHANGED, updateEntitiesTreeOnProperyChanged);
+        otherEntitiesTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text"));
+        Map<String, List<Entity>> otherEntitiesGroupedByType = controller.getOtherEntities().stream()
+            .collect(Collectors.groupingBy(entity -> entity.getName().split("\\.")[0]));
+        buildEntitiesGroupsTree(otherEntitiesTree, otherEntitiesGroupedByType);
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
@@ -448,6 +461,8 @@ public class Panel extends JPanel implements DialogView {
     }
 
     private void setComponentsEnabled(boolean enabled) {
+        detectedLightsTree.setEnabled(enabled);
+        otherEntitiesTree.setEnabled(enabled);
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
         lightMixingModeComboBox.setEnabled(enabled);
@@ -617,83 +632,33 @@ public class Panel extends JPanel implements DialogView {
         currentPanel = this;
     }
 
-    private EntityNode generateLightEntityNode(String lightName) {
-        List<String> attributes = new ArrayList<String>();
-
-        if (controller.getEntityAlwaysOn(lightName))
-            attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.alwaysOn.text"));
-        if (controller.getEntityIsRgb(lightName))
-            attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
-
-        return new EntityNode(lightName, attributes);
-    }
-
-    private void buildLightsGroupsTree(Map<String, Map<String, List<HomeLight>>> lightsGroups) {
-        DefaultTreeModel model = (DefaultTreeModel)detectedLightsTree.getModel();
+    private void buildEntitiesGroupsTree(JTree tree, Map<String, List<Entity>> entityGroups) {
+        DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
         DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
 
         root.removeAllChildren();
         model.reload();
 
-        for (String group : new TreeSet<String>(lightsGroups.keySet())) {
+        for (String group : new TreeSet<String>(entityGroups.keySet())) {
             DefaultMutableTreeNode groupNode;
-            if (lightsGroups.get(group).size() != 1 || lightsGroups.get(group).get(group) == null)
+            if (entityGroups.get(group).size() != 1 || entityGroups.get(group).get(0).getName() != group)
             {
                 groupNode = new DefaultMutableTreeNode(group);
-                for (String lightName : new TreeSet<String>(lightsGroups.get(group).keySet()))
-                    groupNode.add(new DefaultMutableTreeNode(generateLightEntityNode(lightName)));
+                for (Entity light : new TreeSet<>(entityGroups.get(group)))
+                    groupNode.add(new DefaultMutableTreeNode(new EntityNode(light)));
             }
             else
-                groupNode = new DefaultMutableTreeNode(generateLightEntityNode(group));
+                groupNode = new DefaultMutableTreeNode(new EntityNode(entityGroups.get(group).get(0)));
             model.insertNodeInto(groupNode, root, root.getChildCount());
         }
 
-        for (int i = 0; i < detectedLightsTree.getRowCount(); i++) {
-            detectedLightsTree.expandRow(i);
+        for (int i = 0; i < tree.getRowCount(); i++) {
+            tree.expandRow(i);
         }
     }
 
-    private void buildOtherEntitiesGroupsTree(List<HomePieceOfFurniture> otherEntities) {
-        DefaultTreeModel model = (DefaultTreeModel)otherEntitiesTree.getModel();
-        DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
-
-        root.removeAllChildren();
-        model.reload();
-
-        Collections.sort(otherEntities, new Comparator<HomePieceOfFurniture>() {
-            public int compare(HomePieceOfFurniture piece1, HomePieceOfFurniture piece2) {
-                return piece1.getName().compareTo(piece2.getName());
-            }
-        });
-
-        for (HomePieceOfFurniture entity : otherEntities ) {
-            String entityName = entity.getName();
-            String type = entityName.split("\\.")[0];
-
-            DefaultMutableTreeNode typeGroup = null;
-            for (int i = 0; i < root.getChildCount(); i++) {
-                if (root.getChildAt(i).toString().equals(type)) {
-                    typeGroup = (DefaultMutableTreeNode)root.getChildAt(i);
-                    break;
-                }
-            }
-
-            if (typeGroup == null) {
-                typeGroup = new DefaultMutableTreeNode(type);
-                model.insertNodeInto(typeGroup, root, root.getChildCount());
-            }
-
-            typeGroup.add(new DefaultMutableTreeNode(generateLightEntityNode(entityName)));
-        }
-
-        for (int i = 0; i < otherEntitiesTree.getRowCount(); i++) {
-            otherEntitiesTree.expandRow(i);
-        }
-    }
-
-    /* Method to open the new panel */
-    private void openEntityOptionsPanel(String entityName, boolean isLight) {
-        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, controller, entityName, isLight);
+    private void openEntityOptionsPanel(Entity entity) {
+        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity);
         entityOptionsPanel.displayView(this);
     }
 

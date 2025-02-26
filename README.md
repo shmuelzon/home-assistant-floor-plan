@@ -144,16 +144,33 @@ that allow you to customize the entity according to your needs.
   they'll be treated as one
 * To include state icons and labels for sensors, set the relevant furniture name
   to the entity name of Home Assistant, available entities for this plugin:
+  * `air_quality.xxx`
+  * `alarm_control_panel.xxx`
+  * `assist_satellite.xxx`
   * `binary_sensor.xxx`
+  * `button.xxx`
   * `camera.xxx`
   * `climate.xxx`
   * `cover.xxx`
+  * `device_tracker.xxx`
   * `fan.xxx`
+  * `humidifier.xxx`
   * `input_boolean.xxx`
+  * `input_button.xxx`
+  * `lawn_mower.xxx`
+  * `light.xxx`
+  * `lock.xxx`
   * `media_player.xxx`
+  * `remote.xxx`
   * `sensor.xxx`
+  * `siren.xxx`
   * `switch.xxx`
+  * `todo.xxx`
+  * `update.xxx`
   * `vacuum.xxx`
+  * `valve.xxx`
+  * `water_header.xxx`
+  * `weather.xxx`
 
 ## Suggestions
 

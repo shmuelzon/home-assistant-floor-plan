@@ -41,7 +41,7 @@ public class Settings {
     public void set(String name, String value) {
         String oldValue = get(name);
 
-        if (oldValue == value)
+        if (oldValue != null && oldValue.equals(value))
             return;
         home.setProperty(PROPERTY_PREFIX + name, value);
         home.setModified(true);

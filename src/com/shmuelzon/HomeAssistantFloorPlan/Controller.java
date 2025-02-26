@@ -2,10 +2,12 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.lang.InterruptedException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
@@ -13,13 +15,16 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
 import javax.media.j3d.Transform3D;
@@ -37,14 +42,11 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, ENTITY_ATTRIBUTE_CHANGED}
+    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
-    public enum EntityDisplayType {BADGE, ICON, LABEL}
-    public enum EntityDisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
-    public enum EntityAction {MORE_INFO, NONE, TOGGLE}
 
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
 
@@ -58,25 +60,13 @@ public class Controller {
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
-    private static final String CONTROLLER_ENTITY_DISPLAY_TYPE = "displayType";
-    private static final String CONTROLLER_ENTITY_DISPLAY_CONDITION = "displayCondition";
-    private static final String CONTROLLER_ENTITY_TAP_ACTION = "tapAction";
-    private static final String CONTROLLER_ENTITY_DOUBLE_TAP_ACTION = "doubleTapAction";
-    private static final String CONTROLLER_ENTITY_HOLD_ACTION = "holdAction";
-    private static final String CONTROLLER_ENTITY_ALWAYS_ON = "alwaysOn";
-    private static final String CONTROLLER_ENTITY_IS_RGB = "isRgb";
-    private static final String CONTROLLER_ENTITY_LEFT_POSITION = "leftPosition";
-    private static final String CONTROLLER_ENTITY_TOP_POSITION = "topPosition";
-    private static final String CONTROLLER_ENTITY_OPACITY = "opacity";
 
     private Home home;
     private Settings settings;
     private Camera camera;
-    private Map<String, List<HomeLight>> lights;
-    private Map<String, Map<String, List<HomeLight>>> lightsGroups;
-    private List<String> lightsNames;
-    private Map<HomeLight, Float> lightsPower;
-    private Map<String, Entity> homeAssistantEntities;
+    private List<Entity> lightEntities = new ArrayList<>();
+    private List<Entity> otherEntities = new ArrayList<>();
+    private Map<String, List<Entity>> lightsGroups = new HashMap<>();
     private Vector4d cameraPosition;
     private Transform3D perspectiveTransform;
     private PropertyChangeSupport propertyChangeSupport;
@@ -95,72 +85,16 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
 
-    private class Entity {
-        public String id;
-        public String name;
-        public Point2d position;
-        public int opacity;
-        public EntityDisplayType displayType;
-        public EntityDisplayCondition displayCondition;
-        public EntityAction tapAction;
-        public EntityAction doubleTapAction;
-        public EntityAction holdAction;
-        public String title;
-        public boolean alwaysOn;
-        public boolean isRgb;
-        private boolean isStationary = false;
-
-        private <T extends Enum<T>> T getSavedEnumValue(Class<T> type, String name, T defaultValue) {
-            try {
-                return Enum.valueOf(type, settings.get(name, defaultValue.name()));
-            } catch (IllegalArgumentException e) {
-                settings.set(name, null);
-            }
-            return defaultValue;
-        }
-
-        public Entity(String id, String name, Point2d position, EntityDisplayType defaultDisplayType, EntityDisplayCondition defaultDisplayCondition, EntityAction defaultTapAction, String title) {
-            this.id = id;
-            this.name = name;
-            this.displayType = getSavedEnumValue(EntityDisplayType.class, name + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, defaultDisplayType);
-            this.displayCondition = getSavedEnumValue(EntityDisplayCondition.class, name + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION, defaultDisplayCondition);
-            this.tapAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_TAP_ACTION, defaultTapAction);
-            this.doubleTapAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, EntityAction.NONE);
-            this.holdAction = getSavedEnumValue(EntityAction.class, name + "." + CONTROLLER_ENTITY_HOLD_ACTION, EntityAction.MORE_INFO);
-            this.title = title;
-            this.opacity = settings.getInteger(name + "." + CONTROLLER_ENTITY_OPACITY, 100);
-            this.alwaysOn = settings.getBoolean(name + "." + CONTROLLER_ENTITY_ALWAYS_ON, false);
-            this.isRgb = settings.getBoolean(name + "." + CONTROLLER_ENTITY_IS_RGB, false);
-
-            double leftPosition = settings.getDouble(name + "." + CONTROLLER_ENTITY_LEFT_POSITION, -1);
-            double topPosition = settings.getDouble(name + "." + CONTROLLER_ENTITY_TOP_POSITION, -1);
-            if (leftPosition != -1 || topPosition != -1) {
-                this.position = new Point2d(leftPosition / 100.0 * renderWidth, topPosition / 100 * renderHeight);
-                isStationary = true;
-            }
-            else
-                this.position = position;
-        }
-
-        public void move(Vector2d direction) {
-            if (isStationary)
-                return;
-            position.add(direction);
-        }
-    }
-
     public Controller(Home home) {
         this.home = home;
         settings = new Settings(home);
         camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
-        lights = getEnabledLights();
-        lightsNames = new ArrayList<String>(lights.keySet());
         loadDefaultSettings();
-        lightsGroups = getLightsGroups(lights);
-        lightsPower = getLightsPower(lights);
-        homeAssistantEntities = new HashMap<String, Entity>();
-        generateHomeAssistantEntities();
+        createHomeAssistantEntities();
+
+        buildLightsGroups();
+        repositionEntities();
     }
 
     public void loadDefaultSettings() {
@@ -186,15 +120,23 @@ public class Controller {
         propertyChangeSupport.removePropertyChangeListener(property.name(), listener);
     }
 
-    public Map<String, Map<String, List<HomeLight>>> getLightsGroups() {
+    public List<Entity> getLightEntities() {
+        return lightEntities;
+    }
+
+    public List<Entity> getOtherEntities() {
+        return otherEntities;
+    }
+
+    public Map<String, List<Entity>> getLightsGroups() {
         return lightsGroups;
     }
 
-    private int getNumberOfControllableLights(Set<String> lights) {
+    private int getNumberOfControllableLights(List<Entity> lights) {
         int numberOfControllableLights = 0;
 
-        for (String lightName : lights)
-            numberOfControllableLights += getEntityAlwaysOn(lightName) ? 0 : 1;
+        for (Entity light : lights)
+            numberOfControllableLights += light.getAlwaysOn() ? 0 : 1;
 
         return numberOfControllableLights;
     }
@@ -202,8 +144,8 @@ public class Controller {
     public int getNumberOfTotalRenders() {
         int numberOfTotalRenders = 1;
 
-        for (Map<String, List<HomeLight>> groupLights : lightsGroups.values()) {
-            numberOfTotalRenders += (1 << getNumberOfControllableLights(groupLights.keySet())) - 1;
+        for (List<Entity> groupLights : lightsGroups.values()) {
+            numberOfTotalRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
         }
         return numberOfTotalRenders;
     }
@@ -215,7 +157,7 @@ public class Controller {
     public void setRenderHeight(int renderHeight) {
         this.renderHeight = renderHeight;
         settings.setInteger(CONTROLLER_RENDER_HEIGHT, renderHeight);
-        generateHomeAssistantEntities();
+        repositionEntities();
     }
 
     public int getRenderWidth() {
@@ -225,7 +167,7 @@ public class Controller {
     public void setRenderWidth(int renderWidth) {
         this.renderWidth = renderWidth;
         settings.setInteger(CONTROLLER_RENDER_WIDTH, renderWidth);
-        generateHomeAssistantEntities();
+        repositionEntities();
     }
 
     public int getSensitivity() {
@@ -244,7 +186,7 @@ public class Controller {
     public void setLightMixingMode(LightMixingMode lightMixingMode) {
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         this.lightMixingMode = lightMixingMode;
-        lightsGroups = getLightsGroups(lights);
+        buildLightsGroups();
         settings.set(CONTROLLER_LIGHT_MIXING_MODE, lightMixingMode.name());
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
@@ -305,151 +247,6 @@ public class Controller {
         settings.setLong(CONTROLLER_RENDER_TIME, renderDateTime);
     }
 
-    public EntityDisplayType getEntityDisplayType(String entityName) {
-        return homeAssistantEntities.get(entityName).displayType;
-    }
-
-    public void setEntityDisplayType(String entityName, EntityDisplayType displayType) {
-        homeAssistantEntities.get(entityName).displayType = displayType;
-        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, displayType.name());
-    }
-
-    public boolean isEntityDisplayTypeModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE) != null;
-    }
-
-    public EntityDisplayCondition getEntityDisplayCondition(String entityName) {
-        return homeAssistantEntities.get(entityName).displayCondition;
-    }
-
-    public void setEntityDisplayCondition(String entityName, EntityDisplayCondition displayCondition) {
-        homeAssistantEntities.get(entityName).displayCondition = displayCondition;
-        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION, displayCondition.name());
-    }
-
-    public boolean isEntityDisplayConditionModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION) != null;
-    }
-
-    public EntityAction getEntityTapAction(String entityName) {
-        return homeAssistantEntities.get(entityName).tapAction;
-    }
-
-    public void setEntityTapAction(String entityName, EntityAction tapAction) {
-        homeAssistantEntities.get(entityName).tapAction = tapAction;
-        settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, tapAction.name());
-    }
-
-    public boolean isEntityTapActionModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION) != null;
-    }
-
-    public EntityAction getEntityDoubleTapAction(String entityName) {
-        return homeAssistantEntities.get(entityName).doubleTapAction;
-    }
-
-    public void setEntityDoubleTapAction(String entityName, EntityAction doubleTapAction) {
-        homeAssistantEntities.get(entityName).doubleTapAction = doubleTapAction;
-        settings.set(entityName + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, doubleTapAction.name());
-    }
-
-    public boolean isEntityDoubleTapActionModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION) != null;
-    }
-
-    public EntityAction getEntityHoldAction(String entityName) {
-        return homeAssistantEntities.get(entityName).holdAction;
-    }
-
-    public void setEntityHoldAction(String entityName, EntityAction holdAction) {
-        homeAssistantEntities.get(entityName).holdAction = holdAction;
-        settings.set(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION, holdAction.name());
-    }
-
-    public boolean isEntityHoldActionModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION) != null;
-    }
-
-    public boolean getEntityAlwaysOn(String entityName) {
-        return homeAssistantEntities.get(entityName).alwaysOn;
-    }
-
-    public void setEntityAlwaysOn(String entityName, boolean alwaysOn) {
-        int oldNumberOfTotalRenders = getNumberOfTotalRenders();
-        boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
-        homeAssistantEntities.get(entityName).alwaysOn = alwaysOn;
-        settings.setBoolean(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, alwaysOn);
-        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotalRenders, getNumberOfTotalRenders());
-        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldAlwaysOn, alwaysOn);
-    }
-
-    public boolean isEntityAlwaysOnModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON) != null;
-    }
-
-    public boolean getEntityIsRgb(String entityName) {
-        return homeAssistantEntities.get(entityName).isRgb;
-    }
-
-    public void setEntityIsRgb(String entityName, boolean isRgb) {
-        boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
-        homeAssistantEntities.get(entityName).isRgb = isRgb;
-        settings.setBoolean(entityName + "." + CONTROLLER_ENTITY_IS_RGB, isRgb);
-        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, isRgb);
-    }
-
-    public boolean isEntityIsRgbModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_IS_RGB) != null;
-    }
-
-    public Point2d getEntityPosition(String entityName) {
-        Entity entity = homeAssistantEntities.get(entityName);
-        return new Point2d(100 * (entity.position.x / renderWidth), 100 * (entity.position.y / renderHeight));
-    }
-
-    public void setEntityPosition(String entityName, Point2d position) {
-        settings.setDouble(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, position.x);
-        settings.setDouble(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, position.y);
-        generateHomeAssistantEntities();
-    }
-
-    public boolean isEntityPositionModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION) != null;
-    }
-
-    public int getEntityOpacity(String entityName) {
-        return homeAssistantEntities.get(entityName).opacity;
-    }
-
-    public void setEntityOpacity(String entityName, int opacity) {
-        homeAssistantEntities.get(entityName).opacity = opacity;
-        settings.setInteger(entityName + "." + CONTROLLER_ENTITY_OPACITY, opacity);
-    }
-
-    public boolean isEntityOpacityModified(String entityName) {
-        return settings.get(entityName + "." + CONTROLLER_ENTITY_OPACITY) != null;
-    }
-
-    public void resetEntitySettings(String entityName) {
-        boolean oldAlwaysOn = homeAssistantEntities.get(entityName).alwaysOn;
-        boolean oldIsRgb = homeAssistantEntities.get(entityName).isRgb;
-        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_TYPE, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_DISPLAY_CONDITION, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_TAP_ACTION, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_DOUBLE_TAP_ACTION, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_HOLD_ACTION, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_ALWAYS_ON, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_IS_RGB, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_LEFT_POSITION, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_TOP_POSITION, null);
-        settings.set(entityName + "." + CONTROLLER_ENTITY_OPACITY, null);
-        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
-        generateHomeAssistantEntities();
-        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
-        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldAlwaysOn, getEntityAlwaysOn(entityName));
-        propertyChangeSupport.firePropertyChange(Property.ENTITY_ATTRIBUTE_CHANGED.name(), oldIsRgb, getEntityIsRgb(entityName));
-    }
-
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();
@@ -481,109 +278,105 @@ public class Controller {
             yaml += generateEntitiesYaml();
 
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+        } catch (InterruptedIOException e) {
+            throw new InterruptedException();
         } catch (ClosedByInterruptException e) {
             throw new InterruptedException();
         } catch (IOException e) {
             throw e;
         } finally {
-            restoreLightsPower(lightsPower);
+            restoreLightsPower();
         }
     }
 
-    private void addEnabledLightsInList(Map<String, List<HomeLight>> lights, List<HomePieceOfFurniture> furnitureList ) {
+    private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> furnitureList) {
         for (HomePieceOfFurniture piece : furnitureList) {
             if (piece instanceof HomeFurnitureGroup) {
-                addEnabledLightsInList(lights, ((HomeFurnitureGroup)piece).getFurniture());
+                addEligibleFurnitureToMap(furnitureByName, ((HomeFurnitureGroup)piece).getFurniture());
                 continue;
             }
-            if (!(piece instanceof HomeLight))
+            if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible())
                 continue;
-            HomeLight light = (HomeLight)piece;
-            if (light.getPower() == 0f || !light.isVisible())
+            if (piece instanceof HomeLight && ((HomeLight)piece).getPower() == 0f)
                 continue;
-            if (!home.getEnvironment().isAllLevelsVisible() && light.getLevel() != home.getSelectedLevel())
+            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel())
                 continue;
-            if (!lights.containsKey(light.getName()))
-                lights.put(light.getName(), new ArrayList<HomeLight>());
-            lights.get(light.getName()).add(light);
+            if (!furnitureByName.containsKey(piece.getName()))
+                furnitureByName.put(piece.getName(), new ArrayList<HomePieceOfFurniture>());
+            furnitureByName.get(piece.getName()).add(piece);
         }
     }
 
-    private Map<String, List<HomeLight>> getEnabledLights() {
-        Map<String, List<HomeLight>> lights = new HashMap<String, List<HomeLight>>();
+    private void createHomeAssistantEntities() {
+        Map<String, List<HomePieceOfFurniture>> furnitureByName = new HashMap<>();
+        addEligibleFurnitureToMap(furnitureByName, home.getFurniture());
 
-        addEnabledLightsInList(lights, home.getFurniture());
+        for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
+            Entity entity = new Entity(settings, pieces);
+            entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
+                public void propertyChange(PropertyChangeEvent ev) {
+                    repositionEntities();
+                }
+            });
+            entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
+                public void propertyChange(PropertyChangeEvent ev) {
+                    buildLightsGroups();
+                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+                }
+            });
 
-        return lights;
+            if (entity.getIsLight())
+                lightEntities.add(entity);
+            else
+                otherEntities.add(entity);
+        }
     }
 
-    private Map<String, Map<String, List<HomeLight>>> getLightsGroupsByRoom(Map<String, List<HomeLight>> lights) {
-        Map<String, Map<String, List<HomeLight>>> lightsGroups = new HashMap<String, Map<String, List<HomeLight>>>();
+    private void buildLightsGroupsByRoom() {
         List<Room> homeRooms = home.getRooms();
 
         for (Room room : homeRooms) {
             if (!home.getEnvironment().isAllLevelsVisible() && room.getLevel() != home.getSelectedLevel())
                 continue;
             String roomName = room.getName() != null ? room.getName() : room.getId();
-            for (List<HomeLight> subLights : lights.values()) {
-                HomeLight subLight = subLights.get(0);
-                if (room.containsPoint(subLight.getX(), subLight.getY(), 0) && room.getLevel() == subLight.getLevel()) {
+            for (Entity entity : lightEntities) {
+                HomePieceOfFurniture light = entity.getPiecesOfFurniture().get(0);
+                if (room.containsPoint(light.getX(), light.getY(), 0) && room.getLevel() == light.getLevel()) {
                     if (!lightsGroups.containsKey(roomName))
-                        lightsGroups.put(roomName, new HashMap<String, List<HomeLight>>());
-                    lightsGroups.get(roomName).put(subLight.getName(), subLights);
+                        lightsGroups.put(roomName, new ArrayList<>());
+                    lightsGroups.get(roomName).add(entity);
                 }
             }
         }
-
-        return lightsGroups;
     }
 
-    private Map<String, Map<String, List<HomeLight>>> getLightsGroupsByLight(Map<String, List<HomeLight>> lights) {
-        Map<String, Map<String, List<HomeLight>>> lightsGroups = new HashMap<String, Map<String, List<HomeLight>>>();
-
-        for (String lightName : lights.keySet()) {
-            lightsGroups.put(lightName, new HashMap<String, List<HomeLight>>());
-            lightsGroups.get(lightName).put(lightName, lights.get(lightName));
+    private void buildLightsGroupsByLight() {
+        for (Entity entity : lightEntities) {
+            lightsGroups.put(entity.getName(), new ArrayList<>());
+            lightsGroups.get(entity.getName()).add(entity);
         }
-
-        return lightsGroups;
     }
 
-    private Map<String, Map<String, List<HomeLight>>> getLightsGroupsByHome(Map<String, List<HomeLight>> lights) {
-        Map<String, Map<String, List<HomeLight>>> lightsGroups = new HashMap<String, Map<String, List<HomeLight>>>();
-
-        lightsGroups.put("Home", new HashMap<String, List<HomeLight>>());
-        for (String lightName : lights.keySet())
-            lightsGroups.get("Home").put(lightName, lights.get(lightName));
-
-        return lightsGroups;
+    private void buildLightsGroupsByHome() {
+        lightsGroups.put("Home", new ArrayList<>());
+        for (Entity entity : lightEntities)
+            lightsGroups.get("Home").add(entity);
     }
 
-    private Map<String, Map<String, List<HomeLight>>> getLightsGroups(Map<String, List<HomeLight>> lights)
+    private void buildLightsGroups()
     {
+        lightsGroups.clear();
+
         if (lightMixingMode == LightMixingMode.CSS)
-            return getLightsGroupsByLight(lights);
-        if (lightMixingMode == LightMixingMode.OVERLAY)
-            return getLightsGroupsByRoom(lights);
-        if (lightMixingMode == LightMixingMode.FULL)
-            return getLightsGroupsByHome(lights);
-
-        return null;
-    }
-
-    private Map<HomeLight, Float> getLightsPower(Map<String, List<HomeLight>> lights) {
-        Map<HomeLight, Float> lightsPower = new HashMap<HomeLight, Float>();
-
-        for (List<HomeLight> lightsList : lights.values()) {
-            for (HomeLight light : lightsList )
-                lightsPower.put(light, light.getPower());
-        }
-
-        return lightsPower;
+            buildLightsGroupsByLight();
+        else if (lightMixingMode == LightMixingMode.OVERLAY)
+            buildLightsGroupsByRoom();
+        else if (lightMixingMode == LightMixingMode.FULL)
+            buildLightsGroupsByHome();
     }
 
     private boolean isHomeAssistantEntity(String name) {
-        String[] sensorPrefixes = {
+        List<String> sensorPrefixes = Arrays.asList(
             "air_quality.",
             "alarm_control_panel.",
             "assist_satellite.",
@@ -598,6 +391,7 @@ public class Controller {
             "input_boolean.",
             "input_button.",
             "lawn_mower.",
+            "light.",
             "lock.",
             "media_player.",
             "remote.",
@@ -609,39 +403,13 @@ public class Controller {
             "vacuum.",
             "valve.",
             "water_header.",
-            "weather.",
-        };
+            "weather."
+        );
 
         if (name == null)
             return false;
 
-        for (String prefix : sensorPrefixes ) {
-            if (name.startsWith(prefix))
-                return true;
-        }
-        return false;
-    }
-
-    public void addHomeAssistantEntitiesFromList(List<HomePieceOfFurniture> homeAssistantEntities, List<HomePieceOfFurniture> furnitureList) {
-        for (HomePieceOfFurniture piece : furnitureList) {
-            if (piece instanceof HomeFurnitureGroup) {
-                addHomeAssistantEntitiesFromList(homeAssistantEntities, ((HomeFurnitureGroup)piece).getFurniture());
-                continue;
-            }
-            if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible() || piece instanceof HomeLight)
-                continue;
-            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel())
-                continue;
-            homeAssistantEntities.add(piece);
-        }
-    }
-
-    public List<HomePieceOfFurniture> getHomeAssistantEntities() {
-        List<HomePieceOfFurniture> homeAssistantEntities = new ArrayList<HomePieceOfFurniture>();
-
-        addHomeAssistantEntitiesFromList(homeAssistantEntities, home.getFurniture());
-
-        return homeAssistantEntities;
+        return sensorPrefixes.stream().anyMatch(name::startsWith);
     }
 
     private void build3dProjection() {
@@ -660,7 +428,7 @@ public class Controller {
     }
 
     private BufferedImage generateBaseRender() throws IOException, InterruptedException {
-        BufferedImage image = generateImage(new ArrayList<String>(), "base");
+        BufferedImage image = generateImage(new ArrayList<>(), "base");
         return generateFloorPlanImage(image, image, "base", false);
     }
 
@@ -678,18 +446,19 @@ public class Controller {
     }
 
     private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException, InterruptedException {
-        List<String> groupLights = new ArrayList<String>(lightsGroups.get(group).keySet());
+        List<Entity> groupLights = lightsGroups.get(group);
 
-        List<List<String>> lightCombinations = getCombinations(groupLights);
+        List<List<Entity>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
-        for (List<String> onLights : lightCombinations) {
-            String imageName = String.join("_", onLights);
+        for (List<Entity> onLights : lightCombinations) {
+            String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
             BufferedImage image = generateImage(onLights, imageName);
-            boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && getEntityIsRgb(onLights.get(0)));
+            Entity firstLight = onLights.get(0);
+            boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, imageName, createOverlayImage);
-            if (getEntityIsRgb(onLights.get(0))) {
+            if (firstLight.getIsRgb()) {
                 generateRedTintedImage(floorPlanImage, imageName);
-                yaml += generateRgbLightYaml(onLights.get(0), imageName);
+                yaml += generateRgbLightYaml(firstLight, imageName);
             }
             else
                 yaml += generateLightYaml(groupLights, onLights, imageName);
@@ -704,7 +473,7 @@ public class Controller {
         ImageIO.write(image, "png", imageFile);
     }
 
-    private BufferedImage generateImage(List<String> onLights, String name) throws IOException, InterruptedException {
+    private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
         String fileName = outputRendersDirectoryName + File.separator + name + ".png";
 
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
@@ -719,13 +488,9 @@ public class Controller {
         return image;
     }
 
-    private void prepareScene(List<String> onLights) {
-        for (String lightName : lightsNames) {
-            boolean isOn = onLights.contains(lightName) || getEntityAlwaysOn(lightName);
-            for (HomeLight light : lights.get(lightName)) {
-                light.setPower(isOn ? lightsPower.get(light) : 0f);
-            }
-        }
+    private void prepareScene(List<Entity> onLights) {
+        for (Entity light : lightEntities)
+            light.setLightPower(onLights.contains(light) || light.getAlwaysOn());
     }
 
     private BufferedImage renderScene() throws IOException, InterruptedException {
@@ -824,20 +589,20 @@ public class Controller {
         }
     }
 
-    private String generateLightYaml(List<String> lightsNames, List<String> onLights, String imageName) throws IOException {
+    private String generateLightYaml(List<Entity> lights, List<Entity> onLights, String imageName) throws IOException {
         String conditions = "";
-        for (String lightName : lightsNames) {
+        for (Entity light : lights) {
             conditions += String.format(
                 "      - entity: %s\n" +
                 "        state: '%s'\n",
-                lightName, onLights.contains(lightName) ? "on" : "off");
+                light.getName(), onLights.contains(light) ? "on" : "off");
         }
 
         String entities = "";
-        for (String lightName : lightsNames) {
+        for (Entity light : lights) {
             entities += String.format(
                 "          - %s\n",
-                lightName);
+                light.getName());
         }
 
         return String.format(
@@ -860,7 +625,9 @@ public class Controller {
             lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
-    private String generateRgbLightYaml(String lightName, String imageName) throws IOException {
+    private String generateRgbLightYaml(Entity light, String imageName) throws IOException {
+        String lightName = light.getName();
+
         return String.format(
             "  - type: custom:config-template-card\n" +
             "    variables:\n" +
@@ -891,34 +658,33 @@ public class Controller {
             imageName, renderHash(imageName, true), imageName + ".red", renderHash(imageName + ".red", true), lightName);
     }
 
-    private void restoreLightsPower(Map<HomeLight, Float> lightsPower) {
-        for(HomeLight light : lightsPower.keySet()) {
-            light.setPower(lightsPower.get(light));
-        }
+    private void restoreLightsPower() {
+        for (Entity entity : lightEntities)
+            entity.restoreLightPower();
     }
 
-    private void removeAlwaysOnLights(List<String> inputList) {
-        ListIterator<String> iter = inputList.listIterator();
+    private void removeAlwaysOnLights(List<Entity> inputList) {
+        ListIterator<Entity> iter = inputList.listIterator();
 
         while (iter.hasNext()) {
-            if (getEntityAlwaysOn(iter.next()))
+            if (iter.next().getAlwaysOn())
                 iter.remove();
         }
     }
 
-    public List<List<String>> getCombinations(List<String> inputSet) {
-        List<List<String>> combinations = new ArrayList<List<String>>();
-        List<String> inputList = new ArrayList<String>(inputSet);
+    public List<List<Entity>> getCombinations(List<Entity> inputSet) {
+        List<List<Entity>> combinations = new ArrayList<>();
+        List<Entity> inputList = new ArrayList<>(inputSet);
 
         removeAlwaysOnLights(inputList);
-        _getCombinations(inputList, 0, new ArrayList<String>(), combinations);
+        _getCombinations(inputList, 0, new ArrayList<Entity>(), combinations);
 
         return combinations;
     }
 
-    private void _getCombinations(List<String> inputList, int currentIndex, List<String> currentCombination, List<List<String>> combinations) {
+    private void _getCombinations(List<Entity> inputList, int currentIndex, List<Entity> currentCombination, List<List<Entity>> combinations) {
         if (currentCombination.size() > 0)
-            combinations.add(new ArrayList<String>(currentCombination));
+            combinations.add(new ArrayList<>(currentCombination));
 
         for (int i = currentIndex; i < inputList.size(); i++) {
             currentCombination.add(inputList.get(i));
@@ -935,134 +701,40 @@ public class Controller {
         perspectiveTransform.transform(objectPosition);
         objectPosition.scale(1 / objectPosition.w);
 
-        return new Point2d((objectPosition.x * 0.5 + 0.5) * renderWidth, (objectPosition.y * 0.5 + 0.5) * renderHeight);
+        return new Point2d((objectPosition.x * 0.5 + 0.5) * 100.0, (objectPosition.y * 0.5 + 0.5) * 100.0);
     }
 
-    private String generateEntityYaml(Entity entity) {
-        final Map<EntityDisplayType, String> entityDisplayTypeToYamlString = new HashMap<EntityDisplayType, String>() {{
-            put(EntityDisplayType.BADGE, "state-badge");
-            put(EntityDisplayType.ICON, "state-icon");
-            put(EntityDisplayType.LABEL, "state-label");
-        }};
-        final Map<EntityAction, String> entityTapActionToYamlString = new HashMap<EntityAction, String>() {{
-            put(EntityAction.MORE_INFO, "more-info");
-            put(EntityAction.NONE, "none");
-            put(EntityAction.TOGGLE, "toggle");
-        }};
-
-        if (entity.displayCondition == EntityDisplayCondition.NEVER || entity.alwaysOn)
-            return "";
-
-        String yaml = String.format(Locale.US,
-            "  - type: %s\n" +
-            "    entity: %s\n" +
-            "    title: %s\n" +
-            "    style:\n" +
-            "      top: %.2f%%\n" +
-            "      left: %.2f%%\n" +
-            "      border-radius: 50%%\n" +
-            "      text-align: center\n" +
-            "      background-color: rgba(255, 255, 255, 0.3)\n" +
-            "      opacity: %d%%\n" +
-            "    tap_action:\n" +
-            "      action: %s\n" +
-            "    double_tap_action:\n" +
-            "      action: %s\n" +
-            "    hold_action:\n" +
-            "      action: %s\n",
-            entityDisplayTypeToYamlString.get(entity.displayType), entity.name, entity.title,
-            100.0 * (entity.position.y / renderHeight), 100.0 * (entity.position.x / renderWidth), entity.opacity,
-            entityTapActionToYamlString.get(entity.tapAction), entityTapActionToYamlString.get(entity.doubleTapAction),
-            entityTapActionToYamlString.get(entity.holdAction));
-
-        if (entity.displayCondition == EntityDisplayCondition.ALWAYS)
-            return yaml;
-
-        return String.format(
-            "  - type: conditional\n" +
-            "    conditions:\n" +
-            "      - entity: %s\n" +
-            "        state: '%s'\n" +
-            "    elements:\n" +
-            "%s",
-            entity.name,
-            entity.displayCondition == EntityDisplayCondition.WHEN_ON ? "on" : "off",
-            yaml.replaceAll(".*\\R", "    $0")
-        );
-    }
 
     private String generateEntitiesYaml() {
-        String yaml = "";
-
-        for (Entity entity : homeAssistantEntities.values())
-            yaml += generateEntityYaml(entity);
-
-        return yaml;
+        return Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .map(Entity::buildYaml).collect(Collectors.joining());
     }
 
-    private void generateHomeAssistantEntities() {
-        homeAssistantEntities.clear();
-
+    private void repositionEntities() {
         build3dProjection();
-        generateLightEntities(homeAssistantEntities);
-        generateSensorEntities(homeAssistantEntities);
+        calculateEntityPositions();
         moveEntityIconsToAvoidIntersection();
     }
 
-    private void generateLightEntities(Map<String, Entity> homeAssistantEntities) {
-        for (List<HomeLight> lightsList : lights.values()) {
-            Point2d lightsCenter = new Point2d();
-            for (HomeLight light : lightsList )
-                lightsCenter.add(getFurniture2dLocation(light));
-            lightsCenter.scale(1.0 / lightsList.size());
+    private void calculateEntityPositions() {
+        Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .forEach(entity -> {
+                Point2d entityCenter = new Point2d();
+                for (HomePieceOfFurniture piece : entity.getPiecesOfFurniture())
+                    entityCenter.add(getFurniture2dLocation(piece));
+                entityCenter.scale(1.0 / entity.getPiecesOfFurniture().size());
 
-            HomeLight light = lightsList.get(0);
-            String name = light.getName();
-            homeAssistantEntities.put(name, new Entity(light.getId(), name, lightsCenter, EntityDisplayType.ICON, EntityDisplayCondition.ALWAYS,
-                EntityAction.TOGGLE, lightsList.get(0).getDescription()));
-        }
-    }
-
-    private boolean isHomeAssistantEntityActionable(String name) {
-        String[] actionableEntityPrefixes = {
-            "alarm_control_panel.",
-            "button.",
-            "climate.",
-            "cover.",
-            "fan.",
-            "humidifier.",
-            "lawn_mower.",
-            "lock.",
-            "media_player.",
-            "switch.",
-            "vacuum.",
-            "valve.",
-            "water_header.",
-        };
-
-        for (String prefix : actionableEntityPrefixes ) {
-            if (name.startsWith(prefix))
-                return true;
-        }
-        return false;
-    }
-
-    private void generateSensorEntities(Map<String, Entity> homeAssistantEntities) {
-        for (HomePieceOfFurniture piece : getHomeAssistantEntities()) {
-            Point2d location = getFurniture2dLocation(piece);
-            String name = piece.getName();
-
-            homeAssistantEntities.put(name, new Entity(piece.getId(), name, location,
-                name.startsWith("sensor.") ? EntityDisplayType.LABEL : EntityDisplayType.ICON, EntityDisplayCondition.ALWAYS,
-                isHomeAssistantEntityActionable(piece.getName()) ?  EntityAction.TOGGLE : EntityAction.MORE_INFO,
-                piece.getDescription()));
-        }
+                entity.setPosition(entityCenter, false);
+            });
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
         final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
 
-        double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
+        Point2d firstPositionInPixels = new Point2d(first.getPosition().x / 100.0 * renderWidth, first.getPosition().y / 100 * renderHeight);
+        Point2d secondPositionInPixels = new Point2d(second.getPosition().x / 100.0 * renderWidth, second.getPosition().y / 100 * renderHeight);
+
+        double x = Math.pow(firstPositionInPixels.x - secondPositionInPixels.x, 2) + Math.pow(firstPositionInPixels.y - secondPositionInPixels.y, 2);
 
         return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
     }
@@ -1083,33 +755,33 @@ public class Controller {
         return null;
     }
 
-    private Entity stateIconWithWhichStateIconIntersects(Entity entity) {
-        for (Entity other : homeAssistantEntities.values()) {
-            if (entity == other)
-                continue;
-            if (doStateIconsIntersect(entity, other))
-                return other;
-        }
-        return null;
+    private Optional<Entity> stateIconWithWhichStateIconIntersects(Entity entity) {
+        return Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .filter(other -> {
+                if (entity == other)
+                    return false;
+                return doStateIconsIntersect(entity, other);
+            }).findFirst();
     }
 
     private List<Set<Entity>> findIntersectingStateIcons() {
         List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
 
-        for (Entity entity : homeAssistantEntities.values()) {
-            Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
-            if (interectingSet != null) {
-                interectingSet.add(entity);
-                continue;
-            }
-            Entity intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
-            if (intersectingStateIcon == null)
-                continue;
-            Set<Entity> intersectingGroup = new HashSet<Entity>();
-            intersectingGroup.add(entity);
-            intersectingGroup.add(intersectingStateIcon);
-            intersectingStateIcons.add(intersectingGroup);
-        }
+        Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .forEach(entity -> {
+                Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
+                if (interectingSet != null) {
+                    interectingSet.add(entity);
+                    return;
+                }
+                Optional<Entity> intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
+                if (!intersectingStateIcon.isPresent())
+                    return;
+                Set<Entity> intersectingGroup = new HashSet<Entity>();
+                intersectingGroup.add(entity);
+                intersectingGroup.add(intersectingStateIcon.get());
+                intersectingStateIcons.add(intersectingGroup);
+            });
 
         return intersectingStateIcons;
     }
@@ -1117,7 +789,7 @@ public class Controller {
     private Point2d getCenterOfStateIcons(Set<Entity> entities) {
         Point2d centerPostition = new Point2d();
         for (Entity entity : entities )
-            centerPostition.add(entity.position);
+            centerPostition.add(entity.getPosition());
         centerPostition.scale(1.0 / entities.size());
         return centerPostition;
     }
@@ -1128,15 +800,16 @@ public class Controller {
         Point2d centerPostition = getCenterOfStateIcons(entities);
 
         for (Entity entity : entities) {
-            Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
+            Vector2d direction = new Vector2d(entity.getPosition().x - centerPostition.x, entity.getPosition().y - centerPostition.y);
 
             if (direction.length() == 0) {
-                double[] randomRepeatableDirection = { entity.id.hashCode(), entity.name.hashCode() };
+                double[] randomRepeatableDirection = { entity.getId().hashCode(), entity.getName().hashCode() };
                 direction.set(randomRepeatableDirection);
             }
 
             direction.normalize();
-            direction.scale(STEP_SIZE);
+            direction.x = direction.x * (100.0 * (STEP_SIZE / renderWidth));
+            direction.y = direction.y * (100.0 * (STEP_SIZE / renderHeight));
             entity.move(direction);
         }
     }
