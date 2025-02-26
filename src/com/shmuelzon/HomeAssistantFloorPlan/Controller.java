@@ -1,32 +1,5 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
-import java.awt.Color;
-import java.awt.image.BufferedImage;
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
-import java.io.File;
-import java.io.IOException;
-import java.lang.InterruptedException;
-import java.nio.channels.ClosedByInterruptException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
-import javax.imageio.ImageIO;
-import javax.media.j3d.Transform3D;
-import javax.vecmath.Point2d;
-import javax.vecmath.Vector2d;
-import javax.vecmath.Vector4d;
-
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.Home;
@@ -34,6 +7,37 @@ import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Room;
+
+import javax.imageio.ImageIO;
+import javax.media.j3d.Transform3D;
+import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
+import javax.vecmath.Vector4d;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
+import java.io.File;
+import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 public class Controller {
@@ -69,6 +73,8 @@ public class Controller {
     private static final String CONTROLLER_ENTITY_TOP_POSITION = "topPosition";
     private static final String CONTROLLER_ENTITY_OPACITY = "opacity";
 
+    private static final double STATE_ICON_DIAMETER = 40;
+
     private Home home;
     private Settings settings;
     private Camera camera;
@@ -94,6 +100,8 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private Map<Entity, Cluster> entityToClusterMap = new HashMap<>();
+    private double stateIconMargin = 10;
 
     private class Entity {
         public String id;
@@ -149,6 +157,86 @@ public class Controller {
         }
     }
 
+    private class Cluster {
+        private Set<Entity> entities;
+        private Point2d centerPosition;
+
+        public Cluster(Set<Entity> entities) {
+            setEntities(entities);
+            distributeEntities();
+        }
+
+        private void setEntities(Set<Entity> entities) {
+            if (entities == null || entities.isEmpty()) {
+                throw new IllegalArgumentException("entities cannot be null or empty.");
+            }
+
+            this.entities = entities;
+            this.centerPosition = getCenterOfStateIcons(entities);
+        }
+
+        private void distributeEntities() {
+            if (centerPosition == null) {
+                throw new IllegalStateException("Center position cannot be null.");
+            }
+            List<Point2d> newPositions = CircleCenterPositioner.generatePositions(
+                this.entities.size(),
+                STATE_ICON_DIAMETER,
+                this.centerPosition,
+                2
+            );
+
+            if (newPositions.size() != this.entities.size()) {
+                throw new IllegalStateException("Number of new positions does not match the number of entities.");
+            }
+
+            Iterator<Entity> entityIterator = this.entities.iterator();
+            int i = 0;
+            while (entityIterator.hasNext()) {
+                Entity entity = entityIterator.next();
+                entity.position = newPositions.get(i++);
+            }
+        }
+
+        public void move(Vector2d direction) {
+            for (Entity entity : this.entities) {
+                entity.position.add(direction);
+            }
+        }
+
+        public void rotate(double degrees) {
+            degrees = degrees * Math.PI / 180;
+            double cos = Math.cos(degrees);
+            double sin = Math.sin(degrees);
+
+            for (Entity entity : this.entities) {
+                Point2d rotationPoint = new Point2d(
+                        entity.position.x - centerPosition.x,
+                        entity.position.y - centerPosition.y
+                );
+
+                entity.position.x = (rotationPoint.x * cos - rotationPoint.y * sin) + centerPosition.x;
+                entity.position.y = (rotationPoint.x * sin + rotationPoint.y * cos) + centerPosition.y;
+            }
+
+            this.centerPosition = getCenterOfStateIcons(this.entities);
+        }
+
+        public boolean doesIntersectWith(Set<Entity>entities) {
+            boolean doesIntersect = false;
+
+            for (Entity entity : entities) {
+                if (this.entities.contains(entity)) {
+                    continue;
+                }
+
+                doesIntersect = doesIntersect || doesStateIconIntersectWithSet(entity, this.entities);
+            }
+
+            return doesIntersect;
+        }
+    }
+
     public Controller(Home home) {
         this.home = home;
         settings = new Settings(home);
@@ -161,6 +249,23 @@ public class Controller {
         lightsPower = getLightsPower(lights);
         homeAssistantEntities = new HashMap<String, Entity>();
         generateHomeAssistantEntities();
+    }
+
+    private static List<Set<Entity>> splitEntityList(List<Entity> entities, int setSize) {
+        if (entities == null || entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (setSize <= 0) {
+            throw new IllegalArgumentException("Set-size must be positive.");
+        }
+
+        return IntStream.range(0, (entities.size() + setSize - 1) / setSize)
+                        .mapToObj(i -> entities.stream()
+                                               .skip((long) i * setSize)
+                                               .limit(setSize)
+                                               .collect(Collectors.toSet()))
+                        .collect(Collectors.toList());
     }
 
     public void loadDefaultSettings() {
@@ -1006,6 +1111,7 @@ public class Controller {
         build3dProjection();
         generateLightEntities(homeAssistantEntities);
         generateSensorEntities(homeAssistantEntities);
+        clusterEntities();
         moveEntityIconsToAvoidIntersection();
     }
 
@@ -1060,11 +1166,9 @@ public class Controller {
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
-
         double x = Math.pow(first.position.x - second.position.x, 2) + Math.pow(first.position.y - second.position.y, 2);
 
-        return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
+        return x <= Math.pow(STATE_ICON_DIAMETER + stateIconMargin, 2);
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
@@ -1122,13 +1226,48 @@ public class Controller {
         return centerPostition;
     }
 
+    void clusterEntities() {
+        final int MAX_ENTITIES_PER_CLUSTER = 7;
+
+        double originalMargin = stateIconMargin;
+
+        try {
+            stateIconMargin = -STATE_ICON_DIAMETER + 1;
+            List<Set<Entity>> intersectingEntities = findIntersectingStateIcons();
+
+            if (!intersectingEntities.isEmpty()) {
+                entityToClusterMap = new HashMap<>();
+
+                intersectingEntities.forEach(intersectingSet -> {
+                    List<Entity> entityList = new ArrayList<>(intersectingSet);
+                    List<Set<Entity>> subSets = splitEntityList(entityList, MAX_ENTITIES_PER_CLUSTER);
+                    subSets.forEach(subset -> {
+                        if (subset.size() > 1) {
+                            for (Entity entity : subset) {
+                                entityToClusterMap.put(entity, new Cluster(subset));
+                            }
+                        }
+                    });
+                });
+            }
+        } finally {
+            stateIconMargin = originalMargin;
+        }
+    }
+
     private void separateStateIcons(Set<Entity> entities) {
         final double STEP_SIZE = 2.0;
 
-        Point2d centerPostition = getCenterOfStateIcons(entities);
+        Point2d centerPosition = getCenterOfStateIcons(entities);
+        Set<Entity> movedEntities = new HashSet<>();
 
         for (Entity entity : entities) {
-            Vector2d direction = new Vector2d(entity.position.x - centerPostition.x, entity.position.y - centerPostition.y);
+            if (movedEntities.contains(entity)) {
+                continue;
+            }
+
+            Vector2d direction = new Vector2d(entity.position.x - centerPosition.x, entity.position.y - centerPosition.y);
+            Cluster parentCluster = entityToClusterMap.get(entity);
 
             if (direction.length() == 0) {
                 double[] randomRepeatableDirection = { entity.id.hashCode(), entity.name.hashCode() };
@@ -1137,6 +1276,22 @@ public class Controller {
 
             direction.normalize();
             direction.scale(STEP_SIZE);
+
+            if (parentCluster != null) {
+                double degrees = 0;
+
+                do {
+                    parentCluster.rotate(++degrees);
+                } while (degrees < 360 && parentCluster.doesIntersectWith(entities));
+
+                if (degrees >= 360) {
+                    parentCluster.move(direction);
+                }
+
+                movedEntities.addAll(parentCluster.entities);
+                continue;
+            }
+
             entity.move(direction);
         }
     }
@@ -1150,4 +1305,4 @@ public class Controller {
                 separateStateIcons(set);
         }
     }
-};
+}
