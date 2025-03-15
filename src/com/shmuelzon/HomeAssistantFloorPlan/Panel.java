@@ -18,6 +18,9 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.util.Date;
@@ -32,6 +35,7 @@ import java.util.concurrent.Executors;
 
 import javax.swing.ActionMap;
 import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -46,6 +50,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.JTree;
+import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerDateModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
@@ -72,8 +77,9 @@ import com.eteks.sweethome3d.viewcontroller.View;
 
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
-    private enum ActionType {BROWSE, START, STOP, CLOSE}
+    private enum ActionType {ADD_RENDER_TIME, REMOVE_RENDER_TIME, BROWSE, START, STOP, CLOSE}
 
+    final TimeZone timeZone = TimeZone.getTimeZone("UTC");
     private static Panel currentPanel;
     private UserPreferences preferences;
     private Controller controller;
@@ -97,8 +103,15 @@ public class Panel extends JPanel implements DialogView {
     private JComboBox<Controller.Quality> qualityComboBox;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
-    private JLabel renderTimeLabel;
+    private JLabel renderTimesLabel;
+    private SpinnerDateModel dateModel;
+    private JSpinner renderDateSpinner;
+    private SpinnerDateModel timeModel;
     private JSpinner renderTimeSpinner;
+    private JButton renderTimeAddButton;
+    private JButton renderTimeRemoveButton;
+    private DefaultListModel<Long> renderTimesListModel;
+    private JList<Long> renderTimesList;
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
     private JButton outputDirectoryBrowseButton;
@@ -149,6 +162,32 @@ public class Panel extends JPanel implements DialogView {
 
     private void createActions() {
         final ActionMap actions = getActionMap();
+        actions.put(ActionType.ADD_RENDER_TIME, new ResourceAction(preferences, Panel.class, ActionType.ADD_RENDER_TIME.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                LocalTime time = ((Date)renderTimeSpinner.getValue()).toInstant().atZone(timeZone.toZoneId()).toLocalTime();
+                LocalDate date = ((Date)renderDateSpinner.getValue()).toInstant().atZone(timeZone.toZoneId()).toLocalDate();
+                Long newTimestamp = date.atTime(time).atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+
+                List<Long> renderingTimes = controller.getRenderDateTimes();
+                renderingTimes.add(newTimestamp);
+                controller.setRenderDateTimes(new ArrayList<>(new TreeSet<Long>(renderingTimes)));
+                updateRenderingTimesList(false);
+            }
+        });
+        actions.put(ActionType.REMOVE_RENDER_TIME, new ResourceAction(preferences, Panel.class, ActionType.REMOVE_RENDER_TIME.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                int selectedIndex = renderTimesList.getSelectedIndex();
+                if (selectedIndex == -1 || renderTimesListModel.getSize() <= 1)
+                    return;
+
+                List<Long> renderingTimes = controller.getRenderDateTimes();
+                renderingTimes.remove(selectedIndex);
+                controller.setRenderDateTimes(renderingTimes);
+                updateRenderingTimesList(false);
+            }
+        });
         actions.put(ActionType.BROWSE, new ResourceAction(preferences, Panel.class, ActionType.BROWSE.name(), true) {
             @Override
             public void actionPerformed(ActionEvent ev) {
@@ -371,23 +410,54 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        renderTimeLabel = new JLabel();
-        renderTimeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.text"));
-        final SpinnerDateModel model = new SpinnerDateModel();
-        renderTimeSpinner = new JSpinner(model);
-        final JSpinner.DateEditor editor = new JSpinner.DateEditor(renderTimeSpinner);
-        editor.getFormat().setTimeZone(TimeZone.getTimeZone("UTC"));
-        editor.getFormat().applyPattern("HH:mm dd/MM/yyyy");
-        renderTimeSpinner.setEditor(editor);
-        final DateFormatter formatter = (DateFormatter)editor.getTextField().getFormatter();
-        formatter.setAllowsInvalid(false);
-        formatter.setOverwriteMode(true);
-        model.setValue(new Date(controller.getRenderDateTime()));
-        renderTimeSpinner.addChangeListener(new ChangeListener() {
+        renderTimesLabel = new JLabel();
+        renderTimesLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimesLabel.text"));
+        dateModel = new SpinnerDateModel();
+        renderDateSpinner = new JSpinner(dateModel);
+        final JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(renderDateSpinner);
+        dateEditor.getFormat().setTimeZone(timeZone);
+        dateEditor.getFormat().applyPattern("dd/MM/yyyy");
+        renderDateSpinner.setEditor(dateEditor);
+        final DateFormatter dateFormatter = (DateFormatter)dateEditor.getTextField().getFormatter();
+        dateFormatter.setAllowsInvalid(false);
+        dateFormatter.setOverwriteMode(true);
+        renderDateSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
-                controller.setRenderDateTime(((Date) renderTimeSpinner.getValue()).getTime());
+                changeDatesForAllRenderingTimes();
             }
         });
+        timeModel = new SpinnerDateModel();
+        renderTimeSpinner = new JSpinner(timeModel);
+        final JSpinner.DateEditor timeEditor = new JSpinner.DateEditor(renderTimeSpinner);
+        timeEditor.getFormat().setTimeZone(timeZone);
+        timeEditor.getFormat().applyPattern("HH:mm");
+        renderTimeSpinner.setEditor(timeEditor);
+        final DateFormatter timeFormatter = (DateFormatter)timeEditor.getTextField().getFormatter();
+        timeFormatter.setAllowsInvalid(false);
+        timeFormatter.setOverwriteMode(true);
+        renderTimesListModel = new DefaultListModel<>();
+        renderTimesList = new JList<>(renderTimesListModel);
+        renderTimesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        renderTimesList.setVisibleRowCount(3);
+        renderTimesList.setAutoscrolls(true);
+        renderTimesList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                return super.getListCellRendererComponent(list, timeEditor.getFormat().format(new Date((Long) value)), index, isSelected, cellHasFocus);
+            }
+        });
+        updateRenderingTimesList(true);
+
+        renderTimeAddButton = new JButton(actionMap.get(ActionType.ADD_RENDER_TIME));
+        renderTimeAddButton.setText("+");
+        renderTimeAddButton.setMargin(new Insets(0, 0, 0, 0));
+        Dimension buttonDimnesion = renderTimeAddButton.getPreferredSize();
+        buttonDimnesion.width = 20;
+        renderTimeAddButton.setPreferredSize(buttonDimnesion);
+        renderTimeRemoveButton = new JButton(actionMap.get(ActionType.REMOVE_RENDER_TIME));
+        renderTimeRemoveButton.setText("-");
+        renderTimeRemoveButton.setMargin(new Insets(0, 0, 0, 0));
+        renderTimeRemoveButton.setPreferredSize(buttonDimnesion);
 
         imageFormatLabel = new JLabel();
         imageFormatLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.text"));
@@ -469,7 +539,11 @@ public class Panel extends JPanel implements DialogView {
         sensitivitySpinner.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
+        renderDateSpinner.setEnabled(enabled);
         renderTimeSpinner.setEnabled(enabled);
+        renderTimeAddButton.setEnabled(enabled);
+        renderTimeRemoveButton.setEnabled(enabled);
+        renderTimesList.setEnabled(enabled);;
         imageFormatComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
@@ -527,48 +601,72 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Light mixing mode and sensitivity */
+        /* Light mixing mode + render times */
         add(lightMixingModeLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(lightMixingModeComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(sensitivityLabel, new GridBagConstraints(
+        add(renderTimesLabel, new GridBagConstraints(
             2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(sensitivitySpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        /* Render times list */
+        JPanel renderingTimesPanel = new JPanel(new GridBagLayout());
+        renderingTimesPanel.add(renderDateSpinner, new GridBagConstraints(
+            0, 0, 1, 1, 2, 1, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderingTimesPanel.add(renderTimeSpinner, new GridBagConstraints(
+            1, 0, 1, 1, 2, 1, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderingTimesPanel.add(renderTimeAddButton, new GridBagConstraints(
+            2, 0, 1, 1, 1, 1, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderingTimesPanel.add(new JScrollPane(renderTimesList), new GridBagConstraints(
+            1, 1, 1, 1, 2, 1, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderingTimesPanel.add(renderTimeRemoveButton, new GridBagConstraints(
+            2, 1, 1, 1, 1, 1, GridBagConstraints.NORTH,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+
+        add(renderingTimesPanel, new GridBagConstraints(
+            3, currentGridYIndex, 1, 4, 0, 0, GridBagConstraints.NORTH,
+            GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
         currentGridYIndex++;
 
-        /* Renderer + Quality */
+        /* Renderer */
         add(rendererLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(rendererComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        currentGridYIndex++;
+
+        /* Quality */
+        add(imageFormatLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        add(imageFormatComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Time selection */
-        add(renderTimeLabel, new GridBagConstraints(
-                0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-                GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeSpinner, new GridBagConstraints(
-                1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-                GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(imageFormatLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        /* Image format */
+        add(qualityLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(imageFormatComboBox, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        add(qualityComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Sensitivity */
+        add(sensitivityLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(sensitivitySpinner, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -655,6 +753,31 @@ public class Panel extends JPanel implements DialogView {
         for (int i = 0; i < tree.getRowCount(); i++) {
             tree.expandRow(i);
         }
+    }
+
+    private void updateRenderingTimesList(boolean overrideSpinners) {
+        List<Long> renderingTimes = controller.getRenderDateTimes();
+
+        if (overrideSpinners) {
+            dateModel.setValue(new Date(renderingTimes.get(0)));
+            timeModel.setValue(new Date(renderingTimes.get(0)));
+        }
+
+        renderTimesListModel.clear();
+        for (Long renderingTime : renderingTimes)
+            renderTimesListModel.addElement(renderingTime);
+    }
+
+    private void changeDatesForAllRenderingTimes() {
+        List<Long> currentRenderingTimes = controller.getRenderDateTimes();
+        LocalDate newDate = ((Date)renderDateSpinner.getValue()).toInstant().atZone(timeZone.toZoneId()).toLocalDate();
+        List<Long> newRenderingTimes = currentRenderingTimes.stream().map(timestamp -> {
+            LocalTime time = Instant.ofEpochMilli(timestamp).atZone(timeZone.toZoneId()).toLocalTime();
+            return newDate.atTime(time).atZone(timeZone.toZoneId()).toEpochSecond() * 1000;
+        }).collect(Collectors.toList());
+
+        controller.setRenderDateTimes(newRenderingTimes);
+        updateRenderingTimesList(false);
     }
 
     private void openEntityOptionsPanel(Entity entity) {

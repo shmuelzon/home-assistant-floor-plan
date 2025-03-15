@@ -85,14 +85,16 @@ the room they're located in. Please verify the list matches your expectations.
 * Width / Height - Configure the required output resolution of the rendered
   images
 * Light mixing mode - See [Rendering Modes](#rendering-modes)
+* Render times - The date and times of the rendered images, affects the sun
+  position, intensity and color. Each render will be displayed from the selected
+  time until the next one in the list. Adding more than one hour requires
+  [adding a time sensor](#adding-time-sensor)
+* Renderer - Select which rendering engine to use, YafaRay or SunFlow
+* Image format - The image file format of the resulting floor plan (PNG or JPEG)
+* Quality - Choose the rendering quality (low or high)
 * Sensitivity - [1, 100] The degree by which two pixels need to be different
   from one another to be taken into account for the generated overlay image.
   Only relevant for "room overlay" light mixing mode and RGB lights
-* Renderer - Select which rendering engine to use, YafaRay or SunFlow
-* Quality - Choose the rendering quality (low or high)
-* Render time - The date and time of the rendered image, affects the sun
-  position
-* Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
@@ -128,6 +130,32 @@ that allow you to customize the entity according to your needs.
 
   :warning: **Note:** RGB/dimmable lights are only supported in the CSS
   rendering mode.
+
+### Adding Time Sensor
+
+In order to support displaying different floorplan images according to the
+current time, we need to add a sensor to HA that will represent the time. This
+needs to be done only once for each Home Assistant instance.
+
+First, we add a `Time & Date` sensor by clicking on
+[<img src="https://my.home-assistant.io/badges/config_flow_start.svg" width="125">](https://my.home-assistant.io/redirect/config_flow_start/?domain=time_date)
+or, by manually navigating to `Settings` ->`Devices & services` ->
+`Add integration` -> `Time & Date`. Then, choose the `Time (UTC)` sensor type and click `Submit`.
+
+Next, we'll need to create a template sensor that will convert this textual
+sensor to a numeric one that can be used by the floorplan YAML. Click on
+[<img src="https://my.home-assistant.io/badges/helpers.svg" width="125">](https://my.home-assistant.io/redirect/helpers/)
+or, manually navigate to `Settings` -> `Devices & services` -> `Helpers`. Click
+the `Create Helper` button, choose a `Template` helper and click on
+`Template a sensor`. Name the sensor, `Time as number (UTC)` and enter the
+following template:
+```
+{{states("sensor.time_utc").split(":") | join | int}}
+```
+
+> [!TIP]
+> As these sensors will change their value every minute, it's best to exclude
+> them from the recorder so they won't be logged
 
 ## Preparation
 
@@ -231,7 +259,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
 - [x] Allow selecting renderer (SunFlow/Yafaray)
 - [x] Allow selecting quality (high/low)
 - [x] Allow selecting date/time of render
-- [ ] Create multiple renders for multiple hours of the day and display in Home
+- [x] Create multiple renders for multiple hours of the day and display in Home
       Assistant according to local time
 - [x] Allow stopping rendering thread
 - [X] Allow enabling/disabling/configuring state-icon

@@ -16,6 +16,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,11 +80,12 @@ public class Controller {
     private Renderer renderer;
     private Quality quality;
     private ImageFormat imageFormat;
-    private long renderDateTime;
+    private List<Long> renderDateTimes;
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private Scenes scenes;
 
     public Controller(Home home) {
         this.home = home;
@@ -94,6 +96,7 @@ public class Controller {
         createHomeAssistantEntities();
 
         buildLightsGroups();
+        buildScenes();
         repositionEntities();
     }
 
@@ -105,7 +108,7 @@ public class Controller {
         renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
-        renderDateTime = settings.getLong(CONTROLLER_RENDER_TIME, camera.getTime());
+        renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
@@ -142,12 +145,15 @@ public class Controller {
     }
 
     public int getNumberOfTotalRenders() {
-        int numberOfTotalRenders = 1;
+        int numberOfLightRenders = 1;
+
+        if (scenes == null)
+            return 0;
 
         for (List<Entity> groupLights : lightsGroups.values()) {
-            numberOfTotalRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
+            numberOfLightRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
         }
-        return numberOfTotalRenders;
+        return numberOfLightRenders * scenes.size();
     }
 
     public int getRenderHeight() {
@@ -238,13 +244,14 @@ public class Controller {
         settings.set(CONTROLLER_IMAGE_FORMAT, imageFormat.name());
     }
 
-    public long getRenderDateTime() {
-        return renderDateTime;
+    public List<Long> getRenderDateTimes() {
+        return renderDateTimes;
     }
 
-    public void setRenderDateTime(long renderDateTime) {
-        this.renderDateTime = renderDateTime;
-        settings.setLong(CONTROLLER_RENDER_TIME, renderDateTime);
+    public void setRenderDateTimes(List<Long> renderDateTimes) {
+        this.renderDateTimes = renderDateTimes;
+        settings.setListLong(CONTROLLER_RENDER_TIME, renderDateTimes);
+        buildScenes();
     }
 
     public void stop() {
@@ -266,14 +273,27 @@ public class Controller {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
-            camera.setTime(renderDateTime);
-
-            BufferedImage baseImage = generateBaseRender();
-            String yaml = generateBaseYaml();
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
+            String yaml = String.format(
+                "type: picture-elements\n" +
+                "image: /local/floorplan/%s.png?version=%s\n" +
+                "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
             
-            for (String group : lightsGroups.keySet())
-                yaml += generateGroupRenders(group, baseImage);
+            for (Scene scene : scenes) {
+                Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
+                Files.createDirectories(Paths.get(outputFloorplanDirectoryName + File.separator + scene.getName()));
+
+                scene.prepare();
+
+                String baseImageName = "base";
+                if (!scene.getName().isEmpty())
+                    baseImageName = scene.getName() + File.separator + baseImageName;
+                BufferedImage baseImage = generateBaseRender(scene, baseImageName);
+                yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
+
+                for (String group : lightsGroups.keySet())
+                    yaml += generateGroupRenders(scene, group, baseImage);
+            }
 
             yaml += generateEntitiesYaml();
 
@@ -363,8 +383,7 @@ public class Controller {
             lightsGroups.get("Home").add(entity);
     }
 
-    private void buildLightsGroups()
-    {
+    private void buildLightsGroups() {
         lightsGroups.clear();
 
         if (lightMixingMode == LightMixingMode.CSS)
@@ -373,6 +392,13 @@ public class Controller {
             buildLightsGroupsByRoom();
         else if (lightMixingMode == LightMixingMode.FULL)
             buildLightsGroupsByHome();
+    }
+
+    private void buildScenes() {
+        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
+        scenes = new Scenes(camera);
+        scenes.setRenderingTimes(renderDateTimes);
+        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
     private boolean isHomeAssistantEntity(String name) {
@@ -427,16 +453,9 @@ public class Controller {
         perspectiveTransform.mul(yawRotation);
     }
 
-    private BufferedImage generateBaseRender() throws IOException, InterruptedException {
-        BufferedImage image = generateImage(new ArrayList<>(), "base");
-        return generateFloorPlanImage(image, image, "base", false);
-    }
-
-    private String generateBaseYaml() throws IOException {
-        return String.format(
-            "type: picture-elements\n" +
-            "image: /local/floorplan/base.%s?version=%s\n" +
-            "elements:\n", getFloorplanImageExtention(), renderHash("base"));
+    private BufferedImage generateBaseRender(Scene scene, String imageName) throws IOException, InterruptedException {
+        BufferedImage image = generateImage(new ArrayList<>(), imageName);
+        return generateFloorPlanImage(image, image, imageName, false);
     }
 
     private String getFloorplanImageExtention() {
@@ -445,29 +464,31 @@ public class Controller {
         return this.imageFormat.name().toLowerCase();
     }
 
-    private String generateGroupRenders(String group, BufferedImage baseImage) throws IOException, InterruptedException {
+    private String generateGroupRenders(Scene scene, String group, BufferedImage baseImage) throws IOException, InterruptedException {
         List<Entity> groupLights = lightsGroups.get(group);
 
         List<List<Entity>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
         for (List<Entity> onLights : lightCombinations) {
             String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
+            if (!scene.getName().isEmpty())
+                imageName = scene.getName() + File.separator + imageName;
             BufferedImage image = generateImage(onLights, imageName);
             Entity firstLight = onLights.get(0);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, imageName, createOverlayImage);
             if (firstLight.getIsRgb()) {
                 generateRedTintedImage(floorPlanImage, imageName);
-                yaml += generateRgbLightYaml(firstLight, imageName);
+                yaml += generateRgbLightYaml(scene, firstLight, imageName);
             }
             else
-                yaml += generateLightYaml(groupLights, onLights, imageName);
+                yaml += generateLightYaml(scene, groupLights, onLights, imageName);
         }
         return yaml;
     }
 
     private void generateTransparentImage(String fileName) throws IOException {
-        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, 0);
         File imageFile = new File(fileName);
         ImageIO.write(image, "png", imageFile);
@@ -589,73 +610,79 @@ public class Controller {
         }
     }
 
-    private String generateLightYaml(List<Entity> lights, List<Entity> onLights, String imageName) throws IOException {
+    private String generateLightYaml(Scene scene, List<Entity> lights, List<Entity> onLights, String imageName) throws IOException {
+        return generateLightYaml(scene, lights, onLights, imageName, true);
+    }
+
+    private String generateLightYaml(Scene scene, List<Entity> lights, List<Entity> onLights, String imageName, boolean includeMixBlend) throws IOException {
         String conditions = "";
         for (Entity light : lights) {
             conditions += String.format(
-                "      - entity: %s\n" +
+                "      - condition: state\n" +
+                "        entity: %s\n" +
                 "        state: '%s'\n",
                 light.getName(), onLights.contains(light) ? "on" : "off");
         }
 
-        String entities = "";
-        for (Entity light : lights) {
-            entities += String.format(
-                "          - %s\n",
-                light.getName());
-        }
-
         return String.format(
             "  - type: conditional\n" +
-            "    conditions:\n%s" +
+            "    conditions:\n%s%s" +
             "    elements:\n" +
             "      - type: image\n" +
             "        tap_action:\n" +
             "          action: none\n" +
             "        hold_action:\n" +
             "          action: none\n" +
-            "        entity:\n%s" +
             "        image: /local/floorplan/%s.%s?version=%s\n" +
             "        filter: none\n" +
             "        style:\n" +
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n%s",
-            conditions, entities, imageName, getFloorplanImageExtention(), renderHash(imageName),
-            lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
+            conditions, scene.getConditions(), normalizePath(imageName), getFloorplanImageExtention(), renderHash(imageName),
+            includeMixBlend && lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
-    private String generateRgbLightYaml(Entity light, String imageName) throws IOException {
+    private String generateRgbLightYaml(Scene scene, Entity light, String imageName) throws IOException {
         String lightName = light.getName();
 
         return String.format(
-            "  - type: custom:config-template-card\n" +
-            "    variables:\n" +
-            "      LIGHT_STATE: states['%s'].state\n" +
-            "      COLOR_MODE: states['%s'].attributes.color_mode\n" +
-            "      LIGHT_COLOR: states['%s'].attributes.hs_color\n" +
-            "      BRIGHTNESS: states['%s'].attributes.brightness\n" +
-            "    entities:\n" +
-            "      - %s\n" +
-            "    element:\n" +
-            "      type: image\n" +
-            "      image: /local/floorplan/%s.png?version=%s\n" +
-            "      state_image:\n" +
-            "        'on': >-\n" +
-            "          ${COLOR_MODE === 'color_temp' || COLOR_MODE === 'brightness' || ((COLOR_MODE === 'rgb' || COLOR_MODE === 'hs') && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
-            "          '/local/floorplan/%s.png?version=%s' :\n" +
-            "          '/local/floorplan/%s.png?version=%s' }\n" +
-            "      entity: %s\n" +
-            "    style:\n" +
-            "      filter: '${ \"hue-rotate(\" + (LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
-            "      opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
-            "      mix-blend-mode: lighten\n" +
-            "      pointer-events: none\n" +
-            "      left: 50%%\n" +
-            "      top: 50%%\n" +
-            "      width: 100%%\n",
-            lightName, lightName, lightName, lightName, lightName, TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true),
-            imageName, renderHash(imageName, true), imageName + ".red", renderHash(imageName + ".red", true), lightName);
+            "  - type: conditional\n" +
+            "    conditions:\n" +
+            "      - condition: state\n" +
+            "        entity: %s\n" +
+            "        state: 'on'\n%s" +
+            "    elements:\n" +
+            "      - type: custom:config-template-card\n" +
+            "        variables:\n" +
+            "          LIGHT_STATE: states['%s'].state\n" +
+            "          COLOR_MODE: states['%s'].attributes.color_mode\n" +
+            "          LIGHT_COLOR: states['%s'].attributes.hs_color\n" +
+            "          BRIGHTNESS: states['%s'].attributes.brightness\n" +
+            "        entities:\n" +
+            "          - %s\n" +
+            "        element:\n" +
+            "          type: image\n" +
+            "          image: >-\n" +
+            "              ${COLOR_MODE === 'color_temp' || COLOR_MODE === 'brightness' || ((COLOR_MODE === 'rgb' || COLOR_MODE === 'hs') && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
+            "              '/local/floorplan/%s.png?version=%s' :\n" +
+            "              '/local/floorplan/%s.png?version=%s' }\n" +
+            "        style:\n" +
+            "          filter: '${ \"hue-rotate(\" + (LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
+            "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
+            "          mix-blend-mode: lighten\n" +
+            "          pointer-events: none\n" +
+            "          left: 50%%\n" +
+            "          top: 50%%\n" +
+            "          width: 100%%\n",
+            lightName, scene.getConditions(), lightName, lightName, lightName, lightName, lightName,
+            normalizePath(imageName), renderHash(imageName, true), normalizePath(imageName) + ".red", renderHash(imageName + ".red", true));
+    }
+
+    private String normalizePath(String fileName) {
+        if (File.separator.equals("/"))
+            return fileName;
+        return fileName.replace('\\', '/');
     }
 
     private void restoreLightsPower() {

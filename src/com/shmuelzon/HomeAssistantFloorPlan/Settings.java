@@ -1,5 +1,9 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import com.eteks.sweethome3d.model.Home;
 
 public class Settings {
@@ -34,6 +38,14 @@ public class Settings {
         return Long.parseLong(get(name, String.valueOf(defaultValue)));
     }
 
+    public List<Long> getListLong(String name, List<Long> defaultValue) {
+        String values = get(name);
+
+        if (values == null)
+            return defaultValue;
+        return Arrays.stream(values.split(",")).map(Long::valueOf).collect(Collectors.toList());
+    }
+
     public double getDouble(String name, double defaultValue) {
         return Double.parseDouble(get(name, String.valueOf(defaultValue)));
     }
@@ -57,6 +69,10 @@ public class Settings {
 
     public void setLong(String name, long value) {
         set(name, String.valueOf(value));
+    }
+
+    public void setListLong(String name, List<Long> value) {
+        set(name, String.join(",", value.stream().map(String::valueOf).collect(Collectors.toList())));
     }
 
     public void setDouble(String name, double value) {
