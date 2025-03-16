@@ -623,10 +623,13 @@ public class Controller {
                 "        state: '%s'\n",
                 light.getName(), onLights.contains(light) ? "on" : "off");
         }
+        conditions += scene.getConditions();
+        if (conditions.length() == 0)
+            conditions = "      []\n";
 
         return String.format(
             "  - type: conditional\n" +
-            "    conditions:\n%s%s" +
+            "    conditions:\n%s" +
             "    elements:\n" +
             "      - type: image\n" +
             "        tap_action:\n" +
@@ -639,7 +642,7 @@ public class Controller {
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n%s",
-            conditions, scene.getConditions(), normalizePath(imageName), getFloorplanImageExtention(), renderHash(imageName),
+            conditions, normalizePath(imageName), getFloorplanImageExtention(), renderHash(imageName),
             includeMixBlend && lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
