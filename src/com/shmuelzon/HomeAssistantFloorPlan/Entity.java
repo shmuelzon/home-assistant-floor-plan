@@ -297,7 +297,8 @@ public class Entity implements Comparable<Entity> {
         return String.format(
             "  - type: conditional\n" +
             "    conditions:\n" +
-            "      - entity: %s\n" +
+            "      - condition: state\n" +
+            "        entity: %s\n" +
             "        state: '%s'\n" +
             "    elements:\n" +
             "%s",
