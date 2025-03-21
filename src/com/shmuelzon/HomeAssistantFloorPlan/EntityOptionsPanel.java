@@ -23,10 +23,12 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
+import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.event.DocumentEvent;
 import javax.vecmath.Point2d;
 
 import com.eteks.sweethome3d.model.UserPreferences;
@@ -60,6 +62,9 @@ public class EntityOptionsPanel extends JPanel {
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
     private JCheckBox isRgbCheckbox;
+    private JLabel displayFurnitureConditionLabel;
+    private JComboBox<Entity.DisplayFurnitureCondition> displayFurnitureConditionComboBox;
+    private JTextField displayFurnitureConditionValueTextField;
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
@@ -258,6 +263,42 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        displayFurnitureConditionLabel = new JLabel();
+        displayFurnitureConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayFurnitureConditionLabel.text"));
+        displayFurnitureConditionComboBox = new JComboBox<Entity.DisplayFurnitureCondition>(Entity.DisplayFurnitureCondition.values());
+        displayFurnitureConditionComboBox.setSelectedItem(entity.getDisplayFurnitureCondition());
+        displayFurnitureConditionComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.displayFurnitureConditionComboBox.%s.text", ((Entity.DisplayFurnitureCondition)o).name())));
+                return rendererComponent;
+            }
+        });
+        displayFurnitureConditionComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                Entity.DisplayFurnitureCondition condition = (Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem();
+                showHideComponents();
+                if (displayFurnitureConditionValueTextField.getText().isEmpty() && condition != Entity.DisplayFurnitureCondition.ALWAYS)
+                    return;
+                entity.setDisplayFurnitureCondition(condition);
+                markModified();
+            }
+        });
+        displayFurnitureConditionValueTextField = new JTextField(10);
+        displayFurnitureConditionValueTextField.setText(entity.getDisplayFurnitureConditionValue());
+        displayFurnitureConditionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String conditionValue = displayFurnitureConditionValueTextField.getText();
+                if (conditionValue.isEmpty())
+                    return;
+                entity.setDisplayFurnitureConditionValue(conditionValue);
+                entity.setDisplayFurnitureCondition((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem());
+                markModified();
+            }
+        });
+
+
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
 
@@ -350,9 +391,13 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        if (!entity.getIsLight())
-            return;
+        if (entity.getIsLight())
+            layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
+        else
+            layoutNonLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
+    }
 
+    private void layoutLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
         /* Always on */
         add(alwaysOnLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -374,6 +419,20 @@ public class EntityOptionsPanel extends JPanel {
         currentGridYIndex++;
     }
 
+    private void layoutNonLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
+        add(displayFurnitureConditionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        displayFurnitureConditionLabel.setHorizontalAlignment(labelAlignment);
+        add(displayFurnitureConditionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(displayFurnitureConditionValueTextField, new GridBagConstraints(
+            3, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+    }
+
     private void markModified() {
         Color modifiedColor = new Color(200, 0, 0);
 
@@ -386,6 +445,11 @@ public class EntityOptionsPanel extends JPanel {
         alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK);
         isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
+        displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
+    }
+
+    private void showHideComponents() {
+        displayFurnitureConditionValueTextField.setVisible((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem() != Entity.DisplayFurnitureCondition.ALWAYS);
     }
 
     public void displayView(Component parentComponent) {
@@ -395,6 +459,7 @@ public class EntityOptionsPanel extends JPanel {
         final JDialog dialog = optionPane.createDialog(SwingUtilities.getRootPane(parentComponent), entity.getName());
         dialog.applyComponentOrientation(parentComponent != null ?
             parentComponent.getComponentOrientation() : ComponentOrientation.getOrientation(Locale.getDefault()));
+        showHideComponents();
         dialog.setModal(true);
         dialog.setVisible(true);
     }

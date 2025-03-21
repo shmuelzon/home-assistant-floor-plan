@@ -15,10 +15,11 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 
 
 public class Entity implements Comparable<Entity> {
-    public enum Property {ALWAYS_ON, IS_RGB, POSITION}
+    public enum Property {ALWAYS_ON, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
     public enum DisplayType {BADGE, ICON, LABEL}
     public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
     public enum Action {MORE_INFO, NONE, TOGGLE}
+    public enum DisplayFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
 
     private static final String SETTING_NAME_DISPLAY_TYPE = "displayType";
     private static final String SETTING_NAME_DISPLAY_CONDITION = "displayCondition";
@@ -30,6 +31,8 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_LEFT_POSITION = "leftPosition";
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
     private static final String SETTING_NAME_OPACITY = "opacity";
+    private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION = "displayFurnitureCondition";
+    private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE = "displayFurnitureConditionValue";
 
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
     private String id;
@@ -45,6 +48,8 @@ public class Entity implements Comparable<Entity> {
     private boolean isLight;
     private boolean alwaysOn;
     private boolean isRgb;
+    private DisplayFurnitureCondition displayFurnitureCondition;
+    private String displayFurnitureConditionValue;
     private Map<HomeLight, Float> initialPower;
 
     private Settings settings;
@@ -181,6 +186,34 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_IS_RGB) != null;
     }
 
+    public DisplayFurnitureCondition getDisplayFurnitureCondition() {
+        return displayFurnitureCondition;
+    }
+
+    public void setDisplayFurnitureCondition(DisplayFurnitureCondition displayFurnitureCondition) {
+        DisplayFurnitureCondition olddisplayFurnitureCondition = this.displayFurnitureCondition;
+        this.displayFurnitureCondition = displayFurnitureCondition;
+        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, displayFurnitureCondition.name());
+        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), olddisplayFurnitureCondition, displayFurnitureCondition);
+    }
+
+    public boolean isDisplayFurnitureConditionModified() {
+        return settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION) != null;
+    }
+
+    public String getDisplayFurnitureConditionValue() {
+        return displayFurnitureConditionValue;
+    }
+
+    public void setDisplayFurnitureConditionValue(String displayFurnitureConditionValue) {
+        this.displayFurnitureConditionValue = displayFurnitureConditionValue;
+        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, displayFurnitureConditionValue);
+    }
+
+    public boolean isDisplayFurnitureConditionValueModified() {
+        return settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE) != null;
+    }
+
     public Point2d getPosition() {
         return new Point2d(position);
     }
@@ -233,6 +266,8 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
+        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, null);
+        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -248,12 +283,19 @@ public class Entity implements Comparable<Entity> {
             entry.getKey().setPower(on ? entry.getValue() : 0);
     }
 
-    public void restoreLightPower() {
+    public void restoreConfiguration() {
+        setVisible(true);
+
         if (!isLight)
             return;
 
         for (Map.Entry<HomeLight, Float> entry : initialPower.entrySet())
             entry.getKey().setPower(entry.getValue());
+    }
+
+    public void setVisible(boolean visible) {
+        for (HomePieceOfFurniture piece : piecesOfFurniture)
+            piece.setVisible(visible);
     }
 
     public String buildYaml() {
@@ -325,6 +367,10 @@ public class Entity implements Comparable<Entity> {
         propertyChangeSupport.removePropertyChangeListener(property.name(), listener);
     }
 
+    public String toString() {
+        return name;
+    }
+
     private <T extends Enum<T>> T getSavedEnumValue(Class<T> type, String name, T defaultValue) {
         try {
             return Enum.valueOf(type, settings.get(name, defaultValue.name()));
@@ -348,6 +394,8 @@ public class Entity implements Comparable<Entity> {
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
         alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
+        displayFurnitureCondition = getSavedEnumValue(DisplayFurnitureCondition.class, name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, DisplayFurnitureCondition.ALWAYS);
+        displayFurnitureConditionValue = settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, "");
 
         isLight = firstPiece instanceof HomeLight;
         saveInitialLightPowerValues();

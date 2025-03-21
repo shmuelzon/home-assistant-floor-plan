@@ -305,7 +305,7 @@ public class Controller {
         } catch (IOException e) {
             throw e;
         } finally {
-            restoreLightsPower();
+            restoreEntityConfiguration();
         }
     }
 
@@ -341,6 +341,12 @@ public class Controller {
             entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
                 public void propertyChange(PropertyChangeEvent ev) {
                     buildLightsGroups();
+                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+                }
+            });
+            entity.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, new PropertyChangeListener() {
+                public void propertyChange(PropertyChangeEvent ev) {
+                    buildScenes();
                     propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
                 }
             });
@@ -398,6 +404,7 @@ public class Controller {
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         scenes = new Scenes(camera);
         scenes.setRenderingTimes(renderDateTimes);
+        scenes.setEntitiesToShowOrHide(otherEntities.stream().filter(entity -> { return entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS; }).collect(Collectors.toList()));
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
@@ -688,9 +695,9 @@ public class Controller {
         return fileName.replace('\\', '/');
     }
 
-    private void restoreLightsPower() {
-        for (Entity entity : lightEntities)
-            entity.restoreLightPower();
+    private void restoreEntityConfiguration() {
+        Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .forEach(Entity::restoreConfiguration);
     }
 
     private void removeAlwaysOnLights(List<Entity> inputList) {

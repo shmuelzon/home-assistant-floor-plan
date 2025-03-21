@@ -144,6 +144,8 @@ public class Panel extends JPanel implements DialogView {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.alwaysOn.text"));
             if (entity.getIsRgb())
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
+            if (entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS)
+                attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.displayByState.text"));
 
             return attributes;
         }
@@ -308,22 +310,25 @@ public class Panel extends JPanel implements DialogView {
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
         detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"));
         buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
-        PropertyChangeListener updateTreeOnProperyChanged = new PropertyChangeListener() {
-            public void propertyChange(PropertyChangeEvent ev) {
-                buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
-            }
-        };
-        controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, updateTreeOnProperyChanged);
-        for (Entity light : controller.getLightEntities()) {
-            light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, updateTreeOnProperyChanged);
-            light.addPropertyChangeListener(Entity.Property.IS_RGB, updateTreeOnProperyChanged);
-        }
 
         otherEntitiesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTreeLabel.text"));
         otherEntitiesTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text"));
         Map<String, List<Entity>> otherEntitiesGroupedByType = controller.getOtherEntities().stream()
             .collect(Collectors.groupingBy(entity -> entity.getName().split("\\.")[0]));
         buildEntitiesGroupsTree(otherEntitiesTree, otherEntitiesGroupedByType);
+
+        PropertyChangeListener updateTreeOnProperyChanged = new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
+                buildEntitiesGroupsTree(otherEntitiesTree, otherEntitiesGroupedByType);
+            }
+        };
+        controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, updateTreeOnProperyChanged);
+        for (Entity light : controller.getLightEntities()) {
+            light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, updateTreeOnProperyChanged);
+            light.addPropertyChangeListener(Entity.Property.IS_RGB, updateTreeOnProperyChanged);
+            light.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, updateTreeOnProperyChanged);
+        }
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
