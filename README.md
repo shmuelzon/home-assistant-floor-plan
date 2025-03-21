@@ -104,7 +104,7 @@ for the complete floor plan and will progress as they are ready.
 You can also click on any entity from the list to reveal additional settings
 that allow you to customize the entity according to your needs.
 
-<img src="doc/entityOptions.png" />
+<img src="doc/entityOptionsLights.png" /> <img src="doc/entityOptionsFurniture.png" />
 
 > [!NOTE]
 > Settings that were modified from their default values are displayed in red
@@ -120,6 +120,8 @@ that allow you to customize the entity according to your needs.
   [Hold action](https://www.home-assistant.io/dashboards/actions/#hold-action)
 * Position - Override the entity's icon/label position
 * Opacity - Define the opacity of the entity's icon/label
+* Display furniture - Only for furniture, set the entity state conditions for
+  which the piece of furniture is either visible or hidden in the floor plan
 * Always on - Only for lights, set light as always on removing its icon and it
   won't be affected by the matching Home Assistant state
 * Is RGB(W)/dimmable light - Only for lights, set light as an RGB or dimmable
