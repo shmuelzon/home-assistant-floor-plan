@@ -47,10 +47,13 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Entity.DisplayCondition> displayConditionComboBox;
     private JLabel tapActionLabel;
     private JComboBox<Entity.Action> tapActionComboBox;
+    private JTextField tapActionValueTextField;
     private JLabel doubleTapActionLabel;
     private JComboBox<Entity.Action> doubleTapActionComboBox;
+    private JTextField doubleTapActionValueTextField;
     private JLabel holdActionLabel;
     private JComboBox<Entity.Action> holdActionComboBox;
+    private JTextField holdActionValueTextField;
     private JLabel positionLabel;
     private JLabel positionLeftLabel;
     private JSpinner positionLeftSpinner;
@@ -151,6 +154,23 @@ public class EntityOptionsPanel extends JPanel {
         });
         tapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
+                Entity.Action action = (Entity.Action)tapActionComboBox.getSelectedItem();
+                showHideComponents();
+                if (tapActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
+                    return;
+                entity.setTapAction(action);
+                markModified();
+            }
+        });
+        tapActionValueTextField = new JTextField(10);
+        tapActionValueTextField.setText(entity.getTapActionValue());
+        tapActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String actionValue = tapActionValueTextField.getText();
+                if (actionValue.isEmpty())
+                    return;
+                entity.setTapActionValue(actionValue);
                 entity.setTapAction((Entity.Action)tapActionComboBox.getSelectedItem());
                 markModified();
             }
@@ -169,6 +189,23 @@ public class EntityOptionsPanel extends JPanel {
         });
         doubleTapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
+                Entity.Action action = (Entity.Action)doubleTapActionComboBox.getSelectedItem();
+                showHideComponents();
+                if (doubleTapActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
+                    return;
+                entity.setDoubleTapAction(action);
+                markModified();
+            }
+        });
+        doubleTapActionValueTextField = new JTextField(10);
+        doubleTapActionValueTextField.setText(entity.getDoubleTapActionValue());
+        doubleTapActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String actionValue = doubleTapActionValueTextField.getText();
+                if (actionValue.isEmpty())
+                    return;
+                entity.setDoubleTapActionValue(actionValue);
                 entity.setDoubleTapAction((Entity.Action)doubleTapActionComboBox.getSelectedItem());
                 markModified();
             }
@@ -187,6 +224,23 @@ public class EntityOptionsPanel extends JPanel {
         });
         holdActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
+                Entity.Action action = (Entity.Action)holdActionComboBox.getSelectedItem();
+                showHideComponents();
+                if (holdActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
+                    return;
+                entity.setHoldAction(action);
+                markModified();
+            }
+        });
+        holdActionValueTextField = new JTextField(10);
+        holdActionValueTextField.setText(entity.getHoldActionValue());
+        holdActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String actionValue = holdActionValueTextField.getText();
+                if (actionValue.isEmpty())
+                    return;
+                entity.setHoldActionValue(actionValue);
                 entity.setHoldAction((Entity.Action)holdActionComboBox.getSelectedItem());
                 markModified();
             }
@@ -353,6 +407,9 @@ public class EntityOptionsPanel extends JPanel {
         add(tapActionComboBox, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(tapActionValueTextField, new GridBagConstraints(
+            3, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Double tap action */
@@ -363,6 +420,9 @@ public class EntityOptionsPanel extends JPanel {
         add(doubleTapActionComboBox, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(doubleTapActionValueTextField, new GridBagConstraints(
+            3, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Hold action */
@@ -372,6 +432,9 @@ public class EntityOptionsPanel extends JPanel {
         holdActionLabel.setHorizontalAlignment(labelAlignment);
         add(holdActionComboBox, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(holdActionValueTextField, new GridBagConstraints(
+            3, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -473,6 +536,9 @@ public class EntityOptionsPanel extends JPanel {
     }
 
     private void showHideComponents() {
+        tapActionValueTextField.setVisible((Entity.Action)tapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
+        doubleTapActionValueTextField.setVisible((Entity.Action)doubleTapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
+        holdActionValueTextField.setVisible((Entity.Action)holdActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         displayFurnitureConditionValueTextField.setVisible((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem() != Entity.DisplayFurnitureCondition.ALWAYS);
     }
 
