@@ -58,6 +58,8 @@ public class EntityOptionsPanel extends JPanel {
     private JSpinner positionTopSpinner;
     private JLabel opacityLabel;
     private JSpinner opacitySpinner;
+    private JLabel backgroundColorLabel;
+    private JTextField backgroundColorTextField;
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
@@ -241,6 +243,18 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        backgroundColorLabel = new JLabel();
+        backgroundColorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.text"));
+        backgroundColorTextField = new JTextField(20);
+        backgroundColorTextField.setText(entity.getBackgrounColor());
+        backgroundColorTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                entity.setBackgrounColor(backgroundColorTextField.getText());
+                markModified();
+            }
+        });
+
         alwaysOnLabel = new JLabel();
         alwaysOnLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.text"));
         alwaysOnCheckbox = new JCheckBox();
@@ -297,7 +311,6 @@ public class EntityOptionsPanel extends JPanel {
                 markModified();
             }
         });
-
 
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
@@ -391,6 +404,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Background color */
+        add(backgroundColorLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        backgroundColorLabel.setHorizontalAlignment(labelAlignment);
+        add(backgroundColorTextField, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         if (entity.getIsLight())
             layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
         else
@@ -445,6 +468,7 @@ public class EntityOptionsPanel extends JPanel {
         alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK);
         isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
+        backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
     }
 

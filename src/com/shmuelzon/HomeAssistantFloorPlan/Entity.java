@@ -31,6 +31,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_LEFT_POSITION = "leftPosition";
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
     private static final String SETTING_NAME_OPACITY = "opacity";
+    private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION = "displayFurnitureCondition";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE = "displayFurnitureConditionValue";
 
@@ -39,6 +40,7 @@ public class Entity implements Comparable<Entity> {
     private String name;
     private Point2d position;
     private int opacity;
+    private String backgroundColor;
     private DisplayType displayType;
     private DisplayCondition displayCondition;
     private Action tapAction;
@@ -251,6 +253,19 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_OPACITY) != null;
     }
 
+    public String getBackgrounColor() {
+        return backgroundColor;
+    }
+
+    public void setBackgrounColor(String backgroundColor) {
+        this.backgroundColor = backgroundColor;
+        settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, backgroundColor);
+    }
+
+    public boolean isBackgroundColorModified() {
+        return settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR) != null;
+    }
+
     public void resetToDefaults() {
         boolean oldAlwaysOn = alwaysOn;
         boolean oldIsRgb = isRgb;
@@ -266,6 +281,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
+        settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, null);
         loadDefaultAttributes();
@@ -322,7 +338,7 @@ public class Entity implements Comparable<Entity> {
             "      left: %.2f%%\n" +
             "      border-radius: 50%%\n" +
             "      text-align: center\n" +
-            "      background-color: rgba(255, 255, 255, 0.3)\n" +
+            "      background-color: %s\n" +
             "      opacity: %d%%\n" +
             "    tap_action:\n" +
             "      action: %s\n" +
@@ -330,7 +346,7 @@ public class Entity implements Comparable<Entity> {
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, position.y, position.x, opacity,
+            displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity,
             actionToYamlString.get(tapAction), actionToYamlString.get(doubleTapAction), actionToYamlString.get(holdAction));
 
         if (displayCondition == DisplayCondition.ALWAYS)
@@ -392,6 +408,7 @@ public class Entity implements Comparable<Entity> {
         holdAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
+        backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
         alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
         displayFurnitureCondition = getSavedEnumValue(DisplayFurnitureCondition.class, name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, DisplayFurnitureCondition.ALWAYS);
