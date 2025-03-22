@@ -120,6 +120,7 @@ that allow you to customize the entity according to your needs.
   [Hold action](https://www.home-assistant.io/dashboards/actions/#hold-action)
 * Position - Override the entity's icon/label position
 * Opacity - Define the opacity of the entity's icon/label
+* Background color - Define the background color of the entity's icon/label
 * Display furniture - Only for furniture, set the entity state conditions for
   which the piece of furniture is either visible or hidden in the floor plan
 * Always on - Only for lights, set light as always on removing its icon and it
