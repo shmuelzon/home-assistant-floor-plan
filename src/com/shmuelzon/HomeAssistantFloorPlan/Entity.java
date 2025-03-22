@@ -18,14 +18,17 @@ public class Entity implements Comparable<Entity> {
     public enum Property {ALWAYS_ON, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
     public enum DisplayType {BADGE, ICON, LABEL}
     public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
-    public enum Action {MORE_INFO, NONE, TOGGLE}
+    public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
     public enum DisplayFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
 
     private static final String SETTING_NAME_DISPLAY_TYPE = "displayType";
     private static final String SETTING_NAME_DISPLAY_CONDITION = "displayCondition";
     private static final String SETTING_NAME_TAP_ACTION = "tapAction";
+    private static final String SETTING_NAME_TAP_ACTION_VALUE = "tapActionValue";
     private static final String SETTING_NAME_DOUBLE_TAP_ACTION = "doubleTapAction";
+    private static final String SETTING_NAME_DOUBLE_TAP_ACTION_VALUE = "doubleTapActionValue";
     private static final String SETTING_NAME_HOLD_ACTION = "holdAction";
+    private static final String SETTING_NAME_HOLD_ACTION_VALUE = "holdActionValue";
     private static final String SETTING_NAME_ALWAYS_ON = "alwaysOn";
     private static final String SETTING_NAME_IS_RGB = "isRgb";
     private static final String SETTING_NAME_LEFT_POSITION = "leftPosition";
@@ -44,8 +47,11 @@ public class Entity implements Comparable<Entity> {
     private DisplayType displayType;
     private DisplayCondition displayCondition;
     private Action tapAction;
+    private String tapActionValue;
     private Action doubleTapAction;
+    private String doubleTapActionValue;
     private Action holdAction;
+    private String holdActionValue;
     private String title;
     private boolean isLight;
     private boolean alwaysOn;
@@ -132,6 +138,19 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_TAP_ACTION) != null;
     }
 
+    public String getTapActionValue() {
+        return tapActionValue;
+    }
+
+    public void setTapActionValue(String tapActionValue) {
+        this.tapActionValue = tapActionValue;
+        settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, tapActionValue);
+    }
+
+    public boolean isTapActionValueModified() {
+        return settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE) != null;
+    }
+
     public Action getDoubleTapAction() {
         return doubleTapAction;
     }
@@ -145,6 +164,19 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION) != null;
     }
 
+    public String getDoubleTapActionValue() {
+        return doubleTapActionValue;
+    }
+
+    public void setDoubleTapActionValue(String doubleTapActionValue) {
+        this.doubleTapActionValue = doubleTapActionValue;
+        settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, doubleTapActionValue);
+    }
+
+    public boolean isDoubleTapActionValueModified() {
+        return settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE) != null;
+    }
+
     public Action getHoldAction() {
         return holdAction;
     }
@@ -156,6 +188,19 @@ public class Entity implements Comparable<Entity> {
 
     public boolean isHoldActionModified() {
         return settings.get(name + "." + SETTING_NAME_HOLD_ACTION) != null;
+    }
+
+    public String getHoldActionValue() {
+        return holdActionValue;
+    }
+
+    public void setHoldActionValue(String holdActionValue) {
+        this.holdActionValue = holdActionValue;
+        settings.set(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, holdActionValue);
+    }
+
+    public boolean isHoldActionValueModified() {
+        return settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE) != null;
     }
 
     public boolean getAlwaysOn() {
@@ -274,8 +319,11 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_CONDITION, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION, null);
+        settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, null);
         settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, null);
+        settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, null);
         settings.set(name + "." + SETTING_NAME_HOLD_ACTION, null);
+        settings.set(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, null);
         settings.set(name + "." + SETTING_NAME_ALWAYS_ON, null);
         settings.set(name + "." + SETTING_NAME_IS_RGB, null);
         settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
@@ -314,16 +362,28 @@ public class Entity implements Comparable<Entity> {
             piece.setVisible(visible);
     }
 
+    private String actionYaml(Action action, String value) {
+        final Map<Action, String> actionToYamlString = new HashMap<Action, String>() {{
+            put(Action.MORE_INFO, "more-info");
+            put(Action.NAVIGATE, "navigate");
+            put(Action.NONE, "none");
+            put(Action.TOGGLE, "toggle");
+        }};
+
+        String yaml = actionToYamlString.get(action);
+
+        if (action == Action.NAVIGATE)
+            yaml += String.format("\n" +
+                "      navigation_path: %s", value);
+
+        return yaml;
+    }
+
     public String buildYaml() {
         final Map<DisplayType, String> displayTypeToYamlString = new HashMap<DisplayType, String>() {{
             put(DisplayType.BADGE, "state-badge");
             put(DisplayType.ICON, "state-icon");
             put(DisplayType.LABEL, "state-label");
-        }};
-        final Map<Action, String> actionToYamlString = new HashMap<Action, String>() {{
-            put(Action.MORE_INFO, "more-info");
-            put(Action.NONE, "none");
-            put(Action.TOGGLE, "toggle");
         }};
 
         if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
@@ -347,7 +407,7 @@ public class Entity implements Comparable<Entity> {
             "    hold_action:\n" +
             "      action: %s\n",
             displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity,
-            actionToYamlString.get(tapAction), actionToYamlString.get(doubleTapAction), actionToYamlString.get(holdAction));
+            actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
 
         if (displayCondition == DisplayCondition.ALWAYS)
             return yaml;
@@ -404,8 +464,11 @@ public class Entity implements Comparable<Entity> {
         displayType = getSavedEnumValue(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
         displayCondition = getSavedEnumValue(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
         tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
+        tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");
         doubleTapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, Action.NONE);
+        doubleTapActionValue = settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, "");
         holdAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
+        holdActionValue = settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, "");
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
