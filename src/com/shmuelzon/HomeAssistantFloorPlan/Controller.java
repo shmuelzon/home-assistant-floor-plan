@@ -669,16 +669,17 @@ public class Controller {
             "          COLOR_MODE: states['%s'].attributes.color_mode\n" +
             "          LIGHT_COLOR: states['%s'].attributes.hs_color\n" +
             "          BRIGHTNESS: states['%s'].attributes.brightness\n" +
+            "          isInColoredMode: colorMode => ['hs', 'rgb', 'rgbw', 'rgbww', 'white', 'xy'].includes(colorMode)\n" +
             "        entities:\n" +
             "          - %s\n" +
             "        element:\n" +
             "          type: image\n" +
             "          image: >-\n" +
-            "              ${COLOR_MODE === 'color_temp' || COLOR_MODE === 'brightness' || ((COLOR_MODE === 'rgb' || COLOR_MODE === 'hs') && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
+            "              ${!isInColoredMode(COLOR_MODE) || (isInColoredMode(COLOR_MODE) && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
             "              '/local/floorplan/%s.png?version=%s' :\n" +
             "              '/local/floorplan/%s.png?version=%s' }\n" +
             "        style:\n" +
-            "          filter: '${ \"hue-rotate(\" + (LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
+            "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
             "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
             "          mix-blend-mode: lighten\n" +
             "          pointer-events: none\n" +
