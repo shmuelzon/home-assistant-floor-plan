@@ -435,7 +435,7 @@ public class Controller {
             "update.",
             "vacuum.",
             "valve.",
-            "water_header.",
+            "water_heater.",
             "weather."
         );
 
