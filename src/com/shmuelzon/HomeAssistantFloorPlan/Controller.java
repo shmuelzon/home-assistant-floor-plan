@@ -16,6 +16,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +68,7 @@ public class Controller {
     private Camera camera;
     private List<Entity> lightEntities = new ArrayList<>();
     private List<Entity> otherEntities = new ArrayList<>();
+    private List<Entity> otherLevelsEntities = new ArrayList<>();
     private Map<String, List<Entity>> lightsGroups = new HashMap<>();
     private Vector4d cameraPosition;
     private Transform3D perspectiveTransform;
@@ -279,6 +281,7 @@ public class Controller {
                 "image: /local/floorplan/%s.png?version=%s\n" +
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
             
+            turnOffLightsFromOtherLevels();
             for (Scene scene : scenes) {
                 Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
                 Files.createDirectories(Paths.get(outputFloorplanDirectoryName + File.separator + scene.getName()));
@@ -309,18 +312,22 @@ public class Controller {
         }
     }
 
-    private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> furnitureList) {
+    private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
         for (HomePieceOfFurniture piece : furnitureList) {
             if (piece instanceof HomeFurnitureGroup) {
-                addEligibleFurnitureToMap(furnitureByName, ((HomeFurnitureGroup)piece).getFurniture());
+                addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, ((HomeFurnitureGroup)piece).getFurniture());
                 continue;
             }
             if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible())
                 continue;
-            if (piece instanceof HomeLight && ((HomeLight)piece).getPower() == 0f)
+            boolean isLight = piece instanceof HomeLight;
+            if (isLight && ((HomeLight)piece).getPower() == 0f)
                 continue;
-            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel())
+            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel()) {
+                if (isLight)
+                    lightsFromOtherLevels.add(piece);
                 continue;
+            }
             if (!furnitureByName.containsKey(piece.getName()))
                 furnitureByName.put(piece.getName(), new ArrayList<HomePieceOfFurniture>());
             furnitureByName.get(piece.getName()).add(piece);
@@ -329,7 +336,8 @@ public class Controller {
 
     private void createHomeAssistantEntities() {
         Map<String, List<HomePieceOfFurniture>> furnitureByName = new HashMap<>();
-        addEligibleFurnitureToMap(furnitureByName, home.getFurniture());
+        List<HomePieceOfFurniture> lightsFromOtherLevels = new ArrayList<>();
+        addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, home.getFurniture());
 
         for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
             Entity entity = new Entity(settings, pieces);
@@ -356,6 +364,9 @@ public class Controller {
             else
                 otherEntities.add(entity);
         }
+
+        for (HomePieceOfFurniture piece : lightsFromOtherLevels)
+            otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece)));
     }
 
     private void buildLightsGroupsByRoom() {
@@ -696,8 +707,12 @@ public class Controller {
         return fileName.replace('\\', '/');
     }
 
+    private void turnOffLightsFromOtherLevels() {
+        otherLevelsEntities.forEach(entity -> entity.setLightPower(false));
+    }
+
     private void restoreEntityConfiguration() {
-        Stream.concat(lightEntities.stream(), otherEntities.stream())
+        Stream.of(lightEntities, otherEntities, otherLevelsEntities).flatMap(Collection::stream)
             .forEach(Entity::restoreConfiguration);
     }
 
