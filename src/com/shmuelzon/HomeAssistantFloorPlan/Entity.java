@@ -17,12 +17,22 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 public class Entity implements Comparable<Entity> {
     public enum Property {ALWAYS_ON, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
     public enum DisplayType {BADGE, ICON, LABEL}
-    public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
+    
+    // Deprecated enums, kept for reference but logic is replaced by strings/new enums
     public enum DisplayFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
+    public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
 
+    // --- NEW: Enum for the different operators ---
+    public enum DisplayOperator { IS, IS_NOT, GREATER_THAN, LESS_THAN, ALWAYS, NEVER }
+
+    // --- Settings Constants ---
     private static final String SETTING_NAME_DISPLAY_TYPE = "displayType";
-    private static final String SETTING_NAME_DISPLAY_CONDITION = "displayCondition";
+    private static final String SETTING_NAME_DISPLAY_OPERATOR = "displayOperator";
+    private static final String SETTING_NAME_DISPLAY_VALUE = "displayValue";
+    private static final String SETTING_NAME_FURNITURE_DISPLAY_OPERATOR = "furnitureDisplayOperator";
+    private static final String SETTING_NAME_FURNITURE_DISPLAY_VALUE = "furnitureDisplayValue";
+    
     private static final String SETTING_NAME_TAP_ACTION = "tapAction";
     private static final String SETTING_NAME_TAP_ACTION_VALUE = "tapActionValue";
     private static final String SETTING_NAME_DOUBLE_TAP_ACTION = "doubleTapAction";
@@ -35,9 +45,8 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
     private static final String SETTING_NAME_OPACITY = "opacity";
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
-    private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION = "displayFurnitureCondition";
-    private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE = "displayFurnitureConditionValue";
 
+    // --- Fields ---
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
     private String id;
     private String name;
@@ -45,7 +54,10 @@ public class Entity implements Comparable<Entity> {
     private int opacity;
     private String backgroundColor;
     private DisplayType displayType;
-    private DisplayCondition displayCondition;
+    private DisplayOperator displayOperator;
+    private String displayValue;
+    private DisplayOperator furnitureDisplayOperator;
+    private String furnitureDisplayValue;
     private Action tapAction;
     private String tapActionValue;
     private Action doubleTapAction;
@@ -56,10 +68,7 @@ public class Entity implements Comparable<Entity> {
     private boolean isLight;
     private boolean alwaysOn;
     private boolean isRgb;
-    private DisplayFurnitureCondition displayFurnitureCondition;
-    private String displayFurnitureConditionValue;
     private Map<HomeLight, Float> initialPower;
-
     private Settings settings;
     private boolean isUserDefinedPosition;
     private PropertyChangeSupport propertyChangeSupport;
@@ -67,9 +76,8 @@ public class Entity implements Comparable<Entity> {
     public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture) {
         this.settings = settings;
         this.piecesOfFurniture = piecesOfFurniture;
-        propertyChangeSupport = new PropertyChangeSupport(this);
-        initialPower = new HashMap<>();
-
+        this.propertyChangeSupport = new PropertyChangeSupport(this);
+        this.initialPower = new HashMap<>();
         loadDefaultAttributes();
     }
 
@@ -111,18 +119,53 @@ public class Entity implements Comparable<Entity> {
     public boolean isDisplayTypeModified() {
         return settings.get(name + "." + SETTING_NAME_DISPLAY_TYPE) != null;
     }
-
-    public DisplayCondition getDisplayCondition() {
-        return displayCondition;
+    
+    public DisplayOperator getDisplayOperator() {
+        return displayOperator;
     }
 
-    public void setDisplayCondition(DisplayCondition displayCondition) {
-        this.displayCondition = displayCondition;
-        settings.set(name + "." + SETTING_NAME_DISPLAY_CONDITION, displayCondition.name());
+    public void setDisplayOperator(DisplayOperator displayOperator) {
+        this.displayOperator = displayOperator;
+        settings.set(name + "." + SETTING_NAME_DISPLAY_OPERATOR, displayOperator.name());
+    }
+    
+    public String getDisplayValue() {
+        return displayValue;
     }
 
+    public void setDisplayValue(String displayValue) {
+        this.displayValue = displayValue;
+        settings.set(name + "." + SETTING_NAME_DISPLAY_VALUE, displayValue);
+    }
+    
     public boolean isDisplayConditionModified() {
-        return settings.get(name + "." + SETTING_NAME_DISPLAY_CONDITION) != null;
+        return settings.get(name + "." + SETTING_NAME_DISPLAY_OPERATOR) != null 
+            || settings.get(name + "." + SETTING_NAME_DISPLAY_VALUE) != null;
+    }
+
+    public DisplayOperator getFurnitureDisplayOperator() {
+        return furnitureDisplayOperator;
+    }
+
+    public void setFurnitureDisplayOperator(DisplayOperator furnitureDisplayOperator) {
+        this.furnitureDisplayOperator = furnitureDisplayOperator;
+        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, furnitureDisplayOperator.name());
+        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), null, furnitureDisplayOperator);
+    }
+
+    public String getFurnitureDisplayValue() {
+        return furnitureDisplayValue;
+    }
+
+    public void setFurnitureDisplayValue(String furnitureDisplayValue) {
+        this.furnitureDisplayValue = furnitureDisplayValue;
+        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, furnitureDisplayValue);
+        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), null, furnitureDisplayValue);
+    }
+    
+    public boolean isFurnitureDisplayConditionModified() {
+        return settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR) != null 
+            || settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE) != null;
     }
 
     public Action getTapAction() {
@@ -233,34 +276,6 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_IS_RGB) != null;
     }
 
-    public DisplayFurnitureCondition getDisplayFurnitureCondition() {
-        return displayFurnitureCondition;
-    }
-
-    public void setDisplayFurnitureCondition(DisplayFurnitureCondition displayFurnitureCondition) {
-        DisplayFurnitureCondition olddisplayFurnitureCondition = this.displayFurnitureCondition;
-        this.displayFurnitureCondition = displayFurnitureCondition;
-        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, displayFurnitureCondition.name());
-        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), olddisplayFurnitureCondition, displayFurnitureCondition);
-    }
-
-    public boolean isDisplayFurnitureConditionModified() {
-        return settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION) != null;
-    }
-
-    public String getDisplayFurnitureConditionValue() {
-        return displayFurnitureConditionValue;
-    }
-
-    public void setDisplayFurnitureConditionValue(String displayFurnitureConditionValue) {
-        this.displayFurnitureConditionValue = displayFurnitureConditionValue;
-        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, displayFurnitureConditionValue);
-    }
-
-    public boolean isDisplayFurnitureConditionValueModified() {
-        return settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE) != null;
-    }
-
     public Point2d getPosition() {
         return new Point2d(position);
     }
@@ -317,7 +332,10 @@ public class Entity implements Comparable<Entity> {
         Point2d oldPosition = getPosition();
 
         settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
-        settings.set(name + "." + SETTING_NAME_DISPLAY_CONDITION, null);
+        settings.set(name + "." + SETTING_NAME_DISPLAY_OPERATOR, null);
+        settings.set(name + "." + SETTING_NAME_DISPLAY_VALUE, null);
+        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, null);
+        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, null);
         settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, null);
@@ -330,8 +348,6 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
-        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, null);
-        settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -374,7 +390,7 @@ public class Entity implements Comparable<Entity> {
 
         if (action == Action.NAVIGATE)
             yaml += String.format("\n" +
-                "      navigation_path: %s", value);
+                "        navigation_path: %s", value);
 
         return yaml;
     }
@@ -385,11 +401,8 @@ public class Entity implements Comparable<Entity> {
             put(DisplayType.ICON, "state-icon");
             put(DisplayType.LABEL, "state-label");
         }};
-
-        if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
-            return "";
-
-        String yaml = String.format(Locale.US,
+        
+        String elementYaml = String.format(Locale.US,
             "  - type: %s\n" +
             "    entity: %s\n" +
             "    title: %s\n" +
@@ -401,27 +414,69 @@ public class Entity implements Comparable<Entity> {
             "      background-color: %s\n" +
             "      opacity: %d%%\n" +
             "    tap_action:\n" +
-            "      action: %s\n" +
+      "      action: %s\n" +
             "    double_tap_action:\n" +
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
             displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity,
-            actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
+            actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue)
+        );
 
-        if (displayCondition == DisplayCondition.ALWAYS)
-            return yaml;
+        // Handle ALWAYS and NEVER operators explicitly
+        if (this.displayOperator == DisplayOperator.ALWAYS) {
+            return elementYaml;
+        }
 
+        if (this.displayOperator == DisplayOperator.NEVER) {
+            // If the operator is NEVER, the element should not appear in the YAML at all.
+            // Returning an empty string prevents it from being added to the elements list.
+            return "";
+        }
+
+        String conditionYaml;
+        switch (this.displayOperator) {
+            case IS:
+                conditionYaml = String.format(
+                    "      - condition: state\n" +
+                    "        entity: %s\n" +
+                    "        state: '%s'",
+                    name, this.displayValue);
+                break;
+            case IS_NOT:
+                conditionYaml = String.format(
+                    "      - condition: state\n" +
+                    "        entity: %s\n" +
+                    "        state_not: '%s'",
+                    name, this.displayValue);
+                break;
+            case GREATER_THAN:
+                conditionYaml = String.format(
+                    "      - condition: numeric_state\n" +
+                    "        entity: %s\n" +
+                    "        above: %s",
+                    name, this.displayValue);
+                break;
+            case LESS_THAN:
+                conditionYaml = String.format(
+                    "      - condition: numeric_state\n" +
+                    "        entity: %s\n" +
+                    "        below: %s",
+                    name, this.displayValue);
+                break;
+            default:
+                // This case should ideally not be reached if the enum is handled,
+                // but as a fallback, return empty string to avoid unexpected elements.
+                return "";
+        }
         return String.format(
             "  - type: conditional\n" +
             "    conditions:\n" +
-            "      - condition: state\n" +
-            "        entity: %s\n" +
-            "        state: '%s'\n" +
+            "%s\n" +
             "    elements:\n" +
             "%s",
-            name, displayCondition == DisplayCondition.WHEN_ON ? "on" : "off",
-            yaml.replaceAll(".*\\R", "    $0")
+            conditionYaml,
+            elementYaml.replaceAll("(?m)^", "    ")
         );
     }
 
@@ -462,7 +517,14 @@ public class Entity implements Comparable<Entity> {
         name = firstPiece.getName();
         position = loadPosition();
         displayType = getSavedEnumValue(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
-        displayCondition = getSavedEnumValue(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
+        
+        displayOperator = getSavedEnumValue(DisplayOperator.class, name + "." + SETTING_NAME_DISPLAY_OPERATOR, DisplayOperator.ALWAYS);
+        displayValue = settings.get(name + "." + SETTING_NAME_DISPLAY_VALUE, "");
+        
+        furnitureDisplayOperator = getSavedEnumValue(DisplayOperator.class, name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, DisplayOperator.ALWAYS);
+        // --- MODIFIED: Default to an empty string to prevent OutOfMemoryError ---
+        furnitureDisplayValue = settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, "");
+
         tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
         tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");
         doubleTapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, Action.NONE);
@@ -474,8 +536,6 @@ public class Entity implements Comparable<Entity> {
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
         alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
-        displayFurnitureCondition = getSavedEnumValue(DisplayFurnitureCondition.class, name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, DisplayFurnitureCondition.ALWAYS);
-        displayFurnitureConditionValue = settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, "");
 
         isLight = firstPiece instanceof HomeLight;
         saveInitialLightPowerValues();

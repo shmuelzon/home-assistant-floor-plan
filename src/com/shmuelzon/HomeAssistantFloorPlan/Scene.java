@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import com.eteks.sweethome3d.model.Camera;
+import com.shmuelzon.HomeAssistantFloorPlan.Entity.DisplayOperator;
 
 
 public class Scene {
@@ -81,23 +82,37 @@ public class Scene {
             Integer.valueOf(timestampTo24HourString(renderingTimes.get(0))));
     }
 
+    // --- MODIFIED: This method now correctly uses the new operator/value fields from Entity.java ---
     private String getEntitiesToShowHideCondition() {
-        final Map<List<Boolean>, String> displayConditionYaml = new HashMap<List<Boolean>, String>() {{
-            put(Arrays.asList(true, true), "");
-            put(Arrays.asList(true, false), "_not");
-            put(Arrays.asList(false, true), "_not");
-            put(Arrays.asList(false, false), "");
-        }};
         String condition = "";
 
         for (Entity entity : entitiesToShowHide) {
+            DisplayOperator op = entity.getFurnitureDisplayOperator();
+            String value = entity.getFurnitureDisplayValue();
+
+            // If the condition is not set, or is numeric (not supported by this render-layer logic), skip it.
+            // Also skip if the operator is ALWAYS or NEVER, as these don't require a state condition in the YAML.
+            if (op == null || value == null || value.trim().isEmpty() ||
+                op == DisplayOperator.GREATER_THAN || op == DisplayOperator.LESS_THAN || op == DisplayOperator.ALWAYS || op == DisplayOperator.NEVER) {
+                continue;
+            }
+
+            boolean isNotOperator = (op == DisplayOperator.IS_NOT);
+            boolean shouldHide = !entitiesToShow.contains(entity);
+
+            // This XOR logic correctly inverts the condition when necessary.
+            // (e.g., if we need to HIDE when state IS 'on', the resulting YAML condition must be state_not: 'on')
+            boolean useNot = isNotOperator ^ shouldHide; 
+            
+            String conditionType = useNot ? "_not" : "";
+            
             condition += String.format(
                 "      - condition: state\n" +
                 "        entity: %s\n" +
                 "        state%s: '%s'\n",
                 entity.getName(),
-                displayConditionYaml.get(Arrays.asList(entitiesToShow.contains(entity), entity.getDisplayFurnitureCondition() == Entity.DisplayFurnitureCondition.STATE_EQUALS)),
-                entity.getDisplayFurnitureConditionValue());
+                conditionType,
+                value);
         }
 
         return condition;
