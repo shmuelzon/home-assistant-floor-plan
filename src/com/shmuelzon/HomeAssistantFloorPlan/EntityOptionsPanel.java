@@ -41,10 +41,15 @@ public class EntityOptionsPanel extends JPanel {
     private enum ActionType {CLOSE, RESET_TO_DEFAULTS}
 
     private Entity entity;
+    private Controller controller;
     private JLabel displayTypeLabel;
     private JComboBox<Entity.DisplayType> displayTypeComboBox;
-    private JLabel displayConditionLabel;
-    private JComboBox<Entity.DisplayCondition> displayConditionComboBox;
+    
+    // --- NEW: Components for the operator and value ---
+    private JLabel displayStateLabel;
+    private JComboBox<Entity.DisplayOperator> displayOperatorComboBox;
+    private JComboBox<String> displayValueComboBox;
+
     private JLabel tapActionLabel;
     private JComboBox<Entity.Action> tapActionComboBox;
     private JTextField tapActionValueTextField;
@@ -67,22 +72,27 @@ public class EntityOptionsPanel extends JPanel {
     private JCheckBox alwaysOnCheckbox;
     private JLabel isRgbLabel;
     private JCheckBox isRgbCheckbox;
-    private JLabel displayFurnitureConditionLabel;
-    private JComboBox<Entity.DisplayFurnitureCondition> displayFurnitureConditionComboBox;
-    private JTextField displayFurnitureConditionValueTextField;
+
+    // --- NEW: Components for the furniture operator and value ---
+    private JLabel furnitureDisplayStateLabel;
+    private JComboBox<Entity.DisplayOperator> furnitureDisplayOperatorComboBox;
+    private JComboBox<String> furnitureDisplayValueComboBox;
+
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
 
-    public EntityOptionsPanel(UserPreferences preferences, Entity entity) {
+    public EntityOptionsPanel(UserPreferences preferences, Entity entity, Controller controller) {
         super(new GridBagLayout());
         this.entity = entity;
+        this.controller = controller;
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault());
         createActions(preferences);
         createComponents();
         layoutComponents();
         markModified();
+        updateValueComboBoxesEnabledState(); // Set initial state
     }
 
     private void createActions(UserPreferences preferences) {
@@ -122,24 +132,44 @@ public class EntityOptionsPanel extends JPanel {
                 markModified();
             }
         });
-
-        displayConditionLabel = new JLabel();
-        displayConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayConditionLabel.text"));
-        displayConditionComboBox = new JComboBox<Entity.DisplayCondition>(Entity.DisplayCondition.values());
-        displayConditionComboBox.setSelectedItem(entity.getDisplayCondition());
-        displayConditionComboBox.setRenderer(new DefaultListCellRenderer() {
-            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
-                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.displayConditionComboBox.%s.text", ((Entity.DisplayCondition)o).name())));
-                return rendererComponent;
+        
+        // --- NEW and MODIFIED component creation for entity display condition ---
+        displayStateLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.displayStateLabel.text"));
+        
+        // Operator Dropdown
+        displayOperatorComboBox = new JComboBox<>(Entity.DisplayOperator.values());
+        displayOperatorComboBox.setSelectedItem(entity.getDisplayOperator());
+        displayOperatorComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                Entity.DisplayOperator op = (Entity.DisplayOperator) value;
+                setText(resource.getString("HomeAssistantFloorPlan.Panel.displayOperatorComboBox." + op.name() + ".text"));
+                return this;
             }
         });
-        displayConditionComboBox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ev) {
-                entity.setDisplayCondition((Entity.DisplayCondition)displayConditionComboBox.getSelectedItem());
+        displayOperatorComboBox.addActionListener(e -> {
+            entity.setDisplayOperator((Entity.DisplayOperator) displayOperatorComboBox.getSelectedItem());
+            markModified();
+            updateValueComboBoxesEnabledState(); // Update state when operator changes
+        });
+
+        // Value Smart ComboBox
+        displayValueComboBox = new JComboBox<>();
+        displayValueComboBox.setEditable(true);
+        String[] suggestedStates = controller.getSuggestedStatesForEntity(entity);
+        for (String suggestion : suggestedStates) {
+            displayValueComboBox.addItem(suggestion);
+        }
+        displayValueComboBox.setSelectedItem(entity.getDisplayValue());
+        displayValueComboBox.addActionListener(e -> {
+            Object selectedItem = displayValueComboBox.getSelectedItem();
+            if (selectedItem != null) {
+                entity.setDisplayValue(selectedItem.toString());
                 markModified();
             }
         });
+
 
         tapActionLabel = new JLabel();
         tapActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.tapActionLabel.text"));
@@ -191,6 +221,7 @@ public class EntityOptionsPanel extends JPanel {
             public void actionPerformed(ActionEvent ev) {
                 Entity.Action action = (Entity.Action)doubleTapActionComboBox.getSelectedItem();
                 showHideComponents();
+                // TODO: This logic seems flawed. It should set the action regardless of the text field being empty.
                 if (doubleTapActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
                     return;
                 entity.setDoubleTapAction(action);
@@ -203,6 +234,7 @@ public class EntityOptionsPanel extends JPanel {
             @Override
             public void executeUpdate(DocumentEvent e) {
                 String actionValue = doubleTapActionValueTextField.getText();
+                // TODO: This logic seems flawed. It should set the action value regardless of it being empty.
                 if (actionValue.isEmpty())
                     return;
                 entity.setDoubleTapActionValue(actionValue);
@@ -226,6 +258,7 @@ public class EntityOptionsPanel extends JPanel {
             public void actionPerformed(ActionEvent ev) {
                 Entity.Action action = (Entity.Action)holdActionComboBox.getSelectedItem();
                 showHideComponents();
+                // TODO: This logic seems flawed. It should set the action regardless of the text field being empty.
                 if (holdActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
                     return;
                 entity.setHoldAction(action);
@@ -238,6 +271,7 @@ public class EntityOptionsPanel extends JPanel {
             @Override
             public void executeUpdate(DocumentEvent e) {
                 String actionValue = holdActionValueTextField.getText();
+                // TODO: This logic seems flawed. It should set the action value regardless of it being empty.
                 if (actionValue.isEmpty())
                     return;
                 entity.setHoldActionValue(actionValue);
@@ -259,10 +293,10 @@ public class EntityOptionsPanel extends JPanel {
         positionLeftSpinnerModel.setValue(position.x / 100.0);
         positionLeftSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
-              final Point2d position = entity.getPosition();
-              position.x = ((Number)positionLeftSpinnerModel.getValue()).doubleValue() * 100;
-              entity.setPosition(position, true);
-              markModified();
+                final Point2d position = entity.getPosition();
+                position.x = ((Number)positionLeftSpinnerModel.getValue()).doubleValue() * 100;
+                entity.setPosition(position, true);
+                markModified();
             }
         });
         positionTopLabel = new JLabel();
@@ -275,10 +309,10 @@ public class EntityOptionsPanel extends JPanel {
         positionTopSpinnerModel.setValue(position.y / 100.0);
         positionTopSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
-              final Point2d position = entity.getPosition();
-              position.y = ((Number)positionTopSpinnerModel.getValue()).doubleValue() * 100;
-              entity.setPosition(position, true);
-              markModified();
+                final Point2d position = entity.getPosition();
+                position.y = ((Number)positionTopSpinnerModel.getValue()).doubleValue() * 100;
+                entity.setPosition(position, true);
+                markModified();
             }
         });
 
@@ -292,8 +326,8 @@ public class EntityOptionsPanel extends JPanel {
         opacitySpinnerModel.setValue(entity.getOpacity() / 100.0);
         opacitySpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
-              entity.setOpacity((int)(((Number)opacitySpinnerModel.getValue()).doubleValue() * 100));
-              markModified();
+                entity.setOpacity((int)(((Number)opacitySpinnerModel.getValue()).doubleValue() * 100));
+                markModified();
             }
         });
 
@@ -330,41 +364,43 @@ public class EntityOptionsPanel extends JPanel {
                 markModified();
             }
         });
+        
+        // --- NEW: Create the new smart combo box for furniture display state ---
+        furnitureDisplayStateLabel = new JLabel();
+        furnitureDisplayStateLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayFurnitureConditionLabel.text"));
 
-        displayFurnitureConditionLabel = new JLabel();
-        displayFurnitureConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayFurnitureConditionLabel.text"));
-        displayFurnitureConditionComboBox = new JComboBox<Entity.DisplayFurnitureCondition>(Entity.DisplayFurnitureCondition.values());
-        displayFurnitureConditionComboBox.setSelectedItem(entity.getDisplayFurnitureCondition());
-        displayFurnitureConditionComboBox.setRenderer(new DefaultListCellRenderer() {
-            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
-                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.displayFurnitureConditionComboBox.%s.text", ((Entity.DisplayFurnitureCondition)o).name())));
-                return rendererComponent;
+        furnitureDisplayOperatorComboBox = new JComboBox<>(Entity.DisplayOperator.values());
+        furnitureDisplayOperatorComboBox.setSelectedItem(entity.getFurnitureDisplayOperator());
+        furnitureDisplayOperatorComboBox.setRenderer(new DefaultListCellRenderer() {
+             @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                Entity.DisplayOperator op = (Entity.DisplayOperator) value;
+                setText(resource.getString("HomeAssistantFloorPlan.Panel.displayOperatorComboBox." + op.name() + ".text"));
+                return this;
             }
         });
-        displayFurnitureConditionComboBox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ev) {
-                Entity.DisplayFurnitureCondition condition = (Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem();
-                showHideComponents();
-                if (displayFurnitureConditionValueTextField.getText().isEmpty() && condition != Entity.DisplayFurnitureCondition.ALWAYS)
-                    return;
-                entity.setDisplayFurnitureCondition(condition);
+        furnitureDisplayOperatorComboBox.addActionListener(e -> {
+            entity.setFurnitureDisplayOperator((Entity.DisplayOperator) furnitureDisplayOperatorComboBox.getSelectedItem());
+            markModified();
+            updateValueComboBoxesEnabledState(); // Update state when operator changes
+        });
+        
+        furnitureDisplayValueComboBox = new JComboBox<>();
+        furnitureDisplayValueComboBox.setEditable(true);
+        String[] furnitureSuggestions = controller.getSuggestedStatesForFurniture(entity);
+        for (String suggestion : furnitureSuggestions) {
+            furnitureDisplayValueComboBox.addItem(suggestion);
+        }
+        furnitureDisplayValueComboBox.setSelectedItem(entity.getFurnitureDisplayValue());
+        furnitureDisplayValueComboBox.addActionListener(e -> {
+            Object selected = furnitureDisplayValueComboBox.getSelectedItem();
+            if (selected != null) {
+                entity.setFurnitureDisplayValue(selected.toString());
                 markModified();
             }
         });
-        displayFurnitureConditionValueTextField = new JTextField(10);
-        displayFurnitureConditionValueTextField.setText(entity.getDisplayFurnitureConditionValue());
-        displayFurnitureConditionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
-            @Override
-            public void executeUpdate(DocumentEvent e) {
-                String conditionValue = displayFurnitureConditionValueTextField.getText();
-                if (conditionValue.isEmpty())
-                    return;
-                entity.setDisplayFurnitureConditionValue(conditionValue);
-                entity.setDisplayFurnitureCondition((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem());
-                markModified();
-            }
-        });
+        
 
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
@@ -385,17 +421,21 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         displayTypeLabel.setHorizontalAlignment(labelAlignment);
         add(displayTypeComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 4, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Display Condition */
-        add(displayConditionLabel, new GridBagConstraints(
+        /* Display State Condition */
+        add(displayStateLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        displayConditionLabel.setHorizontalAlignment(labelAlignment);
-        add(displayConditionComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+        displayStateLabel.setHorizontalAlignment(labelAlignment);
+        // Panel to hold both the operator and value combo boxes
+        JPanel displayConditionPanel = new JPanel(new GridBagLayout());
+        displayConditionPanel.add(displayOperatorComboBox, new GridBagConstraints(0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER, GridBagConstraints.NONE, insets, 0, 0));
+        displayConditionPanel.add(displayValueComboBox, new GridBagConstraints(1, 0, 1, 1, 1, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(displayConditionPanel, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -506,15 +546,17 @@ public class EntityOptionsPanel extends JPanel {
     }
 
     private void layoutNonLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
-        add(displayFurnitureConditionLabel, new GridBagConstraints(
+        /* Display Furniture Condition */
+        add(furnitureDisplayStateLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        displayFurnitureConditionLabel.setHorizontalAlignment(labelAlignment);
-        add(displayFurnitureConditionComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(displayFurnitureConditionValueTextField, new GridBagConstraints(
-            3, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+        furnitureDisplayStateLabel.setHorizontalAlignment(labelAlignment);
+        // Panel to hold both the operator and value combo boxes
+        JPanel furnitureConditionPanel = new JPanel(new GridBagLayout());
+        furnitureConditionPanel.add(furnitureDisplayOperatorComboBox, new GridBagConstraints(0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER, GridBagConstraints.NONE, insets, 0, 0));
+        furnitureConditionPanel.add(furnitureDisplayValueComboBox, new GridBagConstraints(1, 0, 1, 1, 1, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(furnitureConditionPanel, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
     }
@@ -523,7 +565,7 @@ public class EntityOptionsPanel extends JPanel {
         Color modifiedColor = new Color(200, 0, 0);
 
         displayTypeLabel.setForeground(entity.isDisplayTypeModified() ? modifiedColor : Color.BLACK);
-        displayConditionLabel.setForeground(entity.isDisplayConditionModified() ? modifiedColor : Color.BLACK);
+        displayStateLabel.setForeground(entity.isDisplayConditionModified() ? modifiedColor : Color.BLACK);
         tapActionLabel.setForeground(entity.isTapActionModified() ? modifiedColor : Color.BLACK);
         doubleTapActionLabel.setForeground(entity.isDoubleTapActionModified() ? modifiedColor : Color.BLACK);
         holdActionLabel.setForeground(entity.isHoldActionModified() ? modifiedColor : Color.BLACK);
@@ -532,14 +574,32 @@ public class EntityOptionsPanel extends JPanel {
         isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
-        displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
+        furnitureDisplayStateLabel.setForeground(entity.isFurnitureDisplayConditionModified() ? modifiedColor : Color.BLACK);
     }
 
     private void showHideComponents() {
         tapActionValueTextField.setVisible((Entity.Action)tapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         doubleTapActionValueTextField.setVisible((Entity.Action)doubleTapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         holdActionValueTextField.setVisible((Entity.Action)holdActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
-        displayFurnitureConditionValueTextField.setVisible((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem() != Entity.DisplayFurnitureCondition.ALWAYS);
+    }
+
+    // --- NEW: Method to update the enabled state of value combo boxes ---
+    private void updateValueComboBoxesEnabledState() {
+        Entity.DisplayOperator entityOperator = (Entity.DisplayOperator) displayOperatorComboBox.getSelectedItem();
+        boolean entityValueEnabled = !(entityOperator == Entity.DisplayOperator.ALWAYS || entityOperator == Entity.DisplayOperator.NEVER);
+        displayValueComboBox.setEnabled(entityValueEnabled);
+        // Optionally clear the value when disabled
+        if (!entityValueEnabled) {
+             displayValueComboBox.setSelectedItem(""); // Or null, depending on desired behavior
+        }
+
+        Entity.DisplayOperator furnitureOperator = (Entity.DisplayOperator) furnitureDisplayOperatorComboBox.getSelectedItem();
+        boolean furnitureValueEnabled = !(furnitureOperator == Entity.DisplayOperator.ALWAYS || furnitureOperator == Entity.DisplayOperator.NEVER);
+        furnitureDisplayValueComboBox.setEnabled(furnitureValueEnabled);
+        // Optionally clear the value when disabled
+        if (!furnitureValueEnabled) {
+            furnitureDisplayValueComboBox.setSelectedItem(""); // Or null, depending on desired behavior
+        }
     }
 
     public void displayView(Component parentComponent) {
@@ -549,6 +609,7 @@ public class EntityOptionsPanel extends JPanel {
         final JDialog dialog = optionPane.createDialog(SwingUtilities.getRootPane(parentComponent), entity.getName());
         dialog.applyComponentOrientation(parentComponent != null ?
             parentComponent.getComponentOrientation() : ComponentOrientation.getOrientation(Locale.getDefault()));
+        updateValueComboBoxesEnabledState(); // Ensure correct state on display
         showHideComponents();
         dialog.setModal(true);
         dialog.setVisible(true);

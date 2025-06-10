@@ -22,8 +22,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Locale;
 import java.util.Map;
+import java.util.MissingResourceException;
 import java.util.Optional;
+import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,6 +44,7 @@ import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.Room;
+import com.shmuelzon.HomeAssistantFloorPlan.Entity.DisplayOperator;
 
 
 public class Controller {
@@ -88,12 +92,15 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
     private Scenes scenes;
+    private ResourceBundle resource;
 
     public Controller(Home home) {
         this.home = home;
         settings = new Settings(home);
         camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
+        resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin");
+
         loadDefaultSettings();
         createHomeAssistantEntities();
 
@@ -101,6 +108,34 @@ public class Controller {
         buildScenes();
         repositionEntities();
     }
+
+    public String[] getSuggestedStatesForEntity(Entity entity) {
+        List<String> suggestions = new ArrayList<>();
+
+        if (entity == null || entity.getName() == null || entity.getName().isEmpty()) {
+            return suggestions.toArray(new String[0]);
+        }
+        
+        String domain = entity.getName().split("\\.")[0];
+        String propertyKey = "entity.states." + domain.toLowerCase();
+
+        try {
+            String statesFromProps = resource.getString(propertyKey);
+            String[] states = statesFromProps.split(",");
+            if (states.length > 0) {
+                suggestions.addAll(Arrays.asList(states));
+            }
+        } catch (MissingResourceException e) {
+            // It's okay if a domain doesn't have a specific list of states.
+        }
+        
+        return suggestions.toArray(new String[0]);
+    }
+
+    public String[] getSuggestedStatesForFurniture(Entity entity) {
+        return getSuggestedStatesForEntity(entity);
+    }
+
 
     public void loadDefaultSettings() {
         renderWidth = settings.getInteger(CONTROLLER_RENDER_WIDTH, 1024);
@@ -415,7 +450,15 @@ public class Controller {
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         scenes = new Scenes(camera);
         scenes.setRenderingTimes(renderDateTimes);
-        scenes.setEntitiesToShowOrHide(otherEntities.stream().filter(entity -> { return entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS; }).collect(Collectors.toList()));
+        
+        // --- MODIFIED: This filter is now more robust to prevent the OutOfMemoryError ---
+        scenes.setEntitiesToShowOrHide(otherEntities.stream().filter(entity -> {
+            String value = entity.getFurnitureDisplayValue();
+            // We only care about entities that have an explicit, non-empty condition.
+            // A value of "ALWAYS" or "NEVER" is handled by the scene's visibility logic, not by creating combinations.
+            return !(value == null || value.trim().isEmpty() || value.equalsIgnoreCase("ALWAYS") || value.equalsIgnoreCase("NEVER"));
+        }).collect(Collectors.toList()));
+        
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
@@ -686,17 +729,17 @@ public class Controller {
             "        element:\n" +
             "          type: image\n" +
             "          image: >-\n" +
-            "              ${!isInColoredMode(COLOR_MODE) || (isInColoredMode(COLOR_MODE) && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
-            "              '/local/floorplan/%s.png?version=%s' :\n" +
-            "              '/local/floorplan/%s.png?version=%s' }\n" +
-            "        style:\n" +
-            "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
-            "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
-            "          mix-blend-mode: lighten\n" +
-            "          pointer-events: none\n" +
-            "          left: 50%%\n" +
-            "          top: 50%%\n" +
-            "          width: 100%%\n",
+            "            ${!isInColoredMode(COLOR_MODE) || (isInColoredMode(COLOR_MODE) && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
+            "            '/local/floorplan/%s.png?version=%s' :\n" +
+            "            '/local/floorplan/%s.png?version=%s' }\n" +
+            "          style:\n" +
+            "            filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
+            "            opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
+            "            mix-blend-mode: lighten\n" +
+            "            pointer-events: none\n" +
+            "            left: 50%%\n" +
+            "            top: 50%%\n" +
+            "            width: 100%%\n",
             lightName, scene.getConditions(), lightName, lightName, lightName, lightName, lightName,
             normalizePath(imageName), renderHash(imageName, true), normalizePath(imageName) + ".red", renderHash(imageName + ".red", true));
     }

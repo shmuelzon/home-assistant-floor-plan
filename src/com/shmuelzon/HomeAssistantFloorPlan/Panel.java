@@ -137,6 +137,7 @@ public class Panel extends JPanel implements DialogView {
             return entity.getName() + " " + attributes.toString();
         }
 
+        // --- MODIFIED: This method now correctly checks the new operator/value fields ---
         private List<String> attributesList() {
             attributes = new ArrayList<>();
 
@@ -144,13 +145,16 @@ public class Panel extends JPanel implements DialogView {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.alwaysOn.text"));
             if (entity.getIsRgb())
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
-            if (entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS)
+            
+            // Check if there's a meaningful, non-empty condition set for the furniture
+            String furnitureValue = entity.getFurnitureDisplayValue();
+            if (furnitureValue != null && !furnitureValue.trim().isEmpty()) {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.displayByState.text"));
+            }
 
             return attributes;
         }
     }
-
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
         super(new GridBagLayout());
         this.preferences = preferences;
@@ -329,6 +333,12 @@ public class Panel extends JPanel implements DialogView {
             light.addPropertyChangeListener(Entity.Property.IS_RGB, updateTreeOnProperyChanged);
             light.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, updateTreeOnProperyChanged);
         }
+
+        // --- NEW: Add this loop to ensure the UI updates for non-light entities ---
+        for (Entity other : controller.getOtherEntities()) {
+            other.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, updateTreeOnProperyChanged);
+        }
+        // --- END NEW ---
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
@@ -787,9 +797,13 @@ public class Panel extends JPanel implements DialogView {
     }
 
     private void openEntityOptionsPanel(Entity entity) {
-        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity);
+        // --- MODIFIED with the BUG FIX ---
+        // Pass the main 'controller' instance to the options panel constructor.
+        // This gives the panel the reference it needs to get state suggestions.
+        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity, this.controller);
         entityOptionsPanel.displayView(this);
     }
+
 
     private void stop() {
         if (renderExecutor != null)
