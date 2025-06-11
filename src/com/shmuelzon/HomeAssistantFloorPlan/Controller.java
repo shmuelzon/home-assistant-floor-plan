@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.ResourceBundle;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
@@ -88,11 +89,13 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
     private Scenes scenes;
+ private ResourceBundle resourceBundle;
 
-    public Controller(Home home) {
+public Controller(Home home, ResourceBundle resourceBundle) {
         this.home = home;
         settings = new Settings(home);
         camera = home.getCamera().clone();
+    this.resourceBundle = resourceBundle;
         propertyChangeSupport = new PropertyChangeSupport(this);
         loadDefaultSettings();
         createHomeAssistantEntities();
@@ -340,7 +343,7 @@ public class Controller {
         addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, home.getFurniture());
 
         for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
-            Entity entity = new Entity(settings, pieces);
+        Entity entity = new Entity(settings, pieces, resourceBundle);
             entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
                 public void propertyChange(PropertyChangeEvent ev) {
                     repositionEntities();
@@ -366,7 +369,7 @@ public class Controller {
         }
 
         for (HomePieceOfFurniture piece : lightsFromOtherLevels)
-            otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece)));
+        otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece), resourceBundle));
     }
 
     private void buildLightsGroupsByRoom() {

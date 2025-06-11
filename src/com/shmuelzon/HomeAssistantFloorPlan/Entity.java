@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.MissingResourceException;
+import java.util.ResourceBundle;
 
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
@@ -65,12 +67,22 @@ public class Entity implements Comparable<Entity> {
     private Settings settings;
     private boolean isUserDefinedPosition;
     private PropertyChangeSupport propertyChangeSupport;
+    private double defaultIconBadgeBaseSizePercent;
 
-    public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture) {
+    public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture, ResourceBundle resourceBundle) {
         this.settings = settings;
         this.piecesOfFurniture = piecesOfFurniture;
         propertyChangeSupport = new PropertyChangeSupport(this);
         initialPower = new HashMap<>();
+
+        try {
+            String sizeStr = resourceBundle.getString("HomeAssistantFloorPlan.Entity.defaultIconBadgeBaseSizePercent");
+            this.defaultIconBadgeBaseSizePercent = Double.parseDouble(sizeStr);
+        } catch (MissingResourceException | NumberFormatException | NullPointerException e) {
+            // Log a warning or use a hardcoded default if the resource bundle or key is not found, or if parsing fails
+            System.err.println("Warning: Could not load 'HomeAssistantFloorPlan.Entity.defaultIconBadgeBaseSizePercent' from properties. Using hardcoded default (5.0%). " + e.getMessage());
+            this.defaultIconBadgeBaseSizePercent = 5.0; // Hardcoded fallback
+        }
 
         loadDefaultAttributes();
     }
@@ -407,30 +419,50 @@ public class Entity implements Comparable<Entity> {
         if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
             return "";
 
+        StringBuilder styleProperties = new StringBuilder();
+        styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
+        styleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
+
+        if (displayType == DisplayType.ICON || displayType == DisplayType.BADGE) {
+            double elementSizePercent = scaleFactor * this.defaultIconBadgeBaseSizePercent;
+            styleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", elementSizePercent));
+            styleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", elementSizePercent));
+            styleProperties.append("      transform: translate(-50%, -50%)\n");
+        } else { // LABEL
+            // For labels, scale the text itself and center it.
+            // Width and height will be intrinsic or styled separately if needed.
+            styleProperties.append(String.format(Locale.US, "      transform: translate(-50%%, -50%%) scale(%.2f)\n", scaleFactor));
+        }
+
+        // Common style properties
+        // Note: border-radius: 50% might not always be desired for labels, but matches existing behavior.
+        styleProperties.append("      border-radius: 50%\n");
+        styleProperties.append("      text-align: center\n");
+        styleProperties.append(String.format(Locale.US, "      background-color: %s\n", backgroundColor));
+        styleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity));
+
         String yaml = String.format(Locale.US,
             "  - type: %s\n" +
             "    entity: %s\n" +
             "    title: %s\n" +
             "    style:\n" +
-            "      top: %.2f%%\n" +
-            "      left: %.2f%%\n" +
-            "      border-radius: 50%%\n" +
-            "      text-align: center\n" +
-            "      background-color: %s\n" +
-            "      opacity: %d%%\n" +
-            "      transform: scale(%.2f)\n" +
+            "%s" + // Insert constructed style properties here
             "    tap_action:\n" +
             "      action: %s\n" +
             "    double_tap_action:\n" +
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity, scaleFactor,
-            actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
+            displayTypeToYamlString.get(displayType), name, title,
+            styleProperties.toString(),
+            actionYaml(tapAction, tapActionValue),
+            actionYaml(doubleTapAction, doubleTapActionValue),
+            actionYaml(holdAction, holdActionValue));
 
         if (displayCondition == DisplayCondition.ALWAYS)
             return yaml;
 
+        // Indent the generated YAML for conditional elements
         return String.format(
             "  - type: conditional\n" +
             "    conditions:\n" +
@@ -440,7 +472,7 @@ public class Entity implements Comparable<Entity> {
             "    elements:\n" +
             "%s",
             name, displayCondition == DisplayCondition.WHEN_ON ? "on" : "off",
-            yaml.replaceAll(".*\\R", "    $0")
+            yaml.replaceAll("(?m)^", "    ") // More robust indentation
         );
     }
 
