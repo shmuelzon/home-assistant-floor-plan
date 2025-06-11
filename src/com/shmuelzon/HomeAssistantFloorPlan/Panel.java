@@ -146,6 +146,8 @@ public class Panel extends JPanel implements DialogView {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
             if (entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS)
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.displayByState.text"));
+            if (entity.getBlinking())
+                attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.blinking.text"));
 
             return attributes;
         }
@@ -206,9 +208,13 @@ public class Panel extends JPanel implements DialogView {
                         try {
                             controller.render();
                             JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.info.finishedRendering.text"));
-                        } catch (InterruptedException e) {
+                        } catch (InterruptedException e) { // Log InterruptedException
+                            System.err.println("Rendering process was interrupted:");
+                            e.printStackTrace();
                         } catch (Exception e) {
-                            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + " " + e);
+                            System.err.println("Exception during rendering process:");
+                            e.printStackTrace();
+                            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + "\n" + e.getMessage(), resource.getString("HomeAssistantFloorPlan.Panel.error.title"), JOptionPane.ERROR_MESSAGE);
                         }
                         EventQueue.invokeLater(new Runnable() {
                             public void run() {

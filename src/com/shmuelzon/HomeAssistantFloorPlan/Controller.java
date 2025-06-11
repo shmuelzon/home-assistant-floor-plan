@@ -53,7 +53,7 @@ public class Controller {
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
-    private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
+    private static final String CONTROLLER_RENDER_HEIGHT = "renderHeight";
     private static final String CONTROLLER_LIGHT_MIXING_MODE = "lightMixingMode";
     private static final String CONTROLLER_SENSITIVTY = "sensitivity";
     private static final String CONTROLLER_RENDERER = "renderer";
@@ -280,7 +280,7 @@ public class Controller {
                 "type: picture-elements\n" +
                 "image: /local/floorplan/%s.png?version=%s\n" +
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
-            
+
             turnOffLightsFromOtherLevels();
             for (Scene scene : scenes) {
                 Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
@@ -300,12 +300,25 @@ public class Controller {
 
             yaml += generateEntitiesYaml();
 
-            Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+            // Append global styles for animations, etc.
+            String globalStyles = "\n" +
+                "style: |-\n" + // Using |- for multi-line string
+                "  @keyframes my-blink {\n" +
+                "    0% { opacity: 0; }\n" +
+                "    50% { opacity: 1; }\n" + // Assuming 100% opacity is 1
+                "    100% { opacity: 0; }\n" +
+                "  }\n";
+            yaml += globalStyles;
+
+            Files.write(Paths.get(outputFloorplanDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (InterruptedIOException e) {
             throw new InterruptedException();
         } catch (ClosedByInterruptException e) {
             throw new InterruptedException();
         } catch (IOException e) {
+            // It's good practice to log exceptions if they are caught and rethrown,
+            // or if they are caught and handled.
+            // e.printStackTrace(); // Consider if this is needed or if the caller handles logging.
             throw e;
         } finally {
             restoreEntityConfiguration();
@@ -760,7 +773,9 @@ public class Controller {
 
     private String generateEntitiesYaml() {
         return Stream.concat(lightEntities.stream(), otherEntities.stream())
-            .map(Entity::buildYaml).collect(Collectors.joining());
+            .sorted() // Sort entities for consistent YAML output
+            .map(Entity::buildYaml)
+            .collect(Collectors.joining());
     }
 
     private void repositionEntities() {

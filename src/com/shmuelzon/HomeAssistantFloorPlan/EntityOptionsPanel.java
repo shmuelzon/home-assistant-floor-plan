@@ -61,6 +61,8 @@ public class EntityOptionsPanel extends JPanel {
     private JSpinner positionTopSpinner;
     private JLabel opacityLabel;
     private JSpinner opacitySpinner;
+    private JLabel blinkingLabel;
+    private JCheckBox blinkingCheckbox;
     private JLabel backgroundColorLabel;
     private JTextField backgroundColorTextField;
     private JLabel alwaysOnLabel;
@@ -297,6 +299,20 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        blinkingLabel = new JLabel();
+        blinkingLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.blinkingLabel.text"));
+        blinkingCheckbox = new JCheckBox();
+        blinkingCheckbox.setSelected(entity.getBlinking());
+        blinkingCheckbox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                entity.setBlinking(blinkingCheckbox.isSelected());
+                markModified();
+            }
+        });
+
+
+
         backgroundColorLabel = new JLabel();
         backgroundColorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.text"));
         backgroundColorTextField = new JTextField(20);
@@ -467,6 +483,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Blinking */
+        add(blinkingLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        blinkingLabel.setHorizontalAlignment(labelAlignment);
+        add(blinkingCheckbox, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Background color */
         add(backgroundColorLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -531,6 +557,7 @@ public class EntityOptionsPanel extends JPanel {
         alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK);
         isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
+        blinkingLabel.setForeground(entity.isBlinkingModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
     }
