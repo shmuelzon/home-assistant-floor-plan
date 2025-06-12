@@ -41,7 +41,7 @@ public class EntityOptionsPanel extends JPanel {
     private enum ActionType {CLOSE, RESET_TO_DEFAULTS}
 
     private Entity entity;
-    private Controller controller;
+    private Controller controller; // Keep controller reference
     private JLabel displayTypeLabel;
     private JComboBox<Entity.DisplayType> displayTypeComboBox;
     
@@ -66,6 +66,8 @@ public class EntityOptionsPanel extends JPanel {
     private JSpinner positionTopSpinner;
     private JLabel opacityLabel;
     private JSpinner opacitySpinner;
+    private JLabel scaleFactorLabel;
+    private JSpinner scaleFactorSpinner;
     private JLabel backgroundColorLabel;
     private JTextField backgroundColorTextField;
     private JLabel alwaysOnLabel;
@@ -151,7 +153,7 @@ public class EntityOptionsPanel extends JPanel {
         displayOperatorComboBox.addActionListener(e -> {
             entity.setDisplayOperator((Entity.DisplayOperator) displayOperatorComboBox.getSelectedItem());
             markModified();
-            updateValueComboBoxesEnabledState(); // Update state when operator changes
+            updateValueComboBoxesEnabledState(); 
         });
 
         // Value Smart ComboBox
@@ -159,7 +161,9 @@ public class EntityOptionsPanel extends JPanel {
         displayValueComboBox.setEditable(true);
         String[] suggestedStates = controller.getSuggestedStatesForEntity(entity);
         for (String suggestion : suggestedStates) {
-            displayValueComboBox.addItem(suggestion);
+            if (suggestion != null && !suggestion.isEmpty()) { // Ensure no null/empty items
+                displayValueComboBox.addItem(suggestion);
+            }
         }
         displayValueComboBox.setSelectedItem(entity.getDisplayValue());
         displayValueComboBox.addActionListener(e -> {
@@ -185,10 +189,11 @@ public class EntityOptionsPanel extends JPanel {
         tapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 Entity.Action action = (Entity.Action)tapActionComboBox.getSelectedItem();
+                entity.setTapAction(action); // Set action immediately
                 showHideComponents();
-                if (tapActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
-                    return;
-                entity.setTapAction(action);
+                if (action != Entity.Action.NAVIGATE) { // Clear value if not NAVIGATE
+                    tapActionValueTextField.setText("");
+                }
                 markModified();
             }
         });
@@ -197,11 +202,7 @@ public class EntityOptionsPanel extends JPanel {
         tapActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
             public void executeUpdate(DocumentEvent e) {
-                String actionValue = tapActionValueTextField.getText();
-                if (actionValue.isEmpty())
-                    return;
-                entity.setTapActionValue(actionValue);
-                entity.setTapAction((Entity.Action)tapActionComboBox.getSelectedItem());
+                entity.setTapActionValue(tapActionValueTextField.getText());
                 markModified();
             }
         });
@@ -220,11 +221,11 @@ public class EntityOptionsPanel extends JPanel {
         doubleTapActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 Entity.Action action = (Entity.Action)doubleTapActionComboBox.getSelectedItem();
-                showHideComponents();
-                // TODO: This logic seems flawed. It should set the action regardless of the text field being empty.
-                if (doubleTapActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
-                    return;
                 entity.setDoubleTapAction(action);
+                showHideComponents();
+                if (action != Entity.Action.NAVIGATE) {
+                    doubleTapActionValueTextField.setText("");
+                }
                 markModified();
             }
         });
@@ -233,12 +234,7 @@ public class EntityOptionsPanel extends JPanel {
         doubleTapActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
             public void executeUpdate(DocumentEvent e) {
-                String actionValue = doubleTapActionValueTextField.getText();
-                // TODO: This logic seems flawed. It should set the action value regardless of it being empty.
-                if (actionValue.isEmpty())
-                    return;
-                entity.setDoubleTapActionValue(actionValue);
-                entity.setDoubleTapAction((Entity.Action)doubleTapActionComboBox.getSelectedItem());
+                entity.setDoubleTapActionValue(doubleTapActionValueTextField.getText());
                 markModified();
             }
         });
@@ -257,25 +253,19 @@ public class EntityOptionsPanel extends JPanel {
         holdActionComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 Entity.Action action = (Entity.Action)holdActionComboBox.getSelectedItem();
-                showHideComponents();
-                // TODO: This logic seems flawed. It should set the action regardless of the text field being empty.
-                if (holdActionValueTextField.getText().isEmpty() && action == Entity.Action.NAVIGATE)
-                    return;
                 entity.setHoldAction(action);
+                showHideComponents();
+                if (action != Entity.Action.NAVIGATE) {
+                    holdActionValueTextField.setText("");
+                }
                 markModified();
             }
         });
         holdActionValueTextField = new JTextField(10);
         holdActionValueTextField.setText(entity.getHoldActionValue());
         holdActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
-            @Override
             public void executeUpdate(DocumentEvent e) {
-                String actionValue = holdActionValueTextField.getText();
-                // TODO: This logic seems flawed. It should set the action value regardless of it being empty.
-                if (actionValue.isEmpty())
-                    return;
-                entity.setHoldActionValue(actionValue);
-                entity.setHoldAction((Entity.Action)holdActionComboBox.getSelectedItem());
+                entity.setHoldActionValue(holdActionValueTextField.getText());
                 markModified();
             }
         });
@@ -327,6 +317,22 @@ public class EntityOptionsPanel extends JPanel {
         opacitySpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
                 entity.setOpacity((int)(((Number)opacitySpinnerModel.getValue()).doubleValue() * 100));
+                markModified();
+            }
+        });
+
+        scaleFactorLabel = new JLabel();
+        scaleFactorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.scaleFactorLabel.text"));
+        // Spinner model: initial value 1.0, min 0.1, max 10.0, step 0.1
+        final SpinnerNumberModel scaleFactorSpinnerModel = new SpinnerNumberModel(1.0, 0.1, 10.0, 0.1);
+        scaleFactorSpinner = new AutoCommitSpinner(scaleFactorSpinnerModel);
+        JSpinner.NumberEditor scaleFactorEditor = new JSpinner.NumberEditor(scaleFactorSpinner, "0.0#"); // Format for decimal
+        ((JSpinner.DefaultEditor)scaleFactorEditor).getTextField().setColumns(5);
+        scaleFactorSpinner.setEditor(scaleFactorEditor);
+        scaleFactorSpinnerModel.setValue(entity.getScaleFactor());
+        scaleFactorSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                entity.setScaleFactor(((Number)scaleFactorSpinnerModel.getValue()).doubleValue());
                 markModified();
             }
         });
@@ -390,7 +396,9 @@ public class EntityOptionsPanel extends JPanel {
         furnitureDisplayValueComboBox.setEditable(true);
         String[] furnitureSuggestions = controller.getSuggestedStatesForFurniture(entity);
         for (String suggestion : furnitureSuggestions) {
-            furnitureDisplayValueComboBox.addItem(suggestion);
+            if (suggestion != null && !suggestion.isEmpty()) { // Ensure no null/empty items
+                furnitureDisplayValueComboBox.addItem(suggestion);
+            }
         }
         furnitureDisplayValueComboBox.setSelectedItem(entity.getFurnitureDisplayValue());
         furnitureDisplayValueComboBox.addActionListener(e -> {
@@ -507,6 +515,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Scale Factor */
+        add(scaleFactorLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        scaleFactorLabel.setHorizontalAlignment(labelAlignment);
+        add(scaleFactorSpinner, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Background color */
         add(backgroundColorLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -568,11 +586,12 @@ public class EntityOptionsPanel extends JPanel {
         displayStateLabel.setForeground(entity.isDisplayConditionModified() ? modifiedColor : Color.BLACK);
         tapActionLabel.setForeground(entity.isTapActionModified() ? modifiedColor : Color.BLACK);
         doubleTapActionLabel.setForeground(entity.isDoubleTapActionModified() ? modifiedColor : Color.BLACK);
-        holdActionLabel.setForeground(entity.isHoldActionModified() ? modifiedColor : Color.BLACK);
+        holdActionLabel.setForeground(entity.isHoldActionModified() ? modifiedColor : Color.BLACK); // Keep this
         positionLabel.setForeground(entity.isPositionModified() ? modifiedColor : Color.BLACK);
-        alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK);
-        isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
+        alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK); // Keep this
+        isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK); // Keep this
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
+        scaleFactorLabel.setForeground(entity.isScaleFactorModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         furnitureDisplayStateLabel.setForeground(entity.isFurnitureDisplayConditionModified() ? modifiedColor : Color.BLACK);
     }

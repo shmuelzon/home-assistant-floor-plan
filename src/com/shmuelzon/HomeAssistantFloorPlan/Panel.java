@@ -331,12 +331,12 @@ public class Panel extends JPanel implements DialogView {
         for (Entity light : controller.getLightEntities()) {
             light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, updateTreeOnProperyChanged);
             light.addPropertyChangeListener(Entity.Property.IS_RGB, updateTreeOnProperyChanged);
-            light.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, updateTreeOnProperyChanged);
+            light.addPropertyChangeListener(Entity.Property.FURNITURE_DISPLAY_CONDITION, updateTreeOnProperyChanged);
         }
 
         // --- NEW: Add this loop to ensure the UI updates for non-light entities ---
         for (Entity other : controller.getOtherEntities()) {
-            other.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, updateTreeOnProperyChanged);
+            other.addPropertyChangeListener(Entity.Property.FURNITURE_DISPLAY_CONDITION, updateTreeOnProperyChanged);
         }
         // --- END NEW ---
 
@@ -797,9 +797,8 @@ public class Panel extends JPanel implements DialogView {
     }
 
     private void openEntityOptionsPanel(Entity entity) {
-        // --- MODIFIED with the BUG FIX ---
         // Pass the main 'controller' instance to the options panel constructor.
-        // This gives the panel the reference it needs to get state suggestions.
+        // This gives the panel the reference it needs to get state suggestions and other controller interactions.
         EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity, this.controller);
         entityOptionsPanel.displayView(this);
     }

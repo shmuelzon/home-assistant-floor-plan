@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.ResourceBundle;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
@@ -92,15 +93,14 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
     private Scenes scenes;
-    private ResourceBundle resource;
+    private ResourceBundle resourceBundle;
 
-    public Controller(Home home) {
+public Controller(Home home, ResourceBundle resourceBundle) {
         this.home = home;
         settings = new Settings(home);
         camera = home.getCamera().clone();
+        this.resourceBundle = resourceBundle;
         propertyChangeSupport = new PropertyChangeSupport(this);
-        resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin");
-
         loadDefaultSettings();
         createHomeAssistantEntities();
 
@@ -108,34 +108,6 @@ public class Controller {
         buildScenes();
         repositionEntities();
     }
-
-    public String[] getSuggestedStatesForEntity(Entity entity) {
-        List<String> suggestions = new ArrayList<>();
-
-        if (entity == null || entity.getName() == null || entity.getName().isEmpty()) {
-            return suggestions.toArray(new String[0]);
-        }
-        
-        String domain = entity.getName().split("\\.")[0];
-        String propertyKey = "entity.states." + domain.toLowerCase();
-
-        try {
-            String statesFromProps = resource.getString(propertyKey);
-            String[] states = statesFromProps.split(",");
-            if (states.length > 0) {
-                suggestions.addAll(Arrays.asList(states));
-            }
-        } catch (MissingResourceException e) {
-            // It's okay if a domain doesn't have a specific list of states.
-        }
-        
-        return suggestions.toArray(new String[0]);
-    }
-
-    public String[] getSuggestedStatesForFurniture(Entity entity) {
-        return getSuggestedStatesForEntity(entity);
-    }
-
 
     public void loadDefaultSettings() {
         renderWidth = settings.getInteger(CONTROLLER_RENDER_WIDTH, 1024);
@@ -291,6 +263,34 @@ public class Controller {
         buildScenes();
     }
 
+    // --- NEW: Method to get suggested states for an entity's domain ---
+    public String[] getSuggestedStatesForEntity(Entity entity) {
+        List<String> suggestions = new ArrayList<>();
+        if (entity == null || entity.getName() == null || !entity.getName().contains(".")) {
+            return new String[0];
+        }
+        String domain = entity.getName().split("\\.")[0];
+        String propertyKey = "entity.states." + domain.toLowerCase();
+
+        try {
+            String statesFromProps = resourceBundle.getString(propertyKey);
+            String[] states = statesFromProps.split(",");
+            if (states.length > 0) {
+                suggestions.addAll(Arrays.asList(states));
+            }
+        } catch (MissingResourceException e) {
+            // Key not found, no suggestions for this domain, which is fine.
+        }
+        return suggestions.toArray(new String[0]);
+    }
+
+    // --- NEW: Method to get suggested states for furniture (can be same as entity for now or specialized) ---
+    public String[] getSuggestedStatesForFurniture(Entity entity) {
+        // For now, let's assume furniture can use the same state suggestions as the entity itself.
+        // This could be specialized if furniture had different state domains.
+        return getSuggestedStatesForEntity(entity);
+    }
+
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();
@@ -375,7 +375,7 @@ public class Controller {
         addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, home.getFurniture());
 
         for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
-            Entity entity = new Entity(settings, pieces);
+        Entity entity = new Entity(settings, pieces, resourceBundle);
             entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
                 public void propertyChange(PropertyChangeEvent ev) {
                     repositionEntities();
@@ -387,7 +387,7 @@ public class Controller {
                     propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
                 }
             });
-            entity.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, new PropertyChangeListener() {
+            entity.addPropertyChangeListener(Entity.Property.FURNITURE_DISPLAY_CONDITION, new PropertyChangeListener() {
                 public void propertyChange(PropertyChangeEvent ev) {
                     buildScenes();
                     propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
@@ -401,7 +401,7 @@ public class Controller {
         }
 
         for (HomePieceOfFurniture piece : lightsFromOtherLevels)
-            otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece)));
+        otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece), resourceBundle));
     }
 
     private void buildLightsGroupsByRoom() {

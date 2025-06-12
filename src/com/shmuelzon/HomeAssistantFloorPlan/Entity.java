@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.MissingResourceException;
+import java.util.ResourceBundle;
 
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
@@ -15,13 +17,9 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 
 
 public class Entity implements Comparable<Entity> {
-    public enum Property {ALWAYS_ON, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
+    public enum Property {ALWAYS_ON, IS_RGB, POSITION, SCALE_FACTOR, DISPLAY_CONDITION, FURNITURE_DISPLAY_CONDITION} // Added DISPLAY_CONDITION & FURNITURE_DISPLAY_CONDITION
     public enum DisplayType {BADGE, ICON, LABEL}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
-    
-    // Deprecated enums, kept for reference but logic is replaced by strings/new enums
-    public enum DisplayFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
-    public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
 
     // --- NEW: Enum for the different operators ---
     public enum DisplayOperator { IS, IS_NOT, GREATER_THAN, LESS_THAN, ALWAYS, NEVER }
@@ -45,6 +43,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
     private static final String SETTING_NAME_OPACITY = "opacity";
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
+    private static final String SETTING_NAME_SCALE_FACTOR = "scaleFactor"; // Added missing constant
 
     // --- Fields ---
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
@@ -52,6 +51,7 @@ public class Entity implements Comparable<Entity> {
     private String name;
     private Point2d position;
     private int opacity;
+    private double scaleFactor;
     private String backgroundColor;
     private DisplayType displayType;
     private DisplayOperator displayOperator;
@@ -72,12 +72,23 @@ public class Entity implements Comparable<Entity> {
     private Settings settings;
     private boolean isUserDefinedPosition;
     private PropertyChangeSupport propertyChangeSupport;
+    private double defaultIconBadgeBaseSizePercent;
 
-    public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture) {
+    public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture, ResourceBundle resourceBundle) {
         this.settings = settings;
         this.piecesOfFurniture = piecesOfFurniture;
-        this.propertyChangeSupport = new PropertyChangeSupport(this);
-        this.initialPower = new HashMap<>();
+        propertyChangeSupport = new PropertyChangeSupport(this);
+        initialPower = new HashMap<>();
+
+        try {
+            String sizeStr = resourceBundle.getString("HomeAssistantFloorPlan.Entity.defaultIconBadgeBaseSizePercent");
+            this.defaultIconBadgeBaseSizePercent = Double.parseDouble(sizeStr);
+        } catch (MissingResourceException | NumberFormatException | NullPointerException e) {
+            // Log a warning or use a hardcoded default if the resource bundle or key is not found, or if parsing fails
+            System.err.println("Warning: Could not load 'HomeAssistantFloorPlan.Entity.defaultIconBadgeBaseSizePercent' from properties. Using hardcoded default (5.0%). " + e.getMessage());
+            this.defaultIconBadgeBaseSizePercent = 5.0; // Hardcoded fallback
+        }
+
         loadDefaultAttributes();
     }
 
@@ -150,7 +161,7 @@ public class Entity implements Comparable<Entity> {
     public void setFurnitureDisplayOperator(DisplayOperator furnitureDisplayOperator) {
         this.furnitureDisplayOperator = furnitureDisplayOperator;
         settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, furnitureDisplayOperator.name());
-        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), null, furnitureDisplayOperator);
+        propertyChangeSupport.firePropertyChange(Property.FURNITURE_DISPLAY_CONDITION.name(), null, furnitureDisplayOperator);
     }
 
     public String getFurnitureDisplayValue() {
@@ -160,7 +171,7 @@ public class Entity implements Comparable<Entity> {
     public void setFurnitureDisplayValue(String furnitureDisplayValue) {
         this.furnitureDisplayValue = furnitureDisplayValue;
         settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, furnitureDisplayValue);
-        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), null, furnitureDisplayValue);
+        propertyChangeSupport.firePropertyChange(Property.FURNITURE_DISPLAY_CONDITION.name(), null, furnitureDisplayValue);
     }
     
     public boolean isFurnitureDisplayConditionModified() {
@@ -313,6 +324,21 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_OPACITY) != null;
     }
 
+    public double getScaleFactor() {
+        return scaleFactor;
+    }
+
+    public void setScaleFactor(double scaleFactor) {
+        double oldScaleFactor = this.scaleFactor;
+        this.scaleFactor = scaleFactor;
+        settings.setDouble(name + "." + SETTING_NAME_SCALE_FACTOR, scaleFactor);
+        propertyChangeSupport.firePropertyChange(Property.SCALE_FACTOR.name(), oldScaleFactor, scaleFactor);
+    }
+
+    public boolean isScaleFactorModified() {
+        return settings.get(name + "." + SETTING_NAME_SCALE_FACTOR) != null;
+    }
+
     public String getBackgrounColor() {
         return backgroundColor;
     }
@@ -348,6 +374,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
+        settings.set(name + "." + SETTING_NAME_SCALE_FACTOR, null); // Added reset for scale factor
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -401,35 +428,59 @@ public class Entity implements Comparable<Entity> {
             put(DisplayType.ICON, "state-icon");
             put(DisplayType.LABEL, "state-label");
         }};
-        
+
+        // Use the new displayOperator logic
+        if (this.displayOperator == DisplayOperator.NEVER && !getAlwaysOn()) {
+            return "";
+        }
+
+        StringBuilder styleProperties = new StringBuilder();
+        styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
+        styleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
+
+        if (displayType == DisplayType.ICON || displayType == DisplayType.BADGE) {
+            double elementSizePercent = scaleFactor * this.defaultIconBadgeBaseSizePercent;
+            styleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", elementSizePercent));
+            styleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", elementSizePercent));
+            styleProperties.append("      transform: translate(-50%, -50%)\n");
+        } else { // LABEL
+            // For labels, scale the text itself and center it.
+            // Width and height will be intrinsic or styled separately if needed.
+            styleProperties.append(String.format(Locale.US, "      transform: translate(-50%%, -50%%) scale(%.2f)\n", scaleFactor));
+        }
+
+        // Common style properties
+        // Note: border-radius: 50% might not always be desired for labels, but matches existing behavior.
+        styleProperties.append("      border-radius: 50%\n");
+        styleProperties.append("      text-align: center\n");
+        styleProperties.append(String.format(Locale.US, "      background-color: %s\n", backgroundColor));
+        styleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity));
+
         String elementYaml = String.format(Locale.US,
             "  - type: %s\n" +
             "    entity: %s\n" +
             "    title: %s\n" +
             "    style:\n" +
-            "      top: %.2f%%\n" +
-            "      left: %.2f%%\n" +
-            "      border-radius: 50%%\n" +
-            "      text-align: center\n" +
-            "      background-color: %s\n" +
-            "      opacity: %d%%\n" +
+            "%s" + // Insert constructed style properties here
             "    tap_action:\n" +
       "      action: %s\n" +
             "    double_tap_action:\n" +
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity,
-            actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue)
-        );
+            displayTypeToYamlString.get(displayType), name, title,
+            styleProperties.toString(),
+            actionYaml(tapAction, tapActionValue),
+            actionYaml(doubleTapAction, doubleTapActionValue),
+            actionYaml(holdAction, holdActionValue));
 
         // Handle ALWAYS and NEVER operators explicitly
-        if (this.displayOperator == DisplayOperator.ALWAYS) {
+        if (this.displayOperator == DisplayOperator.ALWAYS || getAlwaysOn()) { // Consider alwaysOn as well
             return elementYaml;
         }
 
-        if (this.displayOperator == DisplayOperator.NEVER) {
-            // If the operator is NEVER, the element should not appear in the YAML at all.
+        if (this.displayOperator == DisplayOperator.NEVER && !getAlwaysOn()) { // If NEVER and not forced by alwaysOn
+            // If the operator is NEVER for the entity itself, the element should not appear.
             // Returning an empty string prevents it from being added to the elements list.
             return "";
         }
@@ -438,6 +489,7 @@ public class Entity implements Comparable<Entity> {
         switch (this.displayOperator) {
             case IS:
                 conditionYaml = String.format(
+                    "    conditions:\n" + // Ensure conditions block starts here
                     "      - condition: state\n" +
                     "        entity: %s\n" +
                     "        state: '%s'",
@@ -445,6 +497,7 @@ public class Entity implements Comparable<Entity> {
                 break;
             case IS_NOT:
                 conditionYaml = String.format(
+                    "    conditions:\n" +
                     "      - condition: state\n" +
                     "        entity: %s\n" +
                     "        state_not: '%s'",
@@ -452,6 +505,7 @@ public class Entity implements Comparable<Entity> {
                 break;
             case GREATER_THAN:
                 conditionYaml = String.format(
+                    "    conditions:\n" +
                     "      - condition: numeric_state\n" +
                     "        entity: %s\n" +
                     "        above: %s",
@@ -459,24 +513,23 @@ public class Entity implements Comparable<Entity> {
                 break;
             case LESS_THAN:
                 conditionYaml = String.format(
+                    "    conditions:\n" +
                     "      - condition: numeric_state\n" +
                     "        entity: %s\n" +
                     "        below: %s",
                     name, this.displayValue);
                 break;
             default:
-                // This case should ideally not be reached if the enum is handled,
-                // but as a fallback, return empty string to avoid unexpected elements.
-                return "";
+                // Fallback for unhandled or ALWAYS/NEVER if logic changes (should be caught above)
+                return elementYaml; // Or handle as error
         }
         return String.format(
             "  - type: conditional\n" +
-            "    conditions:\n" +
             "%s\n" +
             "    elements:\n" +
             "%s",
-            conditionYaml,
-            elementYaml.replaceAll("(?m)^", "    ")
+            conditionYaml, // Use the generated conditionYaml
+            elementYaml.replaceAll("(?m)^", "    ") // Indent the elementYaml
         );
     }
 
@@ -534,6 +587,7 @@ public class Entity implements Comparable<Entity> {
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
+        scaleFactor = settings.getDouble(name + "." + SETTING_NAME_SCALE_FACTOR, 1.0);
         alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
 
