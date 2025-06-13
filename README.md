@@ -121,6 +121,7 @@ that allow you to customize the entity according to your needs.
 * Position - Override the entity's icon/label position
 * Opacity - Define the opacity of the entity's icon/label
 * Scale Factor - Define the size of the entity's icon/label
+* Blinking - Toggle ability to blink the entity's icon/label when visible
 * Background color - Define the background color of the entity's icon/label
 * Display furniture - Only for furniture, set the entity state conditions for
   which the piece of furniture is either visible or hidden in the floor plan

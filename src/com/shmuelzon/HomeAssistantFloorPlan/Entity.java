@@ -18,7 +18,8 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 
 public class Entity implements Comparable<Entity> {
     public enum Property {ALWAYS_ON, IS_RGB, POSITION, SCALE_FACTOR, DISPLAY_CONDITION, FURNITURE_DISPLAY_CONDITION} // Added DISPLAY_CONDITION & FURNITURE_DISPLAY_CONDITION
-    public enum DisplayType {BADGE, ICON, LABEL}
+    public enum DisplayType {BADGE, ICON, LABEL} // Removed ROOM_SIZE from here, it's a ClickableAreaType
+    public enum ClickableAreaType { ENTITY_SIZE, ROOM_SIZE } // Added missing enum definition
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
 
     // --- NEW: Enum for the different operators ---
@@ -41,19 +42,23 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_IS_RGB = "isRgb";
     private static final String SETTING_NAME_LEFT_POSITION = "leftPosition";
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
+    private static final String SETTING_NAME_BLINKING = "blinking";
     private static final String SETTING_NAME_OPACITY = "opacity";
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
     private static final String SETTING_NAME_SCALE_FACTOR = "scaleFactor"; // Added missing constant
+    private static final String SETTING_NAME_CLICKABLE_AREA_TYPE = "clickableAreaType";
 
     // --- Fields ---
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
     private String id;
     private String name;
     private Point2d position;
+    private boolean blinking;
     private int opacity;
     private double scaleFactor;
     private String backgroundColor;
     private DisplayType displayType;
+    private ClickableAreaType clickableAreaType;
     private DisplayOperator displayOperator;
     private String displayValue;
     private DisplayOperator furnitureDisplayOperator;
@@ -311,6 +316,18 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_LEFT_POSITION) != null;
     }
 
+    public boolean getBlinking() {
+        return blinking;
+    }
+
+    public void setBlinking(boolean blinking) {
+        this.blinking = blinking;
+        settings.setBoolean(name + "." + SETTING_NAME_BLINKING, blinking);
+    }
+
+    public boolean isBlinkingModified() {
+        return settings.get(name + "." + SETTING_NAME_BLINKING) != null;
+    }
     public int getOpacity() {
         return opacity;
     }
@@ -352,6 +369,15 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR) != null;
     }
 
+    public ClickableAreaType getClickableAreaType() {
+        return clickableAreaType;
+    }
+
+    public void setClickableAreaType(ClickableAreaType clickableAreaType) {
+        this.clickableAreaType = clickableAreaType;
+        settings.set(name + "." + SETTING_NAME_CLICKABLE_AREA_TYPE, clickableAreaType.name());
+    }
+
     public void resetToDefaults() {
         boolean oldAlwaysOn = alwaysOn;
         boolean oldIsRgb = isRgb;
@@ -372,6 +398,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_IS_RGB, null);
         settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
+        settings.set(name + "." + SETTING_NAME_BLINKING, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
         settings.set(name + "." + SETTING_NAME_SCALE_FACTOR, null); // Added reset for scale factor
@@ -422,7 +449,7 @@ public class Entity implements Comparable<Entity> {
         return yaml;
     }
 
-    public String buildYaml() {
+    public String buildYaml(Controller controller) { // Pass controller to get room bounds
         final Map<DisplayType, String> displayTypeToYamlString = new HashMap<DisplayType, String>() {{
             put(DisplayType.BADGE, "state-badge");
             put(DisplayType.ICON, "state-icon");
@@ -438,28 +465,41 @@ public class Entity implements Comparable<Entity> {
         styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
         styleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
 
+        // Base transform for centering the visual element
+        String visualElementTransform = "translate(-50%, -50%)";
+        styleProperties.append("      border-radius: 50%\n"); // Common for icons/badges
+        styleProperties.append("      text-align: center\n"); // Common for labels
+        styleProperties.append(String.format(Locale.US, "      background-color: %s\n", backgroundColor));
+
+        if (blinking) {
+            styleProperties.append("      animation: my-blink 1s linear infinite\n");
+        // When blinking, opacity is controlled by animation, so we don't set static opacity.
+        } else if (clickableAreaType == ClickableAreaType.ROOM_SIZE) {
+            styleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity)); // Visual opacity
+        } else {
+            styleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity));
+        }
+
+        // Apply scaleFactor based on displayType AFTER basic transform and other common styles
         if (displayType == DisplayType.ICON || displayType == DisplayType.BADGE) {
             double elementSizePercent = scaleFactor * this.defaultIconBadgeBaseSizePercent;
             styleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", elementSizePercent));
             styleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", elementSizePercent));
-            styleProperties.append("      transform: translate(-50%, -50%)\n");
+            styleProperties.append(String.format(Locale.US, "      transform: %s;\n", visualElementTransform));
         } else { // LABEL
-            // For labels, scale the text itself and center it.
-            // Width and height will be intrinsic or styled separately if needed.
-            styleProperties.append(String.format(Locale.US, "      transform: translate(-50%%, -50%%) scale(%.2f)\n", scaleFactor));
+            visualElementTransform += String.format(Locale.US, " scale(%.2f)", scaleFactor);
+            styleProperties.append(String.format(Locale.US, "      transform: %s;\n", visualElementTransform));
         }
 
-        // Common style properties
-        // Note: border-radius: 50% might not always be desired for labels, but matches existing behavior.
-        styleProperties.append("      border-radius: 50%\n");
-        styleProperties.append("      text-align: center\n");
-        styleProperties.append(String.format(Locale.US, "      background-color: %s\n", backgroundColor));
-        styleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity));
+        if (clickableAreaType == ClickableAreaType.ROOM_SIZE) {
+            styleProperties.append("      pointer-events: none;\n"); // Make visual element non-clickable
+        }
+        
 
-        String elementYaml = String.format(Locale.US,
+        String elementYaml = String.format(Locale.US, // Use elementYaml consistently
             "  - type: %s\n" +
             "    entity: %s\n" +
-            "    title: %s\n" +
+            (displayType == DisplayType.BADGE ? "" : "    title: " + title + "\n") + // Badges don't have titles
             "    style:\n" +
             "%s" + // Insert constructed style properties here
             "    tap_action:\n" +
@@ -469,10 +509,39 @@ public class Entity implements Comparable<Entity> {
             "    hold_action:\n" +
             "      action: %s\n",
             displayTypeToYamlString.get(displayType), name, title,
-            styleProperties.toString(),
+            // title, // title is now conditionally added
+            styleProperties.toString(), // This is the style for the visual element
             actionYaml(tapAction, tapActionValue),
             actionYaml(doubleTapAction, doubleTapActionValue),
             actionYaml(holdAction, holdActionValue));
+
+        String clickableAreaYaml = "";
+        if (clickableAreaType == ClickableAreaType.ROOM_SIZE && controller != null) {
+            Map<String, Double> roomBounds = controller.getRoomBoundingBoxPercent(this);
+            if (roomBounds != null) {
+                clickableAreaYaml = String.format(Locale.US,
+                    "  - type: image\n" + // Use a transparent image for the clickable area
+                    "    entity: %s\n" +
+                    "    image: /local/floorplan/transparent.png\n" + // Assuming transparent.png exists
+                    "    tap_action:\n" +
+                    "      action: %s\n" +
+                    "    double_tap_action:\n" +
+                    "      action: %s\n" +
+                    "    hold_action:\n" +
+                    "      action: %s\n" +
+                    "    style:\n" +
+                    "      top: %.2f%%\n" +
+                    "      left: %.2f%%\n" +
+                    "      width: %.2f%%\n" +
+                    "      height: %.2f%%\n" +
+                    "      opacity: 0;\n" + // Make it invisible
+                    "      background-color: rgba(0,0,0,0.0);\n", // Explicitly transparent
+                    name,
+                    actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue),
+                    roomBounds.get("top"), roomBounds.get("left"), roomBounds.get("width"), roomBounds.get("height"));
+            }
+        }
+        elementYaml = clickableAreaYaml + elementYaml; // Prepend clickable area if it exists
 
         // Handle ALWAYS and NEVER operators explicitly
         if (this.displayOperator == DisplayOperator.ALWAYS || getAlwaysOn()) { // Consider alwaysOn as well
@@ -577,6 +646,7 @@ public class Entity implements Comparable<Entity> {
         furnitureDisplayOperator = getSavedEnumValue(DisplayOperator.class, name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, DisplayOperator.ALWAYS);
         // --- MODIFIED: Default to an empty string to prevent OutOfMemoryError ---
         furnitureDisplayValue = settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, "");
+        clickableAreaType = getSavedEnumValue(ClickableAreaType.class, name + "." + SETTING_NAME_CLICKABLE_AREA_TYPE, ClickableAreaType.ENTITY_SIZE);
 
         tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
         tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");
@@ -584,6 +654,7 @@ public class Entity implements Comparable<Entity> {
         doubleTapActionValue = settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, "");
         holdAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
         holdActionValue = settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, "");
+        blinking = settings.getBoolean(name + "." + SETTING_NAME_BLINKING, false);
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");

@@ -65,6 +65,7 @@ distclean: clean
 	$(Q)rm -rf dl
 
 install: $(PLUGIN)
+	$(call exec,REMOVE,Old plugins,rm -f ~/.eteks/sweethome3d/plugins/HomeAssistantFloorPlanPlugin*)
 	$(call exec,INSTALL,$(PLUGIN),install -D $(PLUGIN) -t ~/.eteks/sweethome3d/plugins/)
 
 test: install

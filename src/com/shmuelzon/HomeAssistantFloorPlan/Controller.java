@@ -58,7 +58,7 @@ public class Controller {
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
-    private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
+    private static final String CONTROLLER_RENDER_HEIGHT = "renderHeight";
     private static final String CONTROLLER_LIGHT_MIXING_MODE = "lightMixingMode";
     private static final String CONTROLLER_SENSITIVTY = "sensitivity";
     private static final String CONTROLLER_RENDERER = "renderer";
@@ -263,6 +263,55 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         buildScenes();
     }
 
+    public Map<String, Double> getRoomBoundingBoxPercent(Entity entity) {
+        if (entity == null || entity.getPiecesOfFurniture().isEmpty() || home == null || perspectiveTransform == null || cameraPosition == null) {
+            return null;
+        }
+
+        HomePieceOfFurniture piece = entity.getPiecesOfFurniture().get(0); // Use first piece to find room
+        Room foundRoom = null;
+        for (Room room : home.getRooms()) {
+            // Check if piece is in room, considering piece's level and elevation
+            float pieceZ = (piece.getLevel() != null ? piece.getLevel().getElevation() : 0) + piece.getElevation();
+            if (room.getLevel() == piece.getLevel() && room.containsPoint(piece.getX(), piece.getY(), pieceZ)) {
+                foundRoom = room;
+                break;
+            }
+        }
+
+        if (foundRoom == null) return null;
+
+        List<float[]> roomWorldPoints = Arrays.asList(foundRoom.getPoints());
+        if (roomWorldPoints == null || roomWorldPoints.isEmpty()) return null;
+
+        double minX = 100.0, maxX = 0.0, minY = 100.0, maxY = 0.0;
+        float roomElevation = foundRoom.getLevel() != null ? foundRoom.getLevel().getElevation() : 0;
+
+        for (float[] p : roomWorldPoints) {
+            Vector4d worldPos = new Vector4d(p[0], roomElevation, p[1], 1.0); // SH3D Y is world Z, SH3D Z is world Y
+            
+            Vector4d viewPos = new Vector4d(worldPos);
+            viewPos.sub(cameraPosition);
+            perspectiveTransform.transform(viewPos);
+
+            if (viewPos.w == 0) continue; // Avoid division by zero
+            viewPos.scale(1.0 / viewPos.w); // Perspective divide
+
+            double screenXPercent = (viewPos.x * 0.5 + 0.5) * 100.0;
+            double screenYPercent = (-viewPos.y * 0.5 + 0.5) * 100.0; // Invert Y for screen coordinates
+
+            minX = Math.min(minX, screenXPercent);
+            maxX = Math.max(maxX, screenXPercent);
+            minY = Math.min(minY, screenYPercent);
+            maxY = Math.max(maxY, screenYPercent);
+        }
+
+        Map<String, Double> bounds = new HashMap<>();
+        bounds.put("left", minX);        bounds.put("top", minY);
+        bounds.put("width", maxX - minX); bounds.put("height", maxY - minY);
+        return bounds;
+    }
+
     // --- NEW: Method to get suggested states for an entity's domain ---
     public String[] getSuggestedStatesForEntity(Entity entity) {
         List<String> suggestions = new ArrayList<>();
@@ -315,7 +364,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 "type: picture-elements\n" +
                 "image: /local/floorplan/%s.png?version=%s\n" +
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
-            
+
             turnOffLightsFromOtherLevels();
             for (Scene scene : scenes) {
                 Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
@@ -335,12 +384,25 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
             yaml += generateEntitiesYaml();
 
-            Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+            // Append global styles for animations, etc.
+            String globalStyles = "\n" +
+                "style: |-\n" + // Using |- for multi-line string
+                "  @keyframes my-blink {\n" +
+                "    0% { opacity: 0; }\n" +
+                "    50% { opacity: 1; }\n" + // Assuming 100% opacity is 1
+                "    100% { opacity: 0; }\n" +
+                "  }\n";
+            yaml += globalStyles;
+
+            Files.write(Paths.get(outputFloorplanDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (InterruptedIOException e) {
             throw new InterruptedException();
         } catch (ClosedByInterruptException e) {
             throw new InterruptedException();
         } catch (IOException e) {
+            // It's good practice to log exceptions if they are caught and rethrown,
+            // or if they are caught and handled.
+            // e.printStackTrace(); // Consider if this is needed or if the caller handles logging.
             throw e;
         } finally {
             restoreEntityConfiguration();
@@ -803,7 +865,9 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
     private String generateEntitiesYaml() {
         return Stream.concat(lightEntities.stream(), otherEntities.stream())
-            .map(Entity::buildYaml).collect(Collectors.joining());
+            .sorted() // Sort entities for consistent YAML output
+            .map(entity -> entity.buildYaml(this)) // Pass controller instance
+            .collect(Collectors.joining());
     }
 
     private void repositionEntities() {
