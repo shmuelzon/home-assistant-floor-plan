@@ -576,6 +576,17 @@ public class Panel extends JPanel implements DialogView {
             startButton.setAction(getActionMap().get(ActionType.STOP));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.stopButton.text"));
         }
+
+        // After changing button text, the panel might need to resize.
+        // Revalidate the panel and then repack its parent dialog if visible.
+        revalidate();
+        Window window = SwingUtilities.getWindowAncestor(this);
+        if (window instanceof JDialog && window.isVisible()) {
+            JDialog dialog = (JDialog) window;
+            dialog.pack();
+            // Optionally re-center, though pack might do this or it might not be desired for this specific case.
+            // dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
+        }
     }
 
     private void layoutComponents() {

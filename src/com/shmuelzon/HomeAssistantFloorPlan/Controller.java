@@ -8,6 +8,7 @@ import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.io.InputStream;
 import java.lang.InterruptedException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
@@ -15,6 +16,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.nio.file.StandardCopyOption;
 import java.util.ResourceBundle;
 import java.util.stream.Stream;
 
@@ -340,6 +343,21 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         return getSuggestedStatesForEntity(entity);
     }
 
+    public List<String> getFanEntityIds() {
+        List<String> fanIds = new ArrayList<>();
+        Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .map(Entity::getName)
+            .filter(name -> name != null && name.startsWith("fan."))
+            .distinct()
+            .sorted()
+            .forEach(fanIds::add);
+        return fanIds;
+    }
+
+    public ResourceBundle getResourceBundle() {
+        return resourceBundle;
+    }
+
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();
@@ -359,6 +377,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
+            copyStaticAssetsToFloorplanDirectory(); // Call to copy fan GIFs
+   
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             String yaml = String.format(
                 "type: picture-elements\n" +
@@ -408,6 +428,38 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             restoreEntityConfiguration();
         }
     }
+
+    private void copyStaticAssetsToFloorplanDirectory() {
+        String[] staticAssetFiles = {
+            "animated_fan.gif",
+            "animated_fan_still.gif",
+            "animated_fan_grey.gif",
+            "animated_fan_still_grey.gif"
+            // Add any other static assets here
+        };
+   
+        Path destinationDir = Paths.get(outputFloorplanDirectoryName);
+   
+        for (String fileName : staticAssetFiles) {
+            // Assumes files are in a 'resources' sub-package relative to this class's package
+            String resourcePath = "/com/shmuelzon/HomeAssistantFloorPlan/resources/" + fileName;
+            try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
+                if (is == null) {
+                    System.err.println("Warning: Static asset resource not found in plugin: " + resourcePath + 
+                                       ". Ensure it's in src/com/shmuelzon/HomeAssistantFloorPlan/resources/ and Makefile copies it.");
+                    continue;
+                }
+                Path destinationFile = destinationDir.resolve(fileName);
+                Files.copy(is, destinationFile, StandardCopyOption.REPLACE_EXISTING);
+                // System.out.println("Copied static asset " + fileName + " to " + destinationFile); // Optional: for debugging
+            } catch (IOException e) {
+                System.err.println("Error copying static asset resource " + fileName + ": " + e.getMessage());
+                // Decide if this should throw an exception upwards or just log.
+                // For now, logging and continuing.
+            }
+        }
+    }
+
 
     private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
         for (HomePieceOfFurniture piece : furnitureList) {
@@ -858,7 +910,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         objectPosition.sub(cameraPosition);
         perspectiveTransform.transform(objectPosition);
         objectPosition.scale(1 / objectPosition.w);
-
+        
+        // Invert Y for screen coordinates (top is 0%, bottom is 100%)
         return new Point2d((objectPosition.x * 0.5 + 0.5) * 100.0, (objectPosition.y * 0.5 + 0.5) * 100.0);
     }
 
@@ -873,7 +926,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     private void repositionEntities() {
         build3dProjection();
         calculateEntityPositions();
-        moveEntityIconsToAvoidIntersection();
+        // moveEntityIconsToAvoidIntersection(); // Temporarily comment out to disable collision avoidance
     }
 
     private void calculateEntityPositions() {

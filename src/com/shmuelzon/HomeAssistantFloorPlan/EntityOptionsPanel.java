@@ -7,11 +7,15 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Window;
+import java.awt.Dimension;
+import java.awt.Container;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.Locale;
+import java.util.Arrays;
+import java.util.List;
 import java.util.ResourceBundle;
 
 import javax.swing.ActionMap;
@@ -22,6 +26,7 @@ import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JComponent;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
@@ -87,6 +92,15 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Entity.DisplayOperator> furnitureDisplayOperatorComboBox;
     private JComboBox<String> furnitureDisplayValueComboBox;
 
+    // --- NEW: Components for ICON_AND_ANIMATED_FAN ---
+    private JLabel associatedFanEntityIdLabel;
+    private JComboBox<String> associatedFanEntityIdComboBox;
+    private JLabel showFanWhenOffLabel;
+    private JCheckBox showFanWhenOffCheckbox;
+    private JLabel fanColorLabel;
+    private JComboBox<Entity.FanColor> fanColorComboBox;
+    private JLabel showBorderAndBackgroundLabel;
+    private JCheckBox showBorderAndBackgroundCheckbox;
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
@@ -96,7 +110,7 @@ public class EntityOptionsPanel extends JPanel {
         this.entity = entity;
         this.controller = controller;
 
-        resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault());
+        resource = controller.getResourceBundle(); // Use controller's resource bundle
         createActions(preferences);
         createComponents();
         layoutComponents();
@@ -123,6 +137,10 @@ public class EntityOptionsPanel extends JPanel {
                 displayValueComboBox.setSelectedItem(entity.getDisplayValue());
                 scaleFactorSpinner.setValue(entity.getScaleFactor());
                 blinkingCheckbox.setSelected(entity.getBlinking());
+                associatedFanEntityIdComboBox.setSelectedItem(entity.getAssociatedFanEntityId());
+                showFanWhenOffCheckbox.setSelected(entity.getShowFanWhenOff());
+                fanColorComboBox.setSelectedItem(entity.getFanColor());
+                showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
                 clickableAreaTypeComboBox.setSelectedItem(entity.getClickableAreaType()); // Update new combo box
                 // ... update other components as needed ...
                 markModified(); // Reflect that fields are now at default (potentially "unmodified")
@@ -161,8 +179,17 @@ public class EntityOptionsPanel extends JPanel {
             public void actionPerformed(ActionEvent ev) {
                 entity.setDisplayType((Entity.DisplayType)displayTypeComboBox.getSelectedItem());
                 Entity.DisplayType selectedType = (Entity.DisplayType)displayTypeComboBox.getSelectedItem();
+                if (selectedType == Entity.DisplayType.ICON_AND_ANIMATED_FAN) {
+                    if (entity.getName().startsWith("fan.")) {
+                        String currentFanId = entity.getAssociatedFanEntityId();
+                        if (currentFanId == null || currentFanId.trim().isEmpty() || currentFanId.equals(entity.getName())) {
+                            associatedFanEntityIdComboBox.setSelectedItem(entity.getName());
+                        }
+                    }
+                }
                 updateComboBoxEditorText(displayTypeComboBox, "HomeAssistantFloorPlan.Panel.displayTypeComboBox.%s.text", selectedType);
                 showHideComponents();
+                validateFanConfiguration();
                 markModified();
             }
         });
@@ -199,6 +226,7 @@ public class EntityOptionsPanel extends JPanel {
             updateComboBoxEditorText(displayOperatorComboBox, "HomeAssistantFloorPlan.Panel.displayOperatorComboBox.%s.text", selectedOp);
             markModified();
             updateValueComboBoxesEnabledState(); 
+            validateFanConfiguration();
         });
         makeClickableToOpenDropdown(displayOperatorComboBox); // Call after initial setup
         // Value Smart ComboBox
@@ -554,7 +582,70 @@ public class EntityOptionsPanel extends JPanel {
                 markModified();
             }
         });
-        
+
+        // --- NEW: Components for ICON_AND_ANIMATED_FAN ---
+        associatedFanEntityIdLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.associatedFanEntityIdLabel.text"));
+        associatedFanEntityIdComboBox = new JComboBox<>();
+        associatedFanEntityIdComboBox.setEditable(true); // Allow typing
+        // Populate with existing fan entities
+        List<String> fanIds = controller.getFanEntityIds();
+        for (String fanId : fanIds) {
+            associatedFanEntityIdComboBox.addItem(fanId);
+        }
+        associatedFanEntityIdComboBox.setSelectedItem(entity.getAssociatedFanEntityId());
+        associatedFanEntityIdComboBox.addActionListener(e -> {
+            Object selectedItem = associatedFanEntityIdComboBox.getSelectedItem();
+            if (selectedItem != null) {
+                entity.setAssociatedFanEntityId(selectedItem.toString());
+                markModified();
+                validateFanConfiguration();
+            }
+        });
+
+        showFanWhenOffLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.showFanWhenOffLabel.text"));
+        showFanWhenOffCheckbox = new JCheckBox();
+        showFanWhenOffCheckbox.setSelected(entity.getShowFanWhenOff());
+        showFanWhenOffCheckbox.addActionListener(e -> {
+            entity.setShowFanWhenOff(showFanWhenOffCheckbox.isSelected());
+            markModified();
+        });
+
+        fanColorLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.fanColorLabel.text"));
+        fanColorComboBox = new JComboBox<>(Entity.FanColor.values());
+        fanColorComboBox.setSelectedItem(entity.getFanColor());
+        fanColorComboBox.setEditable(true);
+        JTextField fanColorEditor = (JTextField) fanColorComboBox.getEditor().getEditorComponent();
+        fanColorEditor.setEditable(false);
+        fanColorEditor.setFocusable(false);
+        if (entity.getFanColor() != null) {
+            String initialDisplayText = resource.getString(String.format("HomeAssistantFloorPlan.Panel.fanColorComboBox.%s.text", entity.getFanColor().name()));
+            fanColorEditor.setText(initialDisplayText);
+        }
+        fanColorComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.fanColorComboBox.%s.text", ((Entity.FanColor) value).name())));
+                return this;
+            }
+        });
+        fanColorComboBox.addActionListener(e -> {
+            entity.setFanColor((Entity.FanColor) fanColorComboBox.getSelectedItem());
+            updateComboBoxEditorText(fanColorComboBox, "HomeAssistantFloorPlan.Panel.fanColorComboBox.%s.text", (Entity.FanColor) fanColorComboBox.getSelectedItem());
+            markModified();
+        });
+        makeClickableToOpenDropdown(fanColorComboBox);
+
+        showBorderAndBackgroundLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.showBorderAndBackgroundLabel.text"));
+        showBorderAndBackgroundCheckbox = new JCheckBox();
+        showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
+        showBorderAndBackgroundCheckbox.addActionListener(e -> {
+            entity.setShowBorderAndBackground(showBorderAndBackgroundCheckbox.isSelected());
+            showHideComponents(); // Update dependent component states
+            markModified();
+        });
+
+
 
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
@@ -692,12 +783,50 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Show Border and Background - Moved Before Background Color */
+        add(showBorderAndBackgroundLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        showBorderAndBackgroundLabel.setHorizontalAlignment(labelAlignment);
+        add(showBorderAndBackgroundCheckbox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.LINE_START, 
+            GridBagConstraints.NONE, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Background color */
         add(backgroundColorLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         backgroundColorLabel.setHorizontalAlignment(labelAlignment);
         add(backgroundColorTextField, new GridBagConstraints( // Allow TextField to expand
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        // --- NEW: Layout for ICON_AND_ANIMATED_FAN options ---
+        add(associatedFanEntityIdLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        associatedFanEntityIdLabel.setHorizontalAlignment(labelAlignment);
+        add(associatedFanEntityIdComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        add(showFanWhenOffLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        showFanWhenOffLabel.setHorizontalAlignment(labelAlignment);
+        add(showFanWhenOffCheckbox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.NONE, insets, 0, 0));
+        currentGridYIndex++;
+
+        add(fanColorLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        fanColorLabel.setHorizontalAlignment(labelAlignment);
+        add(fanColorComboBox, new GridBagConstraints(
             1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
@@ -762,8 +891,13 @@ public class EntityOptionsPanel extends JPanel {
         blinkingLabel.setForeground(entity.isBlinkingModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         // If you add isClickableAreaTypeModified() to Entity.java, you can uncomment/add this:
-        // clickableAreaTypeLabel.setForeground(entity.isClickableAreaTypeModified() ? modifiedColor : Color.BLACK);
+        clickableAreaTypeLabel.setForeground(entity.isClickableAreaTypeModified() ? modifiedColor : UIManager.getColor("Label.foreground")); // Assuming isClickableAreaTypeModified exists
+        associatedFanEntityIdLabel.setForeground(entity.isAssociatedFanEntityIdModified() ? modifiedColor : Color.BLACK);
+        showFanWhenOffLabel.setForeground(entity.isShowFanWhenOffModified() ? modifiedColor : Color.BLACK);
+        fanColorLabel.setForeground(entity.isFanColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        showBorderAndBackgroundLabel.setForeground(entity.isShowBorderAndBackgroundModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         furnitureDisplayStateLabel.setForeground(entity.isFurnitureDisplayConditionModified() ? modifiedColor : Color.BLACK);
+        validateFanConfiguration(); // Ensure fan config validation overrides color if needed
     }
 
     private void showHideComponents() {
@@ -777,6 +911,37 @@ public class EntityOptionsPanel extends JPanel {
         furnitureDisplayOperatorComboBox.setVisible(furnitureDisplayEnabled);
         furnitureDisplayValueComboBox.setVisible(furnitureDisplayEnabled);
         if (furnitureDisplayEnabled) updateValueComboBoxesEnabledState(); // Ensure its value field is correctly enabled/disabled
+
+        // Show/hide ICON_AND_ANIMATED_FAN specific components
+        boolean fanComponentsVisible = (Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.ICON_AND_ANIMATED_FAN;
+        associatedFanEntityIdLabel.setVisible(fanComponentsVisible);
+        associatedFanEntityIdComboBox.setVisible(fanComponentsVisible);
+        showFanWhenOffLabel.setVisible(fanComponentsVisible);
+        showFanWhenOffCheckbox.setVisible(fanComponentsVisible);
+        fanColorLabel.setVisible(fanComponentsVisible);
+        fanColorComboBox.setVisible(fanComponentsVisible);
+
+        // Border and Background option is always visible
+        showBorderAndBackgroundLabel.setVisible(true);
+        showBorderAndBackgroundCheckbox.setVisible(true);
+        // Enable/disable background color field based on checkbox
+        boolean borderBgEnabled = showBorderAndBackgroundCheckbox.isSelected();
+        backgroundColorLabel.setEnabled(borderBgEnabled);
+        backgroundColorTextField.setEnabled(borderBgEnabled);
+
+        // Ensure the panel re-calculates its layout and repaints
+        revalidate();
+        repaint();
+
+        // If the panel is already part of a visible dialog,
+        // tell the dialog to re-pack itself to fit the new content size.
+        Window window = SwingUtilities.getWindowAncestor(this);
+        if (window instanceof JDialog && window.isVisible()) {
+            JDialog dialog = (JDialog) window;
+            dialog.pack();
+            // Re-center after packing, as pack might shift the dialog
+            dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
+        }
     }
 
     // --- NEW: Method to update the enabled state of value combo boxes ---
@@ -796,6 +961,38 @@ public class EntityOptionsPanel extends JPanel {
         if (!furnitureValueEnabled) {
             furnitureDisplayValueComboBox.setSelectedItem(""); // Or null, depending on desired behavior
         }
+        validateFanConfiguration();
+    }
+
+    private void validateFanConfiguration() {
+        boolean fanConfigIsValid = true;
+        Color defaultLabelColor = UIManager.getColor("Label.foreground");
+        Color modifiedColor = new Color(200, 0, 0); // Your modified color
+
+        if (Entity.DisplayType.ICON_AND_ANIMATED_FAN.equals(displayTypeComboBox.getSelectedItem())) {
+            String fanId = (String) associatedFanEntityIdComboBox.getSelectedItem();
+            if (fanId == null || fanId.trim().isEmpty()) {
+                fanConfigIsValid = false;
+            } else {
+                if (!isValidHomeAssistantEntityIdFormat(fanId)) {
+                    fanConfigIsValid = false;
+                } else {
+                    String domain = fanId.substring(0, fanId.indexOf('.'));
+                    if (!isValidOnOffDomain(domain)) {
+                        fanConfigIsValid = false;
+                    }
+                }
+            }
+            associatedFanEntityIdLabel.setForeground(fanConfigIsValid ? (entity.isAssociatedFanEntityIdModified() ? modifiedColor : defaultLabelColor) : Color.RED);
+        } else {
+            // Reset color if not in fan mode, respecting modified state
+            associatedFanEntityIdLabel.setForeground(entity.isAssociatedFanEntityIdModified() ? modifiedColor : defaultLabelColor);
+        }
+    }
+    private boolean isValidHomeAssistantEntityIdFormat(String entityId) {
+        if (entityId == null) return false;
+        // Basic check for "domain.object_id" format. Allows letters, numbers, underscore.
+        return entityId.matches("^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$");
     }
 
     public void displayView(Component parentComponent) {
@@ -805,8 +1002,18 @@ public class EntityOptionsPanel extends JPanel {
         final JDialog dialog = optionPane.createDialog(SwingUtilities.getRootPane(parentComponent), entity.getName());
         dialog.applyComponentOrientation(parentComponent != null ?
             parentComponent.getComponentOrientation() : ComponentOrientation.getOrientation(Locale.getDefault()));
+        
+        // Update component states that might affect layout before packing
         updateValueComboBoxesEnabledState(); // Ensure correct state on display
         showHideComponents();
+        validateFanConfiguration(); // And validate fan config on display
+
+        // Pack the dialog.
+        // showHideComponents() was called above, which calls revalidate() on 'this' (EntityOptionsPanel).
+        // This ensures the panel has its correct preferred size before the dialog is packed.
+        dialog.pack();
+        
+        dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(parentComponent)); // Center it
         dialog.setModal(true);
         dialog.setVisible(true);
     }
@@ -871,5 +1078,12 @@ public class EntityOptionsPanel extends JPanel {
                 }
             }
         });
+    }
+
+    private boolean isValidOnOffDomain(String domain) {
+        if (domain == null) return false;
+        // List of domains that typically have on/off states
+        List<String> onOffDomains = Arrays.asList("fan", "light", "switch", "binary_sensor", "input_boolean", "media_player", "climate", "humidifier", "siren", "valve", "lock", "cover");
+        return onOffDomains.contains(domain.toLowerCase());
     }
 }

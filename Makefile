@@ -2,7 +2,15 @@ VERSION=$(shell git describe --always --tags)
 export VERSION
 SRC_DIR=src/com/shmuelzon/HomeAssistantFloorPlan
 SRCS=$(wildcard $(SRC_DIR)/*)
-OBJS=$(subst src/,build/,$(SRCS:.java=.class))
+# Define the relative package path for use in build targets (e.g., com/shmuelzon/HomeAssistantFloorPlan)
+PKG_PATH_RELATIVE=$(subst src/,,$(SRC_DIR))
+GIF_RESOURCE_FILES = $(wildcard $(SRC_DIR)/resources/*.gif)
+GIF_OBJS = $(patsubst $(SRC_DIR)/resources/%.gif,build/$(PKG_PATH_RELATIVE)/resources/%.gif,$(GIF_RESOURCE_FILES))
+
+# Refine OBJS to only include .class files and the specific .properties file
+JAVA_OBJS = $(patsubst $(SRC_DIR)/%.java,build/$(PKG_PATH_RELATIVE)/%.class, $(wildcard $(SRC_DIR)/*.java))
+PROPERTIES_OBJ = build/$(PKG_PATH_RELATIVE)/ApplicationPlugin.properties
+OBJS = $(JAVA_OBJS) $(PROPERTIES_OBJ)
 
 SWEET_HOME_VERSION=7.5
 
@@ -49,11 +57,18 @@ $(J3D_VECMATH_JAR):
 build/%.class: src/%.java $(JAVA_DEPENDENCIES)
 	$(call exec,JAVA,$@,$(DOCKER_CMD) javac -classpath "dl/*:src" -target 1.8 -source 1.8 -Xlint:-options -d build $<)
 
-build/%.properties: src/%.properties
+# Specific rule for ApplicationPlugin.properties to ensure correct path handling
+# This assumes ApplicationPlugin.properties is directly under $(SRC_DIR)
+build/$(PKG_PATH_RELATIVE)/ApplicationPlugin.properties: $(SRC_DIR)/ApplicationPlugin.properties
 	$(Q)mkdir -p $(dir $@)
 	$(call exec,GEN,$@,envsubst < $< > $@)
 
-$(PLUGIN): $(OBJS)
+# Rule for copying GIF resource files
+build/$(PKG_PATH_RELATIVE)/resources/%.gif: $(SRC_DIR)/resources/%.gif
+	$(Q)mkdir -p $(dir $@)
+	$(call exec,CP,$@,cp $< $@)
+
+$(PLUGIN): $(OBJS) $(GIF_OBJS)
 	$(call exec,JAR,$@,$(DOCKER_CMD) jar -cf $@ -C build .)
 
 build: $(PLUGIN)
