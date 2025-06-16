@@ -16,6 +16,7 @@ import java.awt.event.MouseEvent;
 import java.util.Locale;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map; // Added for bounds map
 import java.util.ResourceBundle;
 
 import javax.swing.ActionMap;
@@ -37,6 +38,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
+import com.eteks.sweethome3d.model.Room; 
 import javax.vecmath.Point2d;
 
 import com.eteks.sweethome3d.model.UserPreferences;
@@ -104,6 +106,7 @@ public class EntityOptionsPanel extends JPanel {
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
+    private boolean isProgrammaticClickableAreaChange = false;
 
     public EntityOptionsPanel(UserPreferences preferences, Entity entity, Controller controller) {
         super(new GridBagLayout());
@@ -469,11 +472,11 @@ public class EntityOptionsPanel extends JPanel {
         backgroundColorLabel = new JLabel();
         backgroundColorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.text"));
         backgroundColorTextField = new JTextField(20);
-        backgroundColorTextField.setText(entity.getBackgrounColor());
+        backgroundColorTextField.setText(entity.getBackgroundColor());
         backgroundColorTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
             public void executeUpdate(DocumentEvent e) {
-                entity.setBackgrounColor(backgroundColorTextField.getText());
+                entity.setBackgroundColor(backgroundColorTextField.getText());
                 markModified();
             }
         });
@@ -525,9 +528,84 @@ public class EntityOptionsPanel extends JPanel {
         });
         clickableAreaTypeComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                entity.setClickableAreaType((Entity.ClickableAreaType) clickableAreaTypeComboBox.getSelectedItem());
-                Entity.ClickableAreaType selectedType = (Entity.ClickableAreaType) clickableAreaTypeComboBox.getSelectedItem();
-                updateComboBoxEditorText(clickableAreaTypeComboBox, "HomeAssistantFloorPlan.Panel.clickableAreaTypeComboBox.%s.text", selectedType);
+                if (isProgrammaticClickableAreaChange) {
+                    return;
+                }
+
+                final Entity.ClickableAreaType selectedTypeFromEvent = (Entity.ClickableAreaType) clickableAreaTypeComboBox.getSelectedItem();
+                Entity.ClickableAreaType previousType = entity.getClickableAreaType(); // The type before this action
+
+                if (selectedTypeFromEvent == Entity.ClickableAreaType.ROOM_SIZE) {
+                    // Temporarily set the entity's type to ROOM_SIZE to calculate its potential bounds
+                    // This is important if getRoomBoundingBoxPercent's logic depends on the entity's current type
+                    // Store the actual original type before this temporary modification
+                    Entity.ClickableAreaType originalEntityTypeBeforeTempChange = entity.getClickableAreaType();
+                    entity.setClickableAreaType(Entity.ClickableAreaType.ROOM_SIZE); // Temporarily set for calculation
+                    Map<String, Double> currentEntityPotentialBounds = controller.getRoomBoundingBoxPercent(entity);
+                    // Revert to the actual original type, not 'previousType' which might be ROOM_SIZE if re-entered.
+                    entity.setClickableAreaType(originalEntityTypeBeforeTempChange); 
+
+                    if (currentEntityPotentialBounds != null) {
+                        System.out.println("DEBUG: Checking entity '" + entity.getName() + "' for ROOM_SIZE. Potential bounds: L=" + currentEntityPotentialBounds.get("left") + ", T=" + currentEntityPotentialBounds.get("top") + ", W=" + currentEntityPotentialBounds.get("width") + ", H=" + currentEntityPotentialBounds.get("height"));
+                        Entity conflictingEntity = null;
+                        for (Entity E : controller.getAllConfiguredEntities()) {
+                            if (E == entity) continue; // Skip self
+
+                            if (E.getClickableAreaType() == Entity.ClickableAreaType.ROOM_SIZE) {
+                                Map<String, Double> otherEntityBounds = controller.getRoomBoundingBoxPercent(E);
+                                if (otherEntityBounds != null) {
+                                    System.out.println("DEBUG:   Comparing with other ROOM_SIZE entity '" + E.getName() + "'. Bounds: L=" + otherEntityBounds.get("left") + ", T=" + otherEntityBounds.get("top") + ", W=" + otherEntityBounds.get("width") + ", H=" + otherEntityBounds.get("height"));
+                                    if (doAreasOverlap(currentEntityPotentialBounds, otherEntityBounds)) {
+                                        System.out.println("DEBUG:     OVERLAP DETECTED with entity '" + E.getName() + "'.");
+                                        conflictingEntity = E;
+                                        break; 
+                                    }
+                                } else {
+                                    System.err.println("DEBUG:   Could not get bounds for other ROOM_SIZE entity '" + E.getName() + "'. Skipping overlap check.");
+                                }
+                            }
+                        }
+
+                        if (conflictingEntity != null) { // A conflict was found
+                            System.out.println("DEBUG: Displaying overlap error. Conflicting entity: '" + conflictingEntity.getName() + "'");
+                            String message = String.format(Locale.US, 
+                                resource.getString("HomeAssistantFloorPlan.Panel.error.overlappingRoomSize.text"), 
+                                conflictingEntity.getName());
+
+                            // Ensure dialog is shown on the EDT
+                            // Wrap message in HTML for auto-wrapping in JOptionPane
+                            String htmlMessage = String.format("<html><body width='%dpx'>%s</body></html>", 350, message.replace("\n", "<br>"));
+                            // Show the dialog
+                                JOptionPane.showMessageDialog(EntityOptionsPanel.this, // Parent component
+                                        htmlMessage,
+                                        resource.getString("HomeAssistantFloorPlan.Panel.error.title"),
+                                        JOptionPane.WARNING_MESSAGE);
+                            // After the dialog is dismissed, force ComboBox state update
+                            SwingUtilities.invokeLater(() -> {
+                                isProgrammaticClickableAreaChange = true;
+                                clickableAreaTypeComboBox.setSelectedItem(previousType);
+                                updateComboBoxEditorText(clickableAreaTypeComboBox, "HomeAssistantFloorPlan.Panel.clickableAreaTypeComboBox.%s.text", previousType);
+                                clickableAreaTypeComboBox.hidePopup();
+                                isProgrammaticClickableAreaChange = false;
+                            });
+                            return; 
+                        }
+                    } else {
+                        System.err.println("DEBUG: Could not determine potential bounds for current entity '" + entity.getName() + "'. Cannot check for overlap.");
+                    }
+                }
+                // If no conflict, or not ROOM_SIZE, proceed to set the type
+                entity.setClickableAreaType(selectedTypeFromEvent); // Update the entity model
+
+                // Defer UI update of the combo box editor text to ensure it runs after
+                // any default JComboBox editor updates.
+                SwingUtilities.invokeLater(() -> {
+                    // Re-fetch the current selection from the combo box at the moment of execution
+                    // to ensure we're displaying the text for its actual current state.
+                    Entity.ClickableAreaType currentActualSelectionInComboBox = (Entity.ClickableAreaType) clickableAreaTypeComboBox.getSelectedItem();
+                    updateComboBoxEditorText(clickableAreaTypeComboBox, "HomeAssistantFloorPlan.Panel.clickableAreaTypeComboBox.%s.text", currentActualSelectionInComboBox);
+                });
+
                 markModified();
             }
         });
@@ -1031,22 +1109,38 @@ public class EntityOptionsPanel extends JPanel {
             return;
         }
         Component editorComp = comboBox.getEditor().getEditorComponent();
-        if (!(editorComp instanceof JTextField) || ((JTextField) editorComp).isEditable()) {
-            // Only apply to our "fake" editable (but non-typable) combo boxes
+        if (!(editorComp instanceof JTextField)) { // Ensure the editor component is a JTextField
+            return;
+        }
+        JTextField editorTextField = (JTextField) editorComp;
+        // Only apply if the JTextField itself is not editable (our "fake" setup)
+        if (editorTextField.isEditable()) { 
             return;
         }
 
-        final String textToSet = (selectedValue != null) ?
-                                 resource.getString(String.format(resourceKeyPattern, selectedValue.name())) :
-                                 "";
-
-        SwingUtilities.invokeLater(() -> {
-            Object currentEditorItem = comboBox.getEditor().getItem();
-            // Only update if the text is actually different to avoid potential event loops or unnecessary updates
-            if (currentEditorItem == null || !textToSet.equals(currentEditorItem.toString())) {
-                comboBox.getEditor().setItem(textToSet);
+        String determinedTextValue; // Use a non-final temporary variable
+        if (selectedValue != null) {
+            if (resource != null) {
+                try {
+                    determinedTextValue = resource.getString(String.format(resourceKeyPattern, selectedValue.name()));
+                } catch (java.util.MissingResourceException e) {
+                    // Fallback if resource key is missing, log and use enum's default toString()
+                    System.err.println("Warning: Missing resource for JComboBox editor text: " + String.format(resourceKeyPattern, selectedValue.name()) + ". Using default name.");
+                    determinedTextValue = selectedValue.toString(); 
+                }
+            } else { // resource is null, but selectedValue is not
+                determinedTextValue = selectedValue.toString(); // Fallback if resource bundle is somehow null
             }
-        });
+        } else { // selectedValue is null
+            determinedTextValue = ""; // Empty string for a null selectedValue
+        }
+        final String textToSet = determinedTextValue; // Assign to the final variable once
+
+        // Directly set the text of the JTextField component of the editor.
+        // Only update if the text is actually different to avoid potential event loops or unnecessary screen flicker.
+        if (!editorTextField.getText().equals(textToSet)) {
+            editorTextField.setText(textToSet);
+        }
     }
 
     // --- NEW: Helper method to make the editor area of a non-typable editable combo box clickable ---
@@ -1085,5 +1179,27 @@ public class EntityOptionsPanel extends JPanel {
         // List of domains that typically have on/off states
         List<String> onOffDomains = Arrays.asList("fan", "light", "switch", "binary_sensor", "input_boolean", "media_player", "climate", "humidifier", "siren", "valve", "lock", "cover");
         return onOffDomains.contains(domain.toLowerCase());
+    }
+
+    private boolean doAreasOverlap(Map<String, Double> rectA, Map<String, Double> rectB) {
+        if (rectA == null || rectB == null) {
+            return false;
+        }
+
+        double aLeft = rectA.get("left");
+        double aTop = rectA.get("top");
+        double aWidth = rectA.get("width");
+        double aHeight = rectA.get("height");
+
+        double bLeft = rectB.get("left");
+        double bTop = rectB.get("top");
+        double bWidth = rectB.get("width");
+        double bHeight = rectB.get("height");
+
+        // Check for non-overlap conditions first for clarity
+        if (aLeft + aWidth <= bLeft || aLeft >= bLeft + bWidth || aTop + aHeight <= bTop || aTop >= bTop + bHeight) {
+            return false; // No overlap
+        }
+        return true; // Overlap
     }
 }

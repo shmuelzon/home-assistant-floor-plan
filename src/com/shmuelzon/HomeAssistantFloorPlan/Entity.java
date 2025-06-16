@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
+import java.io.IOException;
 
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
@@ -417,11 +418,11 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_SCALE_FACTOR) != null;
     }
 
-    public String getBackgrounColor() {
+    public String getBackgroundColor() {
         return backgroundColor;
     }
 
-    public void setBackgrounColor(String backgroundColor) {
+    public void setBackgroundColor(String backgroundColor) {
         this.backgroundColor = backgroundColor;
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, backgroundColor);
     }
@@ -684,28 +685,100 @@ public class Entity implements Comparable<Entity> {
         if (clickableAreaType == ClickableAreaType.ROOM_SIZE && controller != null) {
             Map<String, Double> roomBounds = controller.getRoomBoundingBoxPercent(this);
             if (roomBounds != null) {
-                clickableAreaYaml = String.format(Locale.US,
-                    "  - type: image\n" + // Use a transparent image for the clickable area
-                    "    entity: %s\n" +
-                    "    image: /local/floorplan/transparent.png\n" + // Assuming transparent.png exists
-                    "    tap_action:\n" +
-                    "      action: %s\n" +
-                    "    double_tap_action:\n" +
-                    "      action: %s\n" +
-                    "    hold_action:\n" +
-                    "      action: %s\n" +
-                    "    style:\n" +
-                    "      top: %.2f%%\n" +
-                    "      left: %.2f%%\n" +
-                    "      width: %.2f%%\n" +
-                    "      height: %.2f%%\n" +
-                    "      opacity: 0;\n" + // Make it invisible
-                    "      background-color: rgba(0,0,0,0.0);\n", // Explicitly transparent
-                    name, // Entity for the clickable area should be the main entity
-                    actionYaml(tapAction, tapActionValue, this.associatedFanEntityId), 
-                    actionYaml(doubleTapAction, doubleTapActionValue, this.associatedFanEntityId), 
-                    actionYaml(holdAction, holdActionValue, this.associatedFanEntityId),
-                    roomBounds.get("top"), roomBounds.get("left"), roomBounds.get("width"), roomBounds.get("height"));
+                System.out.println(String.format(Locale.US, 
+                    "DEBUG Entity.java: For entity '%s', Icon Center (L:%.2f%%, T:%.2f%%). Controller-provided (shrunken) bounds: (L:%.2f%%, T:%.2f%%, W:%.2f%%, H:%.2f%%)",
+                    this.name, this.position.x, this.position.y,
+                    roomBounds.get("left"), roomBounds.get("top"), roomBounds.get("width"), roomBounds.get("height")
+                ));
+                // Check if the icon's center is within the calculated room bounds
+                double iconCenterY = this.position.y;
+                double iconCenterX = this.position.x;
+
+                double roomT = roomBounds.get("top");
+                double roomL = roomBounds.get("left");
+                double roomW = roomBounds.get("width");
+                double roomH = roomBounds.get("height");
+                double roomR = roomL + roomW;
+                double roomB = roomT + roomH;
+
+                boolean iconCenterIsInside =
+                    iconCenterX >= roomL && iconCenterX <= roomR &&
+                    iconCenterY >= roomT && iconCenterY <= roomB;
+
+                if (!iconCenterIsInside) {
+                    System.err.println(String.format(Locale.US,
+                        "Entity.java Warning: Icon center for entity '%s' (at L:%.2f%%, T:%.2f%%) is outside its calculated room's clickable area (L:%.2f%%, T:%.2f%%, W:%.2f%%, H:%.2f%%). Adjusting clickable area to include icon center.",
+                        this.name, iconCenterX, iconCenterY, roomL, roomT, roomW, roomH
+                    ));
+
+                    // Expand roomBounds to include the icon's center
+                    double newTop = Math.min(roomT, iconCenterY);
+                    double newLeft = Math.min(roomL, iconCenterX);
+                    double newRight = Math.max(roomR, iconCenterX);
+                    double newBottom = Math.max(roomB, iconCenterY);
+
+                    // Update the map directly
+                    roomBounds.put("top", newTop);
+                    roomBounds.put("left", newLeft);
+                    roomBounds.put("width", Math.max(0, newRight - newLeft));   // Ensure non-negative
+                    roomBounds.put("height", Math.max(0, newBottom - newTop)); // Ensure non-negative
+                }
+
+                // Calculate dimensions for the transparent PNG based on aspect ratio
+                double roomWidthPercent = roomBounds.get("width");
+                double roomHeightPercent = roomBounds.get("height");
+
+                final int BASE_PNG_DIMENSION = 20; // Base size for the longer side of the PNG (in pixels)
+                int pngWidthPx;
+                int pngHeightPx;
+
+                if (roomWidthPercent <= 0 && roomHeightPercent <= 0) { // Handles zero or negative dimensions
+                    pngWidthPx = 1;
+                    pngHeightPx = 1;
+                } else if (roomWidthPercent >= roomHeightPercent) {
+                    pngWidthPx = BASE_PNG_DIMENSION;
+                    pngHeightPx = (int) Math.round(BASE_PNG_DIMENSION * (roomHeightPercent / Math.max(0.001, roomWidthPercent)));
+                } else {
+                    pngHeightPx = BASE_PNG_DIMENSION;
+                    pngWidthPx = (int) Math.round(BASE_PNG_DIMENSION * (roomWidthPercent / Math.max(0.001, roomHeightPercent)));
+                }
+
+                // Ensure minimum 1x1 pixel dimension
+                pngWidthPx = Math.max(1, pngWidthPx);
+                pngHeightPx = Math.max(1, pngHeightPx);
+
+                String transparentImageBaseName = "transparent_" + this.name;
+                try {
+                    controller.ensureEntityTransparentImageGenerated(this.name, pngWidthPx, pngHeightPx);
+                    String transparentImageHash = controller.renderHash(transparentImageBaseName, true);
+                    String transparentImagePath = "/local/floorplan/" + transparentImageBaseName + ".png?version=" + transparentImageHash;
+
+                    clickableAreaYaml = String.format(Locale.US,
+                        "  - type: image\n" +
+                        "    entity: %s\n" +
+                        "    image: %s\n" +
+                        "    tap_action:\n" +
+                        "      action: %s\n" +
+                        "    double_tap_action:\n" +
+                        "      action: %s\n" +
+                        "    hold_action:\n" +
+                        "      action: %s\n" +
+                        "    style:\n" +
+                        "      top: %.2f%%\n" +
+                        "      left: %.2f%%\n" +
+                        "      width: %.2f%%\n" +  // Use original percentage from roomBounds
+                        "      height: %.2f%%\n" + // Use original percentage from roomBounds
+                        "      transform: translate(0%%, 0%%)\n" +
+                        "      opacity: 0%%\n",
+                        this.name,
+                        transparentImagePath,
+                        actionYaml(tapAction, tapActionValue, this.associatedFanEntityId),
+                        actionYaml(doubleTapAction, doubleTapActionValue, this.associatedFanEntityId),
+                        actionYaml(holdAction, holdActionValue, this.associatedFanEntityId),
+                        roomBounds.get("top"), roomBounds.get("left"), roomWidthPercent, roomHeightPercent);
+                } catch (IOException e) {
+                    System.err.println("Error generating/hashing transparent image for " + this.name + " with dimensions " + pngWidthPx + "x" + pngHeightPx + ": " + e.getMessage());
+                }
             }
         }
         elementYaml = clickableAreaYaml + elementYaml; // Prepend clickable area if it exists

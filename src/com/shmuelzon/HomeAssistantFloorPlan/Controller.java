@@ -39,6 +39,7 @@ import javax.imageio.ImageIO;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
+import javax.vecmath.Point3f; // Added for 3D centroid
 import javax.vecmath.Vector4d;
 
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
@@ -96,6 +97,7 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
     private Scenes scenes;
+    private Map<String, Double> houseNdcBounds;
     private ResourceBundle resourceBundle;
 
 public Controller(Home home, ResourceBundle resourceBundle) {
@@ -109,7 +111,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
         buildLightsGroups();
         buildScenes();
-        repositionEntities();
+        repositionEntities(); // This will also calculate houseNdcBounds
     }
 
     public void loadDefaultSettings() {
@@ -134,7 +136,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     public void removePropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.removePropertyChangeListener(property.name(), listener);
     }
-
+    
     public List<Entity> getLightEntities() {
         return lightEntities;
     }
@@ -267,55 +269,197 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     }
 
     public Map<String, Double> getRoomBoundingBoxPercent(Entity entity) {
-        if (entity == null || entity.getPiecesOfFurniture().isEmpty() || home == null || perspectiveTransform == null || cameraPosition == null) {
+        if (this.houseNdcBounds == null) {
+            System.err.println("Error: houseNdcBounds not calculated. Cannot get room bounding box.");
+            return null;
+        }
+        if (entity == null || entity.getPiecesOfFurniture().isEmpty() || home == null) {
             return null;
         }
 
-        HomePieceOfFurniture piece = entity.getPiecesOfFurniture().get(0); // Use first piece to find room
-        Room foundRoom = null;
+        // Get the entity's 3D centroid and 2D projected icon center
+        Point3f entityCentroid3D = getEntity3DCentroid(entity);
+        if (entityCentroid3D == null) {
+            System.err.println("Warning: Could not calculate 3D centroid for entity: " + entity.getName());
+            return null;
+        }
+        // The entity's position is already its 2D projected center (icon center)
+        Point2d iconCenterProjected = entity.getPosition(); 
+
+        com.eteks.sweethome3d.model.Level entityLevel = null;
+        if (!entity.getPiecesOfFurniture().isEmpty()) {
+            entityLevel = entity.getPiecesOfFurniture().get(0).getLevel();
+        } else {
+            System.err.println("Warning: Entity " + entity.getName() + " has no pieces of furniture to determine its level.");
+            return null;
+        }
+
+        List<Room> candidateRooms = new ArrayList<>();
         for (Room room : home.getRooms()) {
-            // Check if piece is in room, considering piece's level and elevation
-            float pieceZ = (piece.getLevel() != null ? piece.getLevel().getElevation() : 0) + piece.getElevation();
-            if (room.getLevel() == piece.getLevel() && room.containsPoint(piece.getX(), piece.getY(), pieceZ)) {
-                foundRoom = room;
+            if (entityLevel != room.getLevel()) {
+                continue;
+            }
+            if (room.containsPoint(entityCentroid3D.x, entityCentroid3D.y, entityCentroid3D.z)) {
+                candidateRooms.add(room);
+            }
+        }
+
+        if (candidateRooms.isEmpty()) {
+            // System.err.println("Info: Entity " + entity.getName() + " not found in any room by 3D centroid.");
+            return null;
+        }
+
+        Room foundRoom = null;
+        Map<String, Double> bestBounds = null;
+
+        // Iterate through candidate rooms to find the best fit based on 2D projection
+        for (Room candidateRoom : candidateRooms) {
+            Map<String, Double> currentBounds = calculateRoom2DBounds(candidateRoom, entityLevel);
+            if (currentBounds == null) {
+                continue;
+            }
+
+            // Check if icon center is within these currentBounds (after shrinkage)
+            if (iconCenterProjected.x >= currentBounds.get("left") &&
+                iconCenterProjected.x <= (currentBounds.get("left") + currentBounds.get("width")) &&
+                iconCenterProjected.y >= currentBounds.get("top") &&
+                iconCenterProjected.y <= (currentBounds.get("top") + currentBounds.get("height"))) {
+                foundRoom = candidateRoom;
+                bestBounds = currentBounds;
+                // System.out.println("DEBUG: Entity " + entity.getName() + " fits in 2D bounds of room " + candidateRoom.getName());
                 break;
             }
         }
 
         if (foundRoom == null) return null;
-
+        
         List<float[]> roomWorldPoints = Arrays.asList(foundRoom.getPoints());
         if (roomWorldPoints == null || roomWorldPoints.isEmpty()) return null;
+        
+        // If we found a room whose 2D projection contains the icon, return its bounds.
+        if (bestBounds != null) {
+            return bestBounds;
+        }
 
-        double minX = 100.0, maxX = 0.0, minY = 100.0, maxY = 0.0;
-        float roomElevation = foundRoom.getLevel() != null ? foundRoom.getLevel().getElevation() : 0;
+        // Fallback: if no room's 2D projection contained the icon,
+        // use the first candidate room found by 3D containment and calculate its bounds.
+        // The Entity.java logic will then expand these bounds if necessary.
+        return calculateRoom2DBounds(candidateRooms.get(0), entityLevel);
+    }
 
-        for (float[] p : roomWorldPoints) {
-            Vector4d worldPos = new Vector4d(p[0], roomElevation, p[1], 1.0); // SH3D Y is world Z, SH3D Z is world Y
-            
+    private Map<String, Double> calculateRoom2DBounds(Room room, 
+                                                  com.eteks.sweethome3d.model.Level entityLevel) {
+        List<float[]> roomWorldPoints = Arrays.asList(room.getPoints());
+        // This check might be redundant if called after ensuring roomWorldPoints is valid, but good for a helper.
+        if (roomWorldPoints == null || roomWorldPoints.isEmpty()) return null;
+
+        // Use clamped houseNdcBounds for normalization
+        // This was confirmed by debug output to be calculated and not always [-1,1]
+        double hNdcMinX = Math.max(-1.0, Math.min(1.0, this.houseNdcBounds.get("minX")));
+        double hNdcMaxX = Math.max(-1.0, Math.min(1.0, this.houseNdcBounds.get("maxX")));
+        double hNdcMinY = Math.max(-1.0, Math.min(1.0, this.houseNdcBounds.get("minY")));
+        double hNdcMaxY = Math.max(-1.0, Math.min(1.0, this.houseNdcBounds.get("maxY")));
+
+        double minCornerX = Double.POSITIVE_INFINITY, maxCornerX = Double.NEGATIVE_INFINITY;
+        double minCornerY = Double.POSITIVE_INFINITY, maxCornerY = Double.NEGATIVE_INFINITY;
+
+        float roomBaseElevation = room.getLevel() != null ? room.getLevel().getElevation() : 0;
+        
+        float actualRoomHeight;
+        if (room.getLevel() != null) {
+            actualRoomHeight = room.getLevel().getHeight(); // Use Level.getHeight()
+            if (actualRoomHeight <= 0) { 
+                // If level height is not positive, fall back to home's default wall height.
+                // home.getWallHeight() returns the default wall height for new walls.
+                actualRoomHeight = home.getWallHeight();
+            }
+        } else {
+            actualRoomHeight = home.getWallHeight(); // Fallback if room has no level
+        }
+                               
+        float roomCeilingElevation = roomBaseElevation + actualRoomHeight;
+
+        List<Vector4d> cornerPointsToProject = new ArrayList<>();
+        // Add floor points: p[0] is X, p[1] is Z (depth). Y is vertical.
+        for (float[] p2d : roomWorldPoints) {
+            cornerPointsToProject.add(new Vector4d(p2d[0], roomBaseElevation, p2d[1], 1.0));
+        }
+        // Add ceiling points
+        if (room.isCeilingVisible() && actualRoomHeight > 0) { // Only add if room has height and visible ceiling
+            for (float[] p2d : roomWorldPoints) {
+                cornerPointsToProject.add(new Vector4d(p2d[0], roomCeilingElevation, p2d[1], 1.0));
+            }
+        }
+
+        // Calculate house's screen footprint percentages based on its (clamped) NDC bounds
+        // For X-axis: (ndc * 0.5 + 0.5)
+        double houseScreenLeftPct   = (hNdcMinX * 0.5 + 0.5) * 100.0;
+        double houseScreenRightPct  = (hNdcMaxX * 0.5 + 0.5) * 100.0;
+        double houseScreenWidthPct  = houseScreenRightPct - houseScreenLeftPct;
+
+        // For Y-axis: using the user-preferred (ndc * 0.5 + 0.5) scaling for NDC-to-Viewport mapping
+        double houseScreenTopPct    = (hNdcMinY * 0.5 + 0.5) * 100.0;
+        double houseScreenBottomPct = (hNdcMaxY * 0.5 + 0.5) * 100.0;
+        double houseScreenHeightPct = houseScreenBottomPct - houseScreenTopPct;
+
+
+        for (Vector4d worldPos : cornerPointsToProject) {
             Vector4d viewPos = new Vector4d(worldPos);
-            viewPos.sub(cameraPosition);
+            // cameraPosition is (camX, camZ_depth, camY_vertical, 0)
+            viewPos.sub(cameraPosition); 
             perspectiveTransform.transform(viewPos);
 
             if (viewPos.w == 0) continue; // Avoid division by zero
-            viewPos.scale(1.0 / viewPos.w); // Perspective divide
+            viewPos.scale(1.0 / viewPos.w); // Perspective divide (NDC)
+            
+            // Room corner's normalized position (0 to 1) within the house's (clamped) NDC span
+            // Also clamp the viewPos.x/y to be within the house's NDC bounds before normalization
+            // to prevent extreme values if a room corner projects outside the house bounds.
+            double clampedViewPosX = Math.max(hNdcMinX, Math.min(hNdcMaxX, viewPos.x));
+            double clampedViewPosY = Math.max(hNdcMinY, Math.min(hNdcMaxY, viewPos.y));
 
-            double screenXPercent = (viewPos.x * 0.5 + 0.5) * 100.0;
-            double screenYPercent = (-viewPos.y * 0.5 + 0.5) * 100.0; // Invert Y for screen coordinates
+            double roomCornerXNormInHouse = (hNdcMaxX == hNdcMinX) ? 0.5 : (clampedViewPosX - hNdcMinX) / (hNdcMaxX - hNdcMinX);
+            double roomCornerYNormInHouse = (hNdcMaxY == hNdcMinY) ? 0.5 : (clampedViewPosY - hNdcMinY) / (hNdcMaxY - hNdcMinY);
 
-            minX = Math.min(minX, screenXPercent);
-            maxX = Math.max(maxX, screenXPercent);
-            minY = Math.min(minY, screenYPercent);
-            maxY = Math.max(maxY, screenYPercent);
+            // Final screen percentage for this room corner, relative to the full viewport
+            double screenXPercent = houseScreenLeftPct + (roomCornerXNormInHouse * houseScreenWidthPct);
+            double screenYPercent = houseScreenTopPct  + (roomCornerYNormInHouse * houseScreenHeightPct);
+            
+            minCornerX = Math.min(minCornerX, screenXPercent);
+            maxCornerX = Math.max(maxCornerX, screenXPercent);
+            minCornerY = Math.min(minCornerY, screenYPercent);
+            maxCornerY = Math.max(maxCornerY, screenYPercent);
         }
 
-        Map<String, Double> bounds = new HashMap<>();
-        bounds.put("left", minX);        bounds.put("top", minY);
-        bounds.put("width", maxX - minX); bounds.put("height", maxY - minY);
-        return bounds;
+        if (Double.isInfinite(minCornerX) || Double.isInfinite(minCornerY) || Double.isInfinite(maxCornerX) || Double.isInfinite(maxCornerY)) {
+            // All points were behind camera or at infinity.
+            return null;
+        }
+
+        // 1. Calculate initial projected width and height
+        double initialProjectedWidth = Math.max(0, maxCornerX - minCornerX);
+        double initialProjectedHeight = Math.max(0, maxCornerY - minCornerY);
+
+        // 2. Apply proportional shrinkage to get the target shrunken area
+        double targetShrunkenWidth = initialProjectedWidth * 0.80; // Increased to 20% shrinkage
+        double targetShrunkenHeight = initialProjectedHeight * 0.80; // Increased to 20% shrinkage
+
+        // 3. Calculate the top-left of this target shrunken area, centered within the initial projection
+        double targetShrunkenLeft = minCornerX + (initialProjectedWidth - targetShrunkenWidth) / 2.0;
+        double targetShrunkenTop = minCornerY + (initialProjectedHeight - targetShrunkenHeight) / 2.0;
+
+        
+        Map<String, Double> finalBounds = new HashMap<>();
+        // Adjust top and left to keep the smaller area centered within the original projection
+        // Original left was minCornerX, new left is minCornerX + (initialWidth - finalWidth) / 2
+        finalBounds.put("left", minCornerX + (initialProjectedWidth - targetShrunkenWidth) / 2.0);
+        finalBounds.put("top", minCornerY + (initialProjectedHeight - targetShrunkenHeight) / 2.0);
+        finalBounds.put("width", targetShrunkenWidth); 
+        finalBounds.put("height", targetShrunkenHeight);
+
+        return finalBounds;
     }
 
-    // --- NEW: Method to get suggested states for an entity's domain ---
     public String[] getSuggestedStatesForEntity(Entity entity) {
         List<String> suggestions = new ArrayList<>();
         if (entity == null || entity.getName() == null || !entity.getName().contains(".")) {
@@ -336,7 +480,6 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         return suggestions.toArray(new String[0]);
     }
 
-    // --- NEW: Method to get suggested states for furniture (can be same as entity for now or specialized) ---
     public String[] getSuggestedStatesForFurniture(Entity entity) {
         // For now, let's assume furniture can use the same state suggestions as the entity itself.
         // This could be specialized if furniture had different state domains.
@@ -376,6 +519,16 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         try {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
+
+            // Perform overlap check for ROOM_SIZE entities and print warnings
+            List<String> overlapErrors = checkForOverlappingRoomSizeEntities();
+            if (!overlapErrors.isEmpty()) {
+                System.err.println("Warning: Overlapping 'Room Size' clickable areas detected. Rendering will proceed, but please adjust settings to avoid overlaps:");
+                for (String error : overlapErrors) {
+                    System.err.println("- " + error);
+                }
+            }
+
 
             copyStaticAssetsToFloorplanDirectory(); // Call to copy fan GIFs
    
@@ -669,6 +822,50 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         ImageIO.write(image, "png", imageFile);
     }
 
+    private void generateAndCacheEntityTransparentImage(String entityNameForFilename, int desiredWidth, int desiredHeight) throws IOException {
+        String imageName = "transparent_" + entityNameForFilename;
+        String filePath = outputFloorplanDirectoryName + File.separator + imageName + ".png";
+        File imageFile = new File(filePath);
+
+        if (imageFile.exists()) {
+            if (useExistingRenders) {
+                try {
+                    BufferedImage existingImage = ImageIO.read(imageFile);
+                    if (existingImage != null && existingImage.getWidth() == desiredWidth && existingImage.getHeight() == desiredHeight) {
+                        // System.out.println("Skipping generation, existing transparent image " + filePath + " matches dimensions " + desiredWidth + "x" + desiredHeight);
+                        return; // Exists with correct dimensions, and we want to use existing.
+                    }
+                    // If dimensions don't match, proceed to regenerate.
+                    // System.out.println("Regenerating transparent image " + filePath + ", existing dimensions " +
+                    // (existingImage != null ? existingImage.getWidth()+"x"+existingImage.getHeight() : "null") +
+                    // " != desired " + desiredWidth + "x" + desiredHeight);
+                } catch (IOException e) {
+                    // Problem reading existing image, so proceed to regenerate.
+                    System.err.println("Could not read existing transparent image " + filePath + " to check dimensions. Regenerating. Error: " + e.getMessage());
+                }
+            }
+            // If not useExistingRenders, or if dimensions didn't match (or read failed),
+            // we fall through to regenerate, overwriting the existing file.
+        }
+
+        // Create a transparent PNG with the desired aspect ratio (and small dimensions)
+        BufferedImage image = new BufferedImage(desiredWidth, desiredHeight, BufferedImage.TYPE_INT_ARGB);
+        // A new BufferedImage of TYPE_INT_ARGB is transparent by default.
+
+        // Ensure the output directory exists
+        Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
+        ImageIO.write(image, "png", imageFile);
+        // System.out.println("Generated transparent image: " + filePath + " with dimensions " + desiredWidth + "x" + desiredHeight);
+    }
+
+    /**
+     * Ensures a transparent PNG for the given entity exists with the specified dimensions.
+     * The image will be named transparent_entityName.png.
+     */
+    public void ensureEntityTransparentImageGenerated(String entityName, int width, int height) throws IOException {
+        generateAndCacheEntityTransparentImage(entityName, width, height);
+    }
+
     private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
         String fileName = outputRendersDirectoryName + File.separator + name + ".png";
 
@@ -770,11 +967,11 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         return new String(hexChars);
     }
 
-    private String renderHash(String imageName) throws IOException {
+    public String renderHash(String imageName) throws IOException {
         return renderHash(imageName, false);
     }
 
-    private String renderHash(String imageName, boolean forcePng) throws IOException {
+    public String renderHash(String imageName, boolean forcePng) throws IOException {
         String imageExtension = forcePng ? "png" : getFloorplanImageExtention();
         byte[] content = Files.readAllBytes(Paths.get(outputFloorplanDirectoryName + File.separator + imageName + "." + imageExtension));
         try {
@@ -904,27 +1101,50 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     }
 
     private Point2d getFurniture2dLocation(HomePieceOfFurniture piece) {
+        if (this.houseNdcBounds == null) {
+            System.err.println("Error: houseNdcBounds not calculated. Cannot get furniture 2D location.");
+            // Fallback to a clearly problematic default or throw an exception
+            return new Point2d(-1.0, -1.0); 
+        }
         float levelOffset = piece.getLevel() != null ? piece.getLevel().getElevation() : 0;
-        Vector4d objectPosition = new Vector4d(piece.getX(), (((piece.getElevation() * 2) + piece.getHeight()) / 2) + levelOffset, piece.getY(), 0);
+        // Calculate the vertical center of the piece in world coordinates.
+        float pieceWorldY = (((piece.getElevation() * 2) + piece.getHeight()) / 2) + levelOffset;
 
-        objectPosition.sub(cameraPosition);
-        perspectiveTransform.transform(objectPosition);
-        objectPosition.scale(1 / objectPosition.w);
+        // World coordinates of the point to project (center of the furniture piece)
+        // (worldX, worldY_vertical, worldZ_depth, 1.0)
+        Vector4d pointToProject = new Vector4d(piece.getX(), pieceWorldY, piece.getY(), 1.0);
         
-        // Invert Y for screen coordinates (top is 0%, bottom is 100%)
-        return new Point2d((objectPosition.x * 0.5 + 0.5) * 100.0, (objectPosition.y * 0.5 + 0.5) * 100.0);
+        // Transform to view space and then to NDC, consistent with getRoomBoundingBoxPercent
+        Vector4d ndcPos = new Vector4d(pointToProject);
+        // cameraPosition is (camX_world, camZ_depth_world, camY_vertical_world, 0)
+        ndcPos.sub(cameraPosition); // After sub, ndcPos.w is still 1.0 (because pointToProject.w=1, cameraPosition.w=0)
+        perspectiveTransform.transform(ndcPos); // ndcPos.w is now perspective w'
+
+        if (ndcPos.w == 0) { // Avoid division by zero
+            System.err.println("Warning: NDC.w is zero for entity " + piece.getName() + 
+                               " during getFurniture2dLocation. Defaulting to screen center.");
+            return new Point2d(50.0, 50.0); 
+        }
+        ndcPos.scale(1.0 / ndcPos.w); // Perspective divide (NDC: -1 to 1 range)
+        
+        // Convert NDC to screen percentage (0% to 100%) for the entire viewport.
+        // This reverts to the pre-houseNdcBounds logic for icons, as per user feedback.
+        // Uses the Y-scaling (ndcPos.y * 0.5 + 0.5) that user previously preferred.
+        double screenXPercent = (ndcPos.x * 0.5 + 0.5) * 100.0;
+        double screenYPercent = (ndcPos.y * 0.5 + 0.5) * 100.0; 
+        return new Point2d(screenXPercent, screenYPercent);
     }
 
 
     private String generateEntitiesYaml() {
         return Stream.concat(lightEntities.stream(), otherEntities.stream())
-            .sorted() // Sort entities for consistent YAML output
             .map(entity -> entity.buildYaml(this)) // Pass controller instance
             .collect(Collectors.joining());
     }
 
     private void repositionEntities() {
         build3dProjection();
+        calculateHouseNdcBounds(); // Calculate overall house bounds in NDC
         calculateEntityPositions();
         // moveEntityIconsToAvoidIntersection(); // Temporarily comment out to disable collision avoidance
     }
@@ -1035,5 +1255,192 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             for (Set<Entity> set : intersectingStateIcons)
                 separateStateIcons(set);
         }
+    }
+
+    private boolean doAreasOverlap(Map<String, Double> rectA, Map<String, Double> rectB) {
+        if (rectA == null || rectB == null) {
+            return false;
+        }
+
+        double aLeft = rectA.get("left");
+        double aTop = rectA.get("top");
+        double aWidth = rectA.get("width");
+        double aHeight = rectA.get("height");
+
+        double bLeft = rectB.get("left");
+        double bTop = rectB.get("top");
+        double bWidth = rectB.get("width");
+        double bHeight = rectB.get("height");
+
+        // Check for non-overlap conditions first for clarity
+        if (aLeft + aWidth <= bLeft || aLeft >= bLeft + bWidth || aTop + aHeight <= bTop || aTop >= bTop + bHeight) {
+            return false; // No overlap
+        }
+        return true; // Overlap
+    }
+
+    private List<String> checkForOverlappingRoomSizeEntities() {
+        List<String> errors = new ArrayList<>();
+        List<Entity> roomSizeEntities = getAllConfiguredEntities().stream()
+                                            .filter(e -> e.getClickableAreaType() == Entity.ClickableAreaType.ROOM_SIZE)
+                                            .collect(Collectors.toList());
+
+        for (int i = 0; i < roomSizeEntities.size(); i++) {
+            for (int j = i + 1; j < roomSizeEntities.size(); j++) {
+                Entity entityA = roomSizeEntities.get(i);
+                Entity entityB = roomSizeEntities.get(j);
+                Map<String, Double> boundsA = getRoomBoundingBoxPercent(entityA); // Uses current controller state
+                Map<String, Double> boundsB = getRoomBoundingBoxPercent(entityB); // Uses current controller state
+
+                if (doAreasOverlap(boundsA, boundsB)) {
+                    errors.add(String.format(Locale.US, 
+                        "Entity '%s' and Entity '%s'",
+                        entityA.getName(), entityB.getName()));
+                }
+            }
+        }
+        return errors;
+    }
+
+    public List<Entity> getAllConfiguredEntities() {
+        return Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList());
+    }
+
+    public Room getRoomForEntity(Entity entity) {
+        if (entity == null) {
+            return null;
+        }
+        Point3f entityCentroid3D = getEntity3DCentroid(entity);
+        if (entityCentroid3D == null) {
+            // This case is already handled with a System.err in getEntity3DCentroid if pieces are empty
+            // or if entity.getPiecesOfFurniture().isEmpty() is true.
+            return null;
+        }
+
+        com.eteks.sweethome3d.model.Level entityLevel = null;
+        if (!entity.getPiecesOfFurniture().isEmpty()) {
+            entityLevel = entity.getPiecesOfFurniture().get(0).getLevel();
+        } else {
+            // This case is also handled by getEntity3DCentroid returning null.
+            return null;
+        }
+
+        for (Room room : home.getRooms()) {
+            if (entityLevel == room.getLevel() && room.containsPoint(entityCentroid3D.x, entityCentroid3D.y, entityCentroid3D.z)) {
+                return room;
+            }
+        }
+        return null; // Entity not found in any room
+    }
+
+    private Point3f getEntity3DCentroid(Entity entity) {
+        if (entity.getPiecesOfFurniture().isEmpty()) {
+            return null;
+        }
+        float sumX = 0, sumY_depth = 0, sumZ_vertical = 0;
+        int count = 0;
+        for (HomePieceOfFurniture piece : entity.getPiecesOfFurniture()) {
+            float pieceLevelElevation = (piece.getLevel() != null ? piece.getLevel().getElevation() : 0);
+            sumX += piece.getX();
+            sumY_depth += piece.getY(); // SH3D Y-axis is depth
+            // Calculate vertical center of the piece in world coordinates
+            sumZ_vertical += pieceLevelElevation + piece.getElevation() + (piece.getHeight() / 2.0f);
+            count++;
+        }
+        if (count == 0) { // Should not happen if piecesOfFurniture is not empty
+            return null;
+        }
+        // Return Point3f(worldX, worldY_depth, worldZ_vertical)
+        return new Point3f(sumX / count, sumY_depth / count, sumZ_vertical / count);
+    }
+
+    private void calculateHouseNdcBounds() {
+        if (home == null || perspectiveTransform == null || cameraPosition == null) {
+            this.houseNdcBounds = null;
+            return;
+        }
+
+        List<Vector4d> allHousePoints = new ArrayList<>();
+        boolean allLevelsVisible = home.getEnvironment().isAllLevelsVisible();
+        com.eteks.sweethome3d.model.Level selectedLevel = home.getSelectedLevel();
+
+        for (Room room : home.getRooms()) {
+            if (!allLevelsVisible && room.getLevel() != selectedLevel) {
+                continue; // Skip rooms not on the currently visible/selected level
+            }
+            if (room.getPoints() == null || room.getPoints().length == 0) continue;
+
+            float roomBaseElevation = room.getLevel() != null ? room.getLevel().getElevation() : 0;
+            float actualRoomHeight;
+            if (room.getLevel() != null) {
+                actualRoomHeight = room.getLevel().getHeight();
+                if (actualRoomHeight <= 0) {
+                    actualRoomHeight = home.getWallHeight();
+                }
+            } else {
+                actualRoomHeight = home.getWallHeight();
+            }
+            float roomCeilingElevation = roomBaseElevation + actualRoomHeight;
+
+            for (float[] p2d : room.getPoints()) {
+                allHousePoints.add(new Vector4d(p2d[0], roomBaseElevation, p2d[1], 1.0));
+                if (actualRoomHeight > 0 && room.isCeilingVisible()) { 
+                     allHousePoints.add(new Vector4d(p2d[0], roomCeilingElevation, p2d[1], 1.0));
+                }
+            }
+        }
+
+        if (allHousePoints.isEmpty()) {
+            this.houseNdcBounds = createDefaultNdcBounds();
+            System.err.println("Warning: No points found to calculate house NDC bounds. Defaulting to full view.");
+            return;
+        }
+
+        double minNdcX = Double.POSITIVE_INFINITY, maxNdcX = Double.NEGATIVE_INFINITY;
+        double minNdcY = Double.POSITIVE_INFINITY, maxNdcY = Double.NEGATIVE_INFINITY;
+
+        for (Vector4d worldPos : allHousePoints) {
+            Vector4d ndcPos = new Vector4d(worldPos);
+            ndcPos.sub(cameraPosition);
+            perspectiveTransform.transform(ndcPos);
+
+            if (ndcPos.w == 0 || Double.isNaN(ndcPos.w) || Double.isInfinite(ndcPos.w)) continue;
+            ndcPos.scale(1.0 / ndcPos.w); 
+
+            minNdcX = Math.min(minNdcX, ndcPos.x);
+            maxNdcX = Math.max(maxNdcX, ndcPos.x);
+            minNdcY = Math.min(minNdcY, ndcPos.y);
+            maxNdcY = Math.max(maxNdcY, ndcPos.y);
+        }
+        
+        if (Double.isInfinite(minNdcX) || Double.isInfinite(maxNdcX) || 
+            Double.isInfinite(minNdcY) || Double.isInfinite(maxNdcY) ||
+            minNdcX >= maxNdcX || minNdcY >= maxNdcY) { 
+            this.houseNdcBounds = createDefaultNdcBounds();
+            System.err.println("DEBUG: Invalid house NDC bounds calculated. Defaulting to full view. MinX=" + minNdcX + ", MaxX=" + maxNdcX + ", MinY=" + minNdcY + ", MaxY=" + maxNdcY);
+            System.out.println("DEBUG: Using DEFAULT houseNdcBounds: minX=" + this.houseNdcBounds.get("minX") + 
+                               ", maxX=" + this.houseNdcBounds.get("maxX") + 
+                               ", minY=" + this.houseNdcBounds.get("minY") + 
+                               ", maxY=" + this.houseNdcBounds.get("maxY"));
+        } else {
+            this.houseNdcBounds = new HashMap<>();
+            this.houseNdcBounds.put("minX", minNdcX);
+            this.houseNdcBounds.put("maxX", maxNdcX);
+            this.houseNdcBounds.put("minY", minNdcY);
+            this.houseNdcBounds.put("maxY", maxNdcY);
+            System.out.println("DEBUG: Calculated houseNdcBounds: minX=" + minNdcX + 
+                               ", maxX=" + maxNdcX + 
+                               ", minY=" + minNdcY + 
+                               ", maxY=" + maxNdcY);
+        }
+    }
+
+    private Map<String, Double> createDefaultNdcBounds() {
+        Map<String, Double> defaultBounds = new HashMap<>();
+        defaultBounds.put("minX", -1.0);
+        defaultBounds.put("maxX", 1.0);
+        defaultBounds.put("minY", -1.0);
+        defaultBounds.put("maxY", 1.0);
+        return defaultBounds;
     }
 };
