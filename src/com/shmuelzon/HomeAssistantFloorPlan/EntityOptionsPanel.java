@@ -101,12 +101,29 @@ public class EntityOptionsPanel extends JPanel {
     private JCheckBox showFanWhenOffCheckbox;
     private JLabel fanColorLabel;
     private JComboBox<Entity.FanColor> fanColorComboBox;
+    private JLabel fanSizeLabel; // Added Fan Size Label
+    private JComboBox<Entity.FanSize> fanSizeComboBox; // Added Fan Size ComboBox
     private JLabel showBorderAndBackgroundLabel;
     private JCheckBox showBorderAndBackgroundCheckbox;
+
+    // --- NEW: Components for state-label specific options ---
+    private JLabel labelColorLabel;
+    private JComboBox<String> labelColorComboBox; // Changed from JTextField
+    private JLabel labelTextShadowLabel;
+    private JComboBox<String> labelTextShadowComboBox; // Changed from JTextField
+    private JLabel labelFontWeightLabel;
+    private JComboBox<String> labelFontWeightComboBox; // Changed from JTextField
+    private JLabel labelSuffixLabel;
+    private JComboBox<String> labelSuffixComboBox; // Changed from JTextField to editable JComboBox
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
     private boolean isProgrammaticClickableAreaChange = false;
+
+    // --- Constants for ComboBox population, moved to class level for wider access ---
+    private static final String[] LABEL_COLOR_KEYS = {"BLACK", "WHITE", "RED", "BLUE", "GREEN", "YELLOW", "GRAY", "ORANGE", "PURPLE"}; // No "NONE"
+    private static final String[] FONT_WEIGHT_KEYS = {"NORMAL", "BOLD"}; // Simplified
+    private static final String DEGREE_SYMBOL_KEY = "DEGREE";
 
     public EntityOptionsPanel(UserPreferences preferences, Entity entity, Controller controller) {
         super(new GridBagLayout());
@@ -143,7 +160,12 @@ public class EntityOptionsPanel extends JPanel {
                 associatedFanEntityIdComboBox.setSelectedItem(entity.getAssociatedFanEntityId());
                 showFanWhenOffCheckbox.setSelected(entity.getShowFanWhenOff());
                 fanColorComboBox.setSelectedItem(entity.getFanColor());
+                fanSizeComboBox.setSelectedItem(entity.getFanSize()); // Update Fan Size ComboBox
                 showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
+                setComboBoxSelectionFromEntityValue(labelColorComboBox, entity.getLabelColor(), LABEL_COLOR_KEYS, "HomeAssistantFloorPlan.Panel.labelColorComboBox.%s.text", LABEL_COLOR_KEYS[0]);
+                labelTextShadowComboBox.setSelectedItem(entity.getLabelTextShadow()); // Update ComboBox
+                setComboBoxSelectionFromEntityValue(labelFontWeightComboBox, entity.getLabelFontWeight(), FONT_WEIGHT_KEYS, "HomeAssistantFloorPlan.Panel.labelFontWeightComboBox.%s.text", "NORMAL");
+                labelSuffixComboBox.setSelectedItem(entity.getLabelSuffix());
                 clickableAreaTypeComboBox.setSelectedItem(entity.getClickableAreaType()); // Update new combo box
                 // ... update other components as needed ...
                 markModified(); // Reflect that fields are now at default (potentially "unmodified")
@@ -714,6 +736,33 @@ public class EntityOptionsPanel extends JPanel {
         });
         makeClickableToOpenDropdown(fanColorComboBox);
 
+        // --- NEW: Components for Fan Size ---
+        fanSizeLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.fanSizeLabel.text"));
+        fanSizeComboBox = new JComboBox<>(Entity.FanSize.values());
+        fanSizeComboBox.setSelectedItem(entity.getFanSize());
+        fanSizeComboBox.setEditable(true);
+        JTextField fanSizeEditor = (JTextField) fanSizeComboBox.getEditor().getEditorComponent();
+        fanSizeEditor.setEditable(false);
+        fanSizeEditor.setFocusable(false);
+        if (entity.getFanSize() != null) {
+            String initialDisplayText = resource.getString(String.format("HomeAssistantFloorPlan.Panel.fanSizeComboBox.%s.text", entity.getFanSize().name()));
+            fanSizeEditor.setText(initialDisplayText);
+        }
+        fanSizeComboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.fanSizeComboBox.%s.text", ((Entity.FanSize) value).name())));
+                return this;
+            }
+        });
+        fanSizeComboBox.addActionListener(e -> {
+            entity.setFanSize((Entity.FanSize) fanSizeComboBox.getSelectedItem());
+            updateComboBoxEditorText(fanSizeComboBox, "HomeAssistantFloorPlan.Panel.fanSizeComboBox.%s.text", (Entity.FanSize) fanSizeComboBox.getSelectedItem());
+            markModified();
+        });
+        makeClickableToOpenDropdown(fanSizeComboBox);
+
         showBorderAndBackgroundLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.showBorderAndBackgroundLabel.text"));
         showBorderAndBackgroundCheckbox = new JCheckBox();
         showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
@@ -723,6 +772,77 @@ public class EntityOptionsPanel extends JPanel {
             markModified();
         });
 
+        // --- NEW: Create components for state-label specific options ---
+        labelColorLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.labelColorLabel.text"));
+        labelColorComboBox = new JComboBox<>();
+        for (String colorKey : LABEL_COLOR_KEYS) {
+            labelColorComboBox.addItem(resource.getString("HomeAssistantFloorPlan.Panel.labelColorComboBox." + colorKey + ".text"));
+        }
+        setComboBoxSelectionFromEntityValue(labelColorComboBox, entity.getLabelColor(), LABEL_COLOR_KEYS, "HomeAssistantFloorPlan.Panel.labelColorComboBox.%s.text", LABEL_COLOR_KEYS[0]); // Default to first color
+        labelColorComboBox.addActionListener(e -> {
+            String selectedLocalizedColor = (String) labelColorComboBox.getSelectedItem();
+            String colorValueToStore = getColorKeyFromLocalized(selectedLocalizedColor, LABEL_COLOR_KEYS, "HomeAssistantFloorPlan.Panel.labelColorComboBox.%s.text");
+            entity.setLabelColor(colorValueToStore.toLowerCase()); // Store lowercase
+            markModified();
+        });
+
+        labelFontWeightLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.labelFontWeightLabel.text"));
+        labelFontWeightComboBox = new JComboBox<>();
+        for (String weightKey : FONT_WEIGHT_KEYS) {
+            labelFontWeightComboBox.addItem(resource.getString("HomeAssistantFloorPlan.Panel.labelFontWeightComboBox." + weightKey + ".text"));
+        }
+        setComboBoxSelectionFromEntityValue(labelFontWeightComboBox, entity.getLabelFontWeight(), FONT_WEIGHT_KEYS, "HomeAssistantFloorPlan.Panel.labelFontWeightComboBox.%s.text", "NORMAL");
+        labelFontWeightComboBox.addActionListener(e -> {
+            String selectedDisplayValue = (String) labelFontWeightComboBox.getSelectedItem();
+            String valueToStore = getFontWeightValueFromDisplay(selectedDisplayValue, FONT_WEIGHT_KEYS);
+            entity.setLabelFontWeight(valueToStore);
+            markModified();
+        });
+
+        labelTextShadowLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.labelTextShadowLabel.text"));
+        // --- MODIFIED: Initialize JComboBox for text shadow ---
+        labelTextShadowComboBox = new JComboBox<>();
+        // Populate with predefined colors + "None"
+        // The actual value stored will be the color name (e.g., "black") or an empty string for "None"
+        String[] shadowColors = {"NONE", "BLACK", "WHITE", "GRAY", "RED", "BLUE", "GREEN", "YELLOW"};
+        for (String colorKey : shadowColors) {
+            labelTextShadowComboBox.addItem(resource.getString("HomeAssistantFloorPlan.Panel.textShadowColorComboBox." + colorKey + ".text"));
+        }
+        // Set selected item based on entity's current value
+        // If entity.getLabelTextShadow() is empty or null, select "None". Otherwise, find the matching localized string.
+        String currentShadow = entity.getLabelTextShadow();
+        if (currentShadow == null || currentShadow.trim().isEmpty()) {
+            labelTextShadowComboBox.setSelectedItem(resource.getString("HomeAssistantFloorPlan.Panel.textShadowColorComboBox.NONE.text"));
+        } else {
+            // Find the localized string that corresponds to the stored color name (e.g., "black" -> "Black")
+            // This assumes stored value is the uppercase key (BLACK, WHITE etc.)
+            // If stored value is lowercase (black, white), adjust this logic. For now, assume uppercase key.
+            labelTextShadowComboBox.setSelectedItem(resource.getString("HomeAssistantFloorPlan.Panel.textShadowColorComboBox." + currentShadow.toUpperCase() + ".text"));
+        }
+
+        labelTextShadowComboBox.addActionListener(e -> {
+            String selectedLocalizedColor = (String) labelTextShadowComboBox.getSelectedItem();
+            String colorValueToStore = getColorKeyFromLocalized(selectedLocalizedColor, shadowColors, "HomeAssistantFloorPlan.Panel.textShadowColorComboBox.%s.text");
+            entity.setLabelTextShadow(colorValueToStore.equals("NONE") ? "" : colorValueToStore.toLowerCase()); // Store lowercase or empty
+            markModified();
+        });
+
+        labelSuffixLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.labelSuffixLabel.text"));
+        labelSuffixComboBox = new JComboBox<>();
+        labelSuffixComboBox.setEditable(true);
+        labelSuffixComboBox.addItem(""); // Default empty option
+        labelSuffixComboBox.addItem(resource.getString("HomeAssistantFloorPlan.Panel.labelSuffixComboBox." + DEGREE_SYMBOL_KEY + ".text")); // Degree symbol
+        // Set initial selection
+        String currentSuffix = entity.getLabelSuffix();
+        if (currentSuffix == null || currentSuffix.isEmpty()) {
+            labelSuffixComboBox.setSelectedItem("");
+        } else {
+            labelSuffixComboBox.setSelectedItem(currentSuffix); // This handles "°" or any custom typed value
+        }
+        labelSuffixComboBox.addActionListener(e -> {
+            entity.setLabelSuffix((String) labelSuffixComboBox.getSelectedItem());
+            markModified();
+        });
 
 
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
@@ -909,6 +1029,52 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        add(fanSizeLabel, new GridBagConstraints( // Add Fan Size Label
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        fanSizeLabel.setHorizontalAlignment(labelAlignment);
+        add(fanSizeComboBox, new GridBagConstraints( // Add Fan Size ComboBox
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        // --- NEW: Layout for state-label specific options ---
+        add(labelColorLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        labelColorLabel.setHorizontalAlignment(labelAlignment);
+        add(labelColorComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0)); // Changed from labelColorTextField
+        currentGridYIndex++;
+
+        add(labelTextShadowLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        labelTextShadowLabel.setHorizontalAlignment(labelAlignment);
+        add(labelTextShadowComboBox, new GridBagConstraints( // Add ComboBox to layout
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0)); // Changed from labelTextShadowTextField
+        currentGridYIndex++;
+
+        add(labelFontWeightLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        labelFontWeightLabel.setHorizontalAlignment(labelAlignment);
+        add(labelFontWeightComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0)); // Changed from labelFontWeightTextField
+        currentGridYIndex++;
+
+        add(labelSuffixLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        labelSuffixLabel.setHorizontalAlignment(labelAlignment);
+        add(labelSuffixComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0)); // Changed from labelSuffixTextField
+        currentGridYIndex++;
+
         if (entity.getIsLight())
             layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
         else
@@ -975,6 +1141,11 @@ public class EntityOptionsPanel extends JPanel {
         fanColorLabel.setForeground(entity.isFanColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         showBorderAndBackgroundLabel.setForeground(entity.isShowBorderAndBackgroundModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         furnitureDisplayStateLabel.setForeground(entity.isFurnitureDisplayConditionModified() ? modifiedColor : Color.BLACK);
+        labelColorLabel.setForeground(entity.isLabelColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        labelTextShadowLabel.setForeground(entity.isLabelTextShadowModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        labelFontWeightLabel.setForeground(entity.isLabelFontWeightModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        labelSuffixLabel.setForeground(entity.isLabelSuffixModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+
         validateFanConfiguration(); // Ensure fan config validation overrides color if needed
     }
 
@@ -998,6 +1169,8 @@ public class EntityOptionsPanel extends JPanel {
         showFanWhenOffCheckbox.setVisible(fanComponentsVisible);
         fanColorLabel.setVisible(fanComponentsVisible);
         fanColorComboBox.setVisible(fanComponentsVisible);
+        fanSizeLabel.setVisible(fanComponentsVisible); // Show/hide Fan Size components
+        fanSizeComboBox.setVisible(fanComponentsVisible);
 
         // Border and Background option is always visible
         showBorderAndBackgroundLabel.setVisible(true);
@@ -1006,6 +1179,17 @@ public class EntityOptionsPanel extends JPanel {
         boolean borderBgEnabled = showBorderAndBackgroundCheckbox.isSelected();
         backgroundColorLabel.setEnabled(borderBgEnabled);
         backgroundColorTextField.setEnabled(borderBgEnabled);
+
+        // Show/hide state-label specific components
+        boolean labelSpecificComponentsVisible = (Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.LABEL;
+        labelColorLabel.setVisible(labelSpecificComponentsVisible);
+        labelColorComboBox.setVisible(labelSpecificComponentsVisible);
+        labelTextShadowLabel.setVisible(labelSpecificComponentsVisible);
+        labelTextShadowComboBox.setVisible(labelSpecificComponentsVisible); // Show/hide ComboBox
+        labelFontWeightLabel.setVisible(labelSpecificComponentsVisible);
+        labelFontWeightComboBox.setVisible(labelSpecificComponentsVisible);
+        labelSuffixLabel.setVisible(labelSpecificComponentsVisible);
+        labelSuffixComboBox.setVisible(labelSpecificComponentsVisible);
 
         // Ensure the panel re-calculates its layout and repaints
         revalidate();
@@ -1091,6 +1275,7 @@ public class EntityOptionsPanel extends JPanel {
         // This ensures the panel has its correct preferred size before the dialog is packed.
         dialog.pack();
         
+        dialog.setResizable(true); // Explicitly set resizable
         dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(parentComponent)); // Center it
         dialog.setModal(true);
         dialog.setVisible(true);
@@ -1201,5 +1386,59 @@ public class EntityOptionsPanel extends JPanel {
             return false; // No overlap
         }
         return true; // Overlap
+    }
+
+    // Helper to get the original key (e.g., "BLACK") from a localized string (e.g., "Black")
+    private String getColorKeyFromLocalized(String localizedValue, String[] keys, String resourcePattern) {
+        if (localizedValue == null) return "NONE"; // Default to NONE if null
+        for (String key : keys) {
+            String localizedKeyString = resource.getString(String.format(resourcePattern, key));
+            if (localizedValue.equals(localizedKeyString)) {
+                return key; // Return the uppercase key (BLACK, WHITE, etc.)
+            }
+        }
+        return "NONE"; // Fallback if no match found
+    }
+
+    // Helper to set ComboBox selection based on stored entity value
+    private void setComboBoxSelectionFromEntityValue(JComboBox<String> comboBox, String entityValue, String[] keys, String resourcePattern, String defaultKeyIfNotFound) {
+        if (entityValue == null || entityValue.trim().isEmpty()) {
+            // If entity value is empty, try to select the item corresponding to defaultKeyIfNotFound
+            String defaultLocalized = resource.getString(String.format(resourcePattern, defaultKeyIfNotFound));
+            comboBox.setSelectedItem(defaultLocalized);
+            return;
+        }
+
+        // Try to find a direct match for keys like "NORMAL", "BOLD", "BLACK", "WHITE"
+        for (String key : keys) {
+            // For font weights like "100", "700", the entityValue is the key itself.
+            // For colors like "black", "white", entityValue is lowercase key.
+            if (entityValue.equalsIgnoreCase(key) || entityValue.equals(key.toLowerCase())) {
+                 String localized = resource.getString(String.format(resourcePattern, key.toUpperCase()));
+                 comboBox.setSelectedItem(localized);
+                 return;
+            }
+        }
+        // If no direct key match, assume entityValue might be a custom typed value (e.g. for editable suffix)
+        // or a value that doesn't have a direct key (like a specific hex color if we allowed that)
+        // For non-editable combo boxes, this means we couldn't find a match.
+        if (!comboBox.isEditable()) {
+            String defaultLocalized = resource.getString(String.format(resourcePattern, defaultKeyIfNotFound.toUpperCase()));
+            comboBox.setSelectedItem(defaultLocalized); // Fallback to default
+        } else {
+            comboBox.setSelectedItem(entityValue); // For editable, just set it
+        }
+    }
+
+    // Helper to get the storable font-weight value from its display string
+    private String getFontWeightValueFromDisplay(String displayValue, String[] keys) {
+        if (displayValue == null) return "normal"; // Default
+        for (String key : keys) {
+            String localizedKeyString = resource.getString("HomeAssistantFloorPlan.Panel.labelFontWeightComboBox." + key + ".text");
+            if (displayValue.equals(localizedKeyString)) {
+                return key.toLowerCase(); // "normal", "bold", or "100", "700" etc.
+            }
+        }
+        return displayValue; // Should not happen if populated correctly, but as a fallback
     }
 }

@@ -11,6 +11,7 @@ import java.io.InterruptedIOException;
 import java.io.InputStream;
 import java.lang.InterruptedException;
 import java.nio.channels.ClosedByInterruptException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -18,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,6 +35,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.nio.file.StandardCopyOption;
 import java.util.ResourceBundle;
+import javax.swing.SwingUtilities;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
@@ -104,10 +107,25 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         this.home = home;
         settings = new Settings(home);
         camera = home.getCamera().clone();
+
+        // Listen to the Home model for camera changes
+        home.addPropertyChangeListener("camera", new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent evt) {
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        // Explicitly update the plugin's working camera to the latest from Home
+                        applySelectedCameraToWorkingCamera(); // Make sure this.camera is fresh
+                        repositionEntities(); // This will then use the fresh this.camera
+                    }
+                });
+            }
+        });
+
         this.resourceBundle = resourceBundle;
         propertyChangeSupport = new PropertyChangeSupport(this);
         loadDefaultSettings();
-        createHomeAssistantEntities();
+        createHomeAssistantEntities(); // Call the new method
 
         buildLightsGroups();
         buildScenes();
@@ -267,84 +285,69 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         settings.setListLong(CONTROLLER_RENDER_TIME, renderDateTimes);
         buildScenes();
     }
+    
+    // Method to get stored camera names, might be useful if re-enabled or for other purposes
+    // public List<String> getStoredCameraNamesFromHome() { ... }
+    
+    public BufferedImage generatePreviewImage() throws IOException, InterruptedException {
+        // The plugin's 'this.camera' is already a clone of home.getCamera()
+        // from when the modal dialog was opened.
+        // renderWidth and renderHeight are current settings.
+
+        AbstractPhotoRenderer previewPhotoRenderer = null;
+        try {
+            Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
+                put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
+                put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
+            }};
+            // Use the currently selected renderer type, but force LOW quality
+            previewPhotoRenderer = AbstractPhotoRenderer.createInstance(
+                rendererToClassName.get(this.renderer),
+                this.home, // Pass the actual home object, rendering its current light state
+                null,
+                AbstractPhotoRenderer.Quality.LOW); // Force LOW quality for speed
+
+            BufferedImage image = new BufferedImage(this.renderWidth, this.renderHeight, BufferedImage.TYPE_INT_RGB);
+
+            // Render with the plugin's current working camera
+            previewPhotoRenderer.render(image, this.camera, null);
+
+            if (Thread.interrupted()) { // Check if the thread was interrupted during render
+                throw new InterruptedException("Preview rendering interrupted");
+            }
+            return image;
+        } finally {
+            if (previewPhotoRenderer != null) {
+                previewPhotoRenderer.dispose();
+            }
+        }
+    }
 
     public Map<String, Double> getRoomBoundingBoxPercent(Entity entity) {
         if (this.houseNdcBounds == null) {
             System.err.println("Error: houseNdcBounds not calculated. Cannot get room bounding box.");
             return null;
         }
-        if (entity == null || entity.getPiecesOfFurniture().isEmpty() || home == null) {
+        if (entity == null) { // getRoomForEntity will handle if piecesOfFurniture is empty
             return null;
         }
 
-        // Get the entity's 3D centroid and 2D projected icon center
-        Point3f entityCentroid3D = getEntity3DCentroid(entity);
-        if (entityCentroid3D == null) {
-            System.err.println("Warning: Could not calculate 3D centroid for entity: " + entity.getName());
-            return null;
-        }
-        // The entity's position is already its 2D projected center (icon center)
-        Point2d iconCenterProjected = entity.getPosition(); 
+        // Use the consistent getRoomForEntity method (origin-based) to determine the entity's room.
+        Room entityRoom = getRoomForEntity(entity);
 
-        com.eteks.sweethome3d.model.Level entityLevel = null;
-        if (!entity.getPiecesOfFurniture().isEmpty()) {
-            entityLevel = entity.getPiecesOfFurniture().get(0).getLevel();
-        } else {
-            System.err.println("Warning: Entity " + entity.getName() + " has no pieces of furniture to determine its level.");
+        if (entityRoom == null) {
+            // System.err.println("Info: Entity " + entity.getName() + " not found in any room by getRoomForEntity. Cannot calculate Room Size bounds.");
             return null;
         }
 
-        List<Room> candidateRooms = new ArrayList<>();
-        for (Room room : home.getRooms()) {
-            if (entityLevel != room.getLevel()) {
-                continue;
-            }
-            if (room.containsPoint(entityCentroid3D.x, entityCentroid3D.y, entityCentroid3D.z)) {
-                candidateRooms.add(room);
-            }
-        }
-
-        if (candidateRooms.isEmpty()) {
-            // System.err.println("Info: Entity " + entity.getName() + " not found in any room by 3D centroid.");
+        // The level for calculating bounds should be the room's level.
+        com.eteks.sweethome3d.model.Level roomLevel = entityRoom.getLevel();
+        if (roomLevel == null) {
+             System.err.println("Warning: Room '" + entityRoom.getName() + "' associated with entity '" + entity.getName() + "' has no level. Cannot calculate Room Size bounds.");
             return null;
         }
-
-        Room foundRoom = null;
-        Map<String, Double> bestBounds = null;
-
-        // Iterate through candidate rooms to find the best fit based on 2D projection
-        for (Room candidateRoom : candidateRooms) {
-            Map<String, Double> currentBounds = calculateRoom2DBounds(candidateRoom, entityLevel);
-            if (currentBounds == null) {
-                continue;
-            }
-
-            // Check if icon center is within these currentBounds (after shrinkage)
-            if (iconCenterProjected.x >= currentBounds.get("left") &&
-                iconCenterProjected.x <= (currentBounds.get("left") + currentBounds.get("width")) &&
-                iconCenterProjected.y >= currentBounds.get("top") &&
-                iconCenterProjected.y <= (currentBounds.get("top") + currentBounds.get("height"))) {
-                foundRoom = candidateRoom;
-                bestBounds = currentBounds;
-                // System.out.println("DEBUG: Entity " + entity.getName() + " fits in 2D bounds of room " + candidateRoom.getName());
-                break;
-            }
-        }
-
-        if (foundRoom == null) return null;
         
-        List<float[]> roomWorldPoints = Arrays.asList(foundRoom.getPoints());
-        if (roomWorldPoints == null || roomWorldPoints.isEmpty()) return null;
-        
-        // If we found a room whose 2D projection contains the icon, return its bounds.
-        if (bestBounds != null) {
-            return bestBounds;
-        }
-
-        // Fallback: if no room's 2D projection contained the icon,
-        // use the first candidate room found by 3D containment and calculate its bounds.
-        // The Entity.java logic will then expand these bounds if necessary.
-        return calculateRoom2DBounds(candidateRooms.get(0), entityLevel);
+        return calculateRoom2DBounds(entityRoom, roomLevel);
     }
 
     private Map<String, Double> calculateRoom2DBounds(Room room, 
@@ -516,6 +519,10 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
 
+        // Ensure the plugin's working camera and projection are up-to-date with the selected setting
+        applySelectedCameraToWorkingCamera(); // Refreshes this.camera
+        build3dProjection(); // Rebuilds this.perspectiveTransform based on the refreshed this.camera
+
         try {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
@@ -542,8 +549,17 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             for (Scene scene : scenes) {
                 Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
                 Files.createDirectories(Paths.get(outputFloorplanDirectoryName + File.separator + scene.getName()));
-
-                scene.prepare();
+                final Scene currentSceneForEdt = scene;
+                try {
+                    SwingUtilities.invokeAndWait(() -> {
+                        currentSceneForEdt.prepare();
+                    });
+                } catch (InvocationTargetException e) {
+                    throw new RuntimeException("Error preparing scene on EDT", e.getCause() != null ? e.getCause() : e);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); // Re-assert interrupt status
+                    throw e; // Propagate InterruptedException
+                }
 
                 String baseImageName = "base";
                 if (!scene.getName().isEmpty())
@@ -567,6 +583,10 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 "  }\n";
             yaml += globalStyles;
 
+            // Append grid_options
+            yaml += "\ngrid_options:\n" +
+                    "  columns: full\n";
+
             Files.write(Paths.get(outputFloorplanDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (InterruptedIOException e) {
             throw new InterruptedException();
@@ -578,7 +598,17 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             // e.printStackTrace(); // Consider if this is needed or if the caller handles logging.
             throw e;
         } finally {
-            restoreEntityConfiguration();
+            try {
+                SwingUtilities.invokeAndWait(() -> {
+                    restoreEntityConfiguration();
+                });
+            } catch (InvocationTargetException e) {
+                System.err.println("Error restoring entity configuration on EDT: " + e.getCause());
+                 // Log or handle more gracefully
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Re-assert interrupt status
+                System.err.println("Interrupted while waiting for entity configuration restoration on EDT.");
+            }
         }
     }
 
@@ -613,62 +643,102 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         }
     }
 
+    // This method is removed as we now create an Entity per piece directly.
+    // private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) { ... }
 
-    private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
-        for (HomePieceOfFurniture piece : furnitureList) {
+    // Helper to add common property change listeners to an entity
+    private void addCommonPropertyChangeListeners(Entity entity) {
+        entity.addPropertyChangeListener(Entity.Property.POSITION, ev -> repositionEntities());
+        PropertyChangeListener buildAndUpdateCountsListener = ev -> {
+            buildLightsGroups();
+            buildScenes();
+            propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+        };
+        entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, buildAndUpdateCountsListener);
+        entity.addPropertyChangeListener(Entity.Property.FURNITURE_DISPLAY_CONDITION, buildAndUpdateCountsListener);
+        entity.addPropertyChangeListener(Entity.Property.IS_RGB, buildAndUpdateCountsListener);
+    }
+
+    // Helper to recursively collect and categorize HomePieceOfFurniture items
+    private void collectAndCategorizeHaPieces(List<HomePieceOfFurniture> furnitureListToProcess,
+                                              Map<String, List<HomePieceOfFurniture>> lightHaPiecesGroupedByName,
+                                              List<HomePieceOfFurniture> nonLightHaPiecesOutputList) {
+        for (HomePieceOfFurniture piece : furnitureListToProcess) {
             if (piece instanceof HomeFurnitureGroup) {
-                addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, ((HomeFurnitureGroup)piece).getFurniture());
+                collectAndCategorizeHaPieces(((HomeFurnitureGroup) piece).getFurniture(), lightHaPiecesGroupedByName, nonLightHaPiecesOutputList);
                 continue;
             }
-            if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible())
-                continue;
-            boolean isLight = piece instanceof HomeLight;
-            if (isLight && ((HomeLight)piece).getPower() == 0f)
-                continue;
-            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel()) {
-                if (isLight)
-                    lightsFromOtherLevels.add(piece);
-                continue;
+
+            if (isHomeAssistantEntity(piece.getName()) && piece.isVisible()) {
+                String haName = piece.getName();
+                if (haName.startsWith("light.") || haName.startsWith("switch.")) {
+                    lightHaPiecesGroupedByName.computeIfAbsent(haName, k -> new ArrayList<>()).add(piece);
+                } else {
+                    nonLightHaPiecesOutputList.add(piece);
+                }
             }
-            if (!furnitureByName.containsKey(piece.getName()))
-                furnitureByName.put(piece.getName(), new ArrayList<HomePieceOfFurniture>());
-            furnitureByName.get(piece.getName()).add(piece);
         }
     }
 
     private void createHomeAssistantEntities() {
-        Map<String, List<HomePieceOfFurniture>> furnitureByName = new HashMap<>();
-        List<HomePieceOfFurniture> lightsFromOtherLevels = new ArrayList<>();
-        addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, home.getFurniture());
+        // Map for grouping LIGHT HA entities by their HA name
+        Map<String, List<HomePieceOfFurniture>> lightHaPiecesGroupedByName = new HashMap<>();
+        // List for HomePieceOfFurniture items that are HA entities but NOT lights
+        List<HomePieceOfFurniture> nonLightHaPieces = new ArrayList<>();
 
-        for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
-        Entity entity = new Entity(settings, pieces, resourceBundle);
-            entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    repositionEntities();
-                }
-            });
-            entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    buildLightsGroups();
-                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
-                }
-            });
-            entity.addPropertyChangeListener(Entity.Property.FURNITURE_DISPLAY_CONDITION, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    buildScenes();
-                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
-                }
-            });
+        // Step 1: Traverse all furniture. Group light pieces by HA name. Collect non-light HA pieces.
+        collectAndCategorizeHaPieces(home.getFurniture(), lightHaPiecesGroupedByName, nonLightHaPieces);
 
-            if (entity.getIsLight())
-                lightEntities.add(entity);
-            else
-                otherEntities.add(entity);
+        // Step 2: Create Entity objects for grouped LIGHT entities
+        for (Map.Entry<String, List<HomePieceOfFurniture>> entry : lightHaPiecesGroupedByName.entrySet()) {
+            String haLightName = entry.getKey(); // e.g., "light.family_room"
+            List<HomePieceOfFurniture> associatedLightPieces = entry.getValue();
+
+            if (associatedLightPieces.isEmpty()) continue;
+
+            // Create a single Entity for this light.* HA entity name
+            Entity lightEntity = new Entity(settings, associatedLightPieces, resourceBundle);
+            addCommonPropertyChangeListeners(lightEntity);
+
+            // Determine if this lightEntity belongs to lightEntities or otherLevelsEntities
+            boolean anyPieceOnSelectedLevel = associatedLightPieces.stream()
+                .anyMatch(p -> home.getEnvironment().isAllLevelsVisible() || (p.getLevel() != null && p.getLevel() == home.getSelectedLevel()));
+
+            // True if all SH3D pieces for this light.* HA entity are actual HomeLight instances
+            // AND all these pieces are exclusively on other levels.
+            boolean allPiecesAreSh3dLightsAndExclusivelyOnOtherLevels =
+                associatedLightPieces.stream().allMatch(p -> p instanceof HomeLight) &&
+                associatedLightPieces.stream().allMatch(p ->
+                    !home.getEnvironment().isAllLevelsVisible() &&
+                    (p.getLevel() != null && p.getLevel() != home.getSelectedLevel())
+                );
+
+            if (allPiecesAreSh3dLightsAndExclusivelyOnOtherLevels) {
+                this.otherLevelsEntities.add(lightEntity);
+            } else if (anyPieceOnSelectedLevel) {
+                this.lightEntities.add(lightEntity);
+            }
         }
 
-        for (HomePieceOfFurniture piece : lightsFromOtherLevels)
-        otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece), resourceBundle));
+        // Step 3: Create Entity objects for non-light HA entities (one Entity per piece)
+        for (HomePieceOfFurniture nonLightPiece : nonLightHaPieces) {
+            // Create an Entity for this single non-light piece.
+            Entity otherEntity = new Entity(settings, Arrays.asList(nonLightPiece), resourceBundle);
+            addCommonPropertyChangeListeners(otherEntity);
+
+            boolean isOnSelectedLevel = home.getEnvironment().isAllLevelsVisible() ||
+                                        (nonLightPiece.getLevel() != null && nonLightPiece.getLevel() == home.getSelectedLevel());
+
+            if (isOnSelectedLevel) {
+                this.otherEntities.add(otherEntity);
+            }
+            // Non-light entities on other levels are currently not added to primary lists.
+        }
+
+        // Step 4: Sort all lists
+        Collections.sort(this.lightEntities);
+        Collections.sort(this.otherEntities);
+        Collections.sort(this.otherLevelsEntities);
     }
 
     private void buildLightsGroupsByRoom() {
@@ -872,8 +942,19 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
+        }        
+        final List<Entity> finalOnLights = new ArrayList<>(onLights); // Ensure effectively final for lambda
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                prepareScene(finalOnLights);
+            });
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException("Error preparing scene for image on EDT", e.getCause() != null ? e.getCause() : e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Re-assert interrupt status
+            throw e; // Propagate InterruptedException
         }
-        prepareScene(onLights);
+
         BufferedImage image = renderScene();
         File imageFile = new File(fileName);
         ImageIO.write(image, "png", imageFile);
@@ -1128,8 +1209,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         ndcPos.scale(1.0 / ndcPos.w); // Perspective divide (NDC: -1 to 1 range)
         
         // Convert NDC to screen percentage (0% to 100%) for the entire viewport.
-        // This reverts to the pre-houseNdcBounds logic for icons, as per user feedback.
-        // Uses the Y-scaling (ndcPos.y * 0.5 + 0.5) that user previously preferred.
+        // (ndcPos.x * 0.5 + 0.5) maps NDC X from [-1, 1] to screen X [0, 1]
+        // (ndcPos.y * 0.5 + 0.5) maps NDC Y from [-1, 1] to screen Y [0, 1] (where 0% is top, 100% is bottom if Y points up in NDC)
         double screenXPercent = (ndcPos.x * 0.5 + 0.5) * 100.0;
         double screenYPercent = (ndcPos.y * 0.5 + 0.5) * 100.0; 
         return new Point2d(screenXPercent, screenYPercent);
@@ -1137,8 +1218,35 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
 
     private String generateEntitiesYaml() {
-        return Stream.concat(lightEntities.stream(), otherEntities.stream())
+        // Combine light and other entities into a single list for sorting
+        List<Entity> allEntities = Stream.concat(lightEntities.stream(), otherEntities.stream())
+                                       .collect(Collectors.toList());
+        Collections.sort(allEntities, new Comparator<Entity>() {
+            @Override
+            public int compare(Entity e1, Entity e2) {
+                boolean e1IsAllNone = e1.getTapAction() == Entity.Action.NONE && e1.getDoubleTapAction() == Entity.Action.NONE && e1.getHoldAction() == Entity.Action.NONE;
+                boolean e2IsAllNone = e2.getTapAction() == Entity.Action.NONE && e2.getDoubleTapAction() == Entity.Action.NONE && e2.getHoldAction() == Entity.Action.NONE;
+
+                // Primary sort: Entities with all 'NONE' actions come first
+                if (e1IsAllNone && !e2IsAllNone) return -1; // e1 comes first
+                if (!e1IsAllNone && e2IsAllNone) return 1;  // e2 comes first
+
+                // Secondary sort (if both are 'all none' or both are not 'all none'): ClickableAreaType
+                // ROOM_SIZE comes before ENTITY_SIZE
+                boolean e1IsRoomSize = e1.getClickableAreaType() == Entity.ClickableAreaType.ROOM_SIZE;
+                boolean e2IsRoomSize = e2.getClickableAreaType() == Entity.ClickableAreaType.ROOM_SIZE;
+
+                if (e1IsRoomSize && !e2IsRoomSize) return -1; // e1 (Room Size) comes before e2 (Not Room Size)
+                if (!e1IsRoomSize && e2IsRoomSize) return 1;  // e2 (Room Size) comes before e1 (Not Room Size)
+
+                // Tertiary sort: Natural order (name, then ID)
+                return e1.compareTo(e2);
+            }
+        });
+
+        return allEntities.stream()
             .map(entity -> entity.buildYaml(this)) // Pass controller instance
+            .filter(yamlString -> yamlString != null && !yamlString.isEmpty()) // Filter out empty YAML strings
             .collect(Collectors.joining());
     }
 
@@ -1306,28 +1414,42 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         return Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList());
     }
 
+    private void applySelectedCameraToWorkingCamera() {
+        Camera baseCameraToUse = null;
+        // Always use the current home camera as the base.
+        baseCameraToUse = home.getCamera();
+
+        // Update this.camera to reflect baseCameraToUse.
+        // clone() is known to be available on Camera objects,
+        // and clone() is known to be available on Camera objects,
+        // we replace this.camera with a clone of baseCameraToUse.
+        // this.camera is guaranteed to be non-null here due to initialization in the constructor.
+        this.camera = baseCameraToUse.clone();
+    }
+
     public Room getRoomForEntity(Entity entity) {
-        if (entity == null) {
+        if (entity == null || entity.getPiecesOfFurniture().isEmpty()) {
             return null;
         }
-        Point3f entityCentroid3D = getEntity3DCentroid(entity);
-        if (entityCentroid3D == null) {
-            // This case is already handled with a System.err in getEntity3DCentroid if pieces are empty
-            // or if entity.getPiecesOfFurniture().isEmpty() is true.
-            return null;
-        }
+        HomePieceOfFurniture firstPiece = entity.getPiecesOfFurniture().get(0);
 
-        com.eteks.sweethome3d.model.Level entityLevel = null;
-        if (!entity.getPiecesOfFurniture().isEmpty()) {
-            entityLevel = entity.getPiecesOfFurniture().get(0).getLevel();
-        } else {
-            // This case is also handled by getEntity3DCentroid returning null.
-            return null;
-        }
+        // Get the furniture's 2D world coordinates (X and Y-depth)
+        float furnitureCheckX = firstPiece.getX();
+        float furnitureCheckY_depth = firstPiece.getY(); 
 
+        // Iterate through all rooms. For each room, check if the furniture's 2D (X, Y-depth)
+        // coordinates fall within the room's 2D area by testing against the room's floor level.
         for (Room room : home.getRooms()) {
-            if (entityLevel == room.getLevel() && room.containsPoint(entityCentroid3D.x, entityCentroid3D.y, entityCentroid3D.z)) {
-                return room;
+            // Ensure we are checking rooms on the same level as the furniture piece.
+            if (firstPiece.getLevel() == room.getLevel()) {
+                // For the Z coordinate in containsPoint, use the room's floor elevation.
+                // Add a very small epsilon to ensure the point is slightly above the floor plane,
+                // which can help with floating point precision in some containment checks.
+                float roomFloorZ = room.getLevel().getElevation() + 0.01f; 
+
+                if (room.containsPoint(furnitureCheckX, furnitureCheckY_depth, roomFloorZ)) {
+                    return room;
+                }
             }
         }
         return null; // Entity not found in any room

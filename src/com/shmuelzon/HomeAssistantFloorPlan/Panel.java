@@ -4,6 +4,7 @@ import java.awt.Component;
 import java.awt.ComponentOrientation;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Dialog;
 import java.awt.EventQueue;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -12,6 +13,7 @@ import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
+import java.awt.Cursor;
 import java.awt.event.ItemListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -19,6 +21,7 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.time.Instant;
+import java.awt.image.BufferedImage;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -31,10 +34,12 @@ import java.util.ResourceBundle;
 import java.util.TimeZone;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
 import javax.swing.ActionMap;
 import javax.swing.DefaultListCellRenderer;
+import javax.swing.ImageIcon;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -50,6 +55,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.JTree;
+import javax.swing.SwingWorker;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerDateModel;
 import javax.swing.SpinnerNumberModel;
@@ -65,6 +71,12 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreePath;
 
+import com.eteks.sweethome3d.model.Content;
+import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.PieceOfFurniture; // Use this interface
+import com.eteks.sweethome3d.model.CatalogPieceOfFurniture; // For accessing category
+import com.eteks.sweethome3d.model.FurnitureCategory;     // For category name
+import com.eteks.sweethome3d.model.Room;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.swing.AutoCommitSpinner;
 import com.eteks.sweethome3d.swing.FileContentManager;
@@ -77,7 +89,7 @@ import com.eteks.sweethome3d.viewcontroller.View;
 
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
-    private enum ActionType {ADD_RENDER_TIME, REMOVE_RENDER_TIME, BROWSE, START, STOP, CLOSE}
+    private enum ActionType {ADD_RENDER_TIME, REMOVE_RENDER_TIME, BROWSE, START, STOP, CLOSE, PREVIEW}
 
     final TimeZone timeZone = TimeZone.getTimeZone("UTC");
     private static Panel currentPanel;
@@ -120,21 +132,141 @@ public class Panel extends JPanel implements DialogView {
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
+    private JButton previewButton;
 
     private class EntityNode {
         public Entity entity;
         public List<String> attributes;
+        private Controller nodeController; // Store controller for room lookup
 
-        public EntityNode(Entity entity) {
+        public EntityNode(Entity entity, Controller controller) {
             this.entity = entity;
+            this.nodeController = controller;
         }
 
         @Override
         public String toString() {
-            List<String> attributes = attributesList();
-            if (attributes.size() == 0)
-                return entity.getName();
-            return entity.getName() + " " + attributes.toString();
+            StringBuilder sb = new StringBuilder();
+            String entityIdPart = entity.getName(); // This is now the entity_id part
+            String attributePart = entity.getAttribute();
+
+            if (entityIdPart != null) {
+                int dotIndex = entityIdPart.indexOf('.');
+                if (dotIndex != -1 && dotIndex < entityIdPart.length() - 1) {
+                    sb.append(entityIdPart.substring(dotIndex + 1));
+                } else {
+                    sb.append(entityIdPart);
+                }
+            }
+
+            List<String> details = new ArrayList<>();
+            String simplifiedType = null;
+            String sh3dId = entity.getId();
+            // If there's an attribute, add it to the details.
+            if (attributePart != null && !attributePart.isEmpty()) {
+                details.add("attr: " + attributePart);
+            }
+            List<? extends com.eteks.sweethome3d.model.HomePieceOfFurniture> pieces = entity.getPiecesOfFurniture();
+
+            if (pieces != null && !pieces.isEmpty()) {
+                com.eteks.sweethome3d.model.HomePieceOfFurniture firstPiece = pieces.get(0);
+
+                Content contentModel = firstPiece.getModel();
+                if (contentModel instanceof PieceOfFurniture) {
+                    PieceOfFurniture model = (PieceOfFurniture) contentModel;
+
+                    if (entity.getIsLight()) {
+                        // For lights, type is implicitly "Light", so simplifiedType remains null
+                    } else if (model.isDoorOrWindow()) { // Check if it's a door or window type
+                        // Since getInformation() is for tooltips, and getName() is HA entity ID,
+                        // we infer by checking if the HA entity ID (model.getName()) contains "door" or "window".
+                        String modelName = model.getName(); // This is the HA entity ID
+                        if (modelName != null && !modelName.trim().isEmpty()) {
+                            String lowerModelName = modelName.toLowerCase();
+                            if (lowerModelName.contains("door")) {
+                                simplifiedType = "Door";
+                            } else if (lowerModelName.contains("window")) {
+                                simplifiedType = "Window";
+                            } else {
+                                simplifiedType = "Door/Window"; // Fallback if name isn't specific
+                            }
+                        } else {
+                            simplifiedType = "Door/Window"; // Fallback if no name
+                        }
+                    } else {
+                        // For other non-light, non-door/window furniture
+                        String modelInfoName = null; // From model.getInformation()
+                        String categoryName = null;
+
+                        // Prioritize model.getInformation() for the descriptive name
+                        if (model.getInformation() != null && !model.getInformation().trim().isEmpty()) {
+                            modelInfoName = model.getInformation().trim();
+                        }
+
+                        // Get category name if it's a CatalogPieceOfFurniture
+                        // Only try category if modelInfoName wasn't specific enough
+                        if (modelInfoName == null || modelInfoName.isEmpty() || "Piece of furniture".equalsIgnoreCase(modelInfoName) || "Default".equalsIgnoreCase(modelInfoName)) {
+                            if (model instanceof CatalogPieceOfFurniture) {
+                                FurnitureCategory category = ((CatalogPieceOfFurniture) model).getCategory();
+                                if (category != null && category.getName() != null && !category.getName().trim().isEmpty()) {
+                                    categoryName = category.getName().trim();
+                                }
+                            }
+                        }
+
+                        // Decision logic: Prefer specific model name, then category, then fallback
+                        if (modelInfoName != null && !modelInfoName.equalsIgnoreCase("Piece of furniture") && !modelInfoName.equalsIgnoreCase("Default") && !modelInfoName.isEmpty()) {
+                            simplifiedType = modelInfoName;
+                            if ("Armchair".equalsIgnoreCase(simplifiedType) || "Office chair".equalsIgnoreCase(simplifiedType)) {
+                                simplifiedType = "Chair"; // Refine common names
+                            }
+                        } else if (categoryName != null && !categoryName.isEmpty() && !"Miscellaneous".equalsIgnoreCase(categoryName)) {
+                            // Model name was generic/null/empty, use category name if it's not too generic itself
+                            simplifiedType = categoryName;
+                        } else if (model.getName() != null && !model.getName().trim().isEmpty() && !model.getName().equalsIgnoreCase("Piece of furniture") && !model.getName().equalsIgnoreCase("Default")) {
+                            // Fallback to model.getName() if info and category were not useful, but avoid HA entity ID if it's the same as model.getName()
+                            if (!entity.getName().equals(model.getName())) { // Avoid using the HA entity ID as the type
+                                simplifiedType = model.getName().trim();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback to ID parsing if simplifiedType is still null AND it's not a light
+            if (!entity.getIsLight() && simplifiedType == null && sh3dId != null) {
+                int hyphenIndex = sh3dId.indexOf('-');
+                if (hyphenIndex > 0) {
+                    String rawTypeFromId = sh3dId.substring(0, hyphenIndex);
+                    if ("PieceOfFurniture".equalsIgnoreCase(rawTypeFromId)) {
+                        simplifiedType = "Furniture"; // Generic fallback from ID
+                    } else if (!rawTypeFromId.isEmpty()) {
+                        simplifiedType = Character.toUpperCase(rawTypeFromId.charAt(0)) + rawTypeFromId.substring(1);
+                    }
+                }
+            }
+
+            // Add simplified type to details list if it's NOT a light entity and a type is determined
+            if (!entity.getIsLight() && simplifiedType != null && !simplifiedType.isEmpty()) {
+                details.add(simplifiedType);
+            }
+
+            if (this.nodeController != null) {
+                Room room = this.nodeController.getRoomForEntity(this.entity);
+                if (room != null && room.getName() != null && !room.getName().trim().isEmpty()) {
+                    details.add(room.getName());
+                }
+            }
+
+            if (!details.isEmpty()) {
+                sb.append(" (").append(String.join(", ", details)).append(")");
+            }
+
+            List<String> currentAttributes = attributesList();
+            if (!currentAttributes.isEmpty()) {
+                sb.append(" ").append(currentAttributes.toString());
+            }
+            return sb.toString();
         }
 
         // --- MODIFIED: This method now correctly checks the new operator/value fields ---
@@ -153,6 +285,12 @@ public class Panel extends JPanel implements DialogView {
             }
             if (entity.getBlinking())
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.blinking.text"));
+            // Optionally, you could add indicators for label-specific styles here if desired
+            // For example:
+            // if (entity.getDisplayType() == Entity.DisplayType.LABEL && entity.getLabelColor() != null && !entity.getLabelColor().isEmpty()) {
+            //     attributes.add("custom color");
+            // }
+
 
             return attributes;
         }
@@ -208,24 +346,46 @@ public class Panel extends JPanel implements DialogView {
                 renderExecutor = Executors.newSingleThreadExecutor();
                 renderExecutor.execute(new Runnable() {
                     public void run() {
-                        setComponentsEnabled(false);
+                        // Disable UI components. It's generally safe to call this from the worker thread
+                        // as setComponentsEnabled mostly sets properties. For strict EDT-only, use SwingUtilities.invokeLater.
+                        SwingUtilities.invokeLater(() -> setComponentsEnabled(false));
+
+                        String finalMessage = null;
+                        String finalTitle = null;
+                        int finalMessageType = JOptionPane.INFORMATION_MESSAGE;
+
                         try {
                             controller.render();
-                            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.info.finishedRendering.text"));
+                            finalMessage = resource.getString("HomeAssistantFloorPlan.Panel.info.finishedRendering.text");
+                            // Title can be null for information messages or set if desired
                         } catch (InterruptedException e) { // Log InterruptedException
                             System.err.println("Rendering process was interrupted:");
                             e.printStackTrace();
+                            // Optionally set a message for the user about interruption
+                            // finalMessage = "Rendering was interrupted.";
+                            // finalTitle = "Interrupted";
+                            // finalMessageType = JOptionPane.WARNING_MESSAGE;
                         } catch (Exception e) {
                             System.err.println("Exception during rendering process:");
                             e.printStackTrace();
-                            JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + "\n" + e.getMessage(), resource.getString("HomeAssistantFloorPlan.Panel.error.title"), JOptionPane.ERROR_MESSAGE);
+                            finalMessage = resource.getString("HomeAssistantFloorPlan.Panel.error.failedRendering.text") + "\n" + e.getMessage();
+                            finalTitle = resource.getString("HomeAssistantFloorPlan.Panel.error.title");
+                            finalMessageType = JOptionPane.ERROR_MESSAGE;
+                        } finally {
+                            // This block ensures UI is re-enabled and messages are shown on the EDT
+                            final String messageToShow = finalMessage;
+                            final String titleToShow = finalTitle;
+                            final int messageTypeToShow = finalMessageType;
+                            EventQueue.invokeLater(new Runnable() {
+                                public void run() {
+                                    setComponentsEnabled(true);
+                                    renderExecutor = null; // Clear the executor
+                                    if (messageToShow != null) {
+                                        JOptionPane.showMessageDialog(Panel.this, messageToShow, titleToShow, messageTypeToShow);
+                                    }
+                                }
+                            });
                         }
-                        EventQueue.invokeLater(new Runnable() {
-                            public void run() {
-                                setComponentsEnabled(true);
-                                renderExecutor = null;
-                            }
-                        });
                     }
                 });
             }
@@ -241,6 +401,58 @@ public class Panel extends JPanel implements DialogView {
             public void actionPerformed(ActionEvent ev) {
                 stop();
                 close();
+            }
+        });
+        actions.put(ActionType.PREVIEW, new ResourceAction(preferences, Panel.class, ActionType.PREVIEW.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                previewButton.setEnabled(false);
+                setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+                new SwingWorker<BufferedImage, Void>() {
+                    @Override
+                    protected BufferedImage doInBackground() throws Exception {
+                        return controller.generatePreviewImage();
+                    }
+
+                    @Override
+                    protected void done() {
+                        try {
+                            BufferedImage previewImage = get(); // Get result from doInBackground
+                            if (previewImage != null) {
+                                ImageIcon icon = new ImageIcon(previewImage);
+                                JLabel imageLabel = new JLabel(icon);
+                                JScrollPane scrollPane = new JScrollPane(imageLabel);
+                                
+                                int prefWidth = Math.min(800, previewImage.getWidth() + 40); // Add some padding for scrollbars
+                                int prefHeight = Math.min(600, previewImage.getHeight() + 40);
+                                scrollPane.setPreferredSize(new Dimension(prefWidth, prefHeight));
+                                
+                                JDialog previewDialog = new JDialog(SwingUtilities.getWindowAncestor(Panel.this), resource.getString("HomeAssistantFloorPlan.Panel.previewButton.text"), Dialog.ModalityType.APPLICATION_MODAL);
+                                previewDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+                                previewDialog.getContentPane().add(scrollPane);
+                                previewDialog.pack();
+                                previewDialog.setLocationRelativeTo(Panel.this); // Center relative to the main plugin panel
+                                previewDialog.setVisible(true);
+                            }
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            // Optionally inform user: JOptionPane.showMessageDialog(Panel.this, "Preview rendering was interrupted.", "Interrupted", JOptionPane.WARNING_MESSAGE);
+                        } catch (ExecutionException ex) {
+                            Throwable cause = ex.getCause();
+                            String errorMessage = "An unexpected error occurred during preview.";
+                            if (cause != null) {
+                                errorMessage = "Error generating preview: " + cause.getMessage();
+                                if (cause instanceof InterruptedException) Thread.currentThread().interrupt();
+                            }
+                            JOptionPane.showMessageDialog(Panel.this, errorMessage, "Preview Error", JOptionPane.ERROR_MESSAGE);
+                            if (cause != null) cause.printStackTrace(); else ex.printStackTrace();
+                        } finally {
+                            previewButton.setEnabled(true);
+                            setCursor(Cursor.getDefaultCursor());
+                        }
+                    }
+                }.execute();
             }
         });
     }
@@ -330,7 +542,16 @@ public class Panel extends JPanel implements DialogView {
         PropertyChangeListener updateTreeOnProperyChanged = new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
                 buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
-                buildEntitiesGroupsTree(otherEntitiesTree, otherEntitiesGroupedByType);
+                // Re-group other entities each time to reflect any changes
+                Map<String, List<Entity>> currentOtherEntitiesGroupedByType = controller.getOtherEntities().stream()
+                    .collect(Collectors.groupingBy(entity -> {
+                        String name = entity.getName();
+                        if (name != null && name.contains(".")) {
+                            return name.split("\\.")[0];
+                        }
+                        return "unknown_domain"; // Fallback for names without a domain
+                    }));
+                buildEntitiesGroupsTree(otherEntitiesTree, currentOtherEntitiesGroupedByType);
             }
         };
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, updateTreeOnProperyChanged);
@@ -549,6 +770,9 @@ public class Panel extends JPanel implements DialogView {
         startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
+
+        previewButton = new JButton(actionMap.get(ActionType.PREVIEW));
+        previewButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.previewButton.text"));
     }
 
     private void setComponentsEnabled(boolean enabled) {
@@ -569,6 +793,7 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         useExistingRendersCheckbox.setEnabled(enabled);
+        previewButton.setEnabled(enabled);
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
@@ -607,14 +832,14 @@ public class Panel extends JPanel implements DialogView {
         /* Detected entities trees */
         JScrollPane detectedLightsScrollPane = new JScrollPane(detectedLightsTree);
         detectedLightsScrollPane.setPreferredSize(new Dimension(275, 350));
-        add(detectedLightsScrollPane, new GridBagConstraints(
-            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(detectedLightsScrollPane, new GridBagConstraints( // Make trees expand
+            0, currentGridYIndex, 2, 1, 0.5, 1.0, GridBagConstraints.CENTER, // weightx=0.5, weighty=1.0
+            GridBagConstraints.BOTH, insets, 0, 0));      // fill=BOTH
         JScrollPane otherEntitiesScrollPane = new JScrollPane(otherEntitiesTree);
         otherEntitiesScrollPane.setPreferredSize(new Dimension(275, 350));
-        add(otherEntitiesScrollPane, new GridBagConstraints(
-            2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(otherEntitiesScrollPane, new GridBagConstraints( // Make trees expand
+            2, currentGridYIndex, 2, 1, 0.5, 1.0, GridBagConstraints.CENTER, // weightx=0.5, weighty=1.0
+            GridBagConstraints.BOTH, insets, 0, 0));      // fill=BOTH
         currentGridYIndex++;
 
         /* Resolution */
@@ -725,6 +950,11 @@ public class Panel extends JPanel implements DialogView {
         add(progressBar, new GridBagConstraints(
             0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        add(previewButton, new GridBagConstraints( // Add preview button
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START, // Align left under progress bar
+            GridBagConstraints.NONE, insets, 0, 0));
     }
 
     public void displayView(View parentView) {
@@ -741,12 +971,14 @@ public class Panel extends JPanel implements DialogView {
             currentPanel.close();
         final JOptionPane optionPane = new JOptionPane(this,
                 JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION,
-                null, new Object [] {startButton, closeButton}, startButton);
+                null, new Object [] {startButton, closeButton}, startButton); // Preview button is in the panel layout
         final JDialog dialog =
         optionPane.createDialog(SwingUtilities.getRootPane((Component)parentView), resource.getString("HomeAssistantFloorPlan.Plugin.NAME"));
         dialog.applyComponentOrientation(parentView != null ?
             ((JComponent)parentView).getComponentOrientation() : ComponentOrientation.getOrientation(Locale.getDefault()));
-        dialog.setModal(false);
+        dialog.setModal(true);
+        dialog.setResizable(true); // Explicitly set resizable
+        dialog.pack();             // Pack the dialog after creation and before showing
 
         dialog.addWindowListener(new WindowAdapter() {
             @Override
@@ -767,22 +999,29 @@ public class Panel extends JPanel implements DialogView {
         DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
         DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
 
+
         root.removeAllChildren();
         model.reload();
 
-        for (String group : new TreeSet<String>(entityGroups.keySet())) {
-            DefaultMutableTreeNode groupNode;
-            if (entityGroups.get(group).size() != 1 || entityGroups.get(group).get(0).getName() != group)
-            {
-                groupNode = new DefaultMutableTreeNode(group);
-                for (Entity light : new TreeSet<>(entityGroups.get(group)))
-                    groupNode.add(new DefaultMutableTreeNode(new EntityNode(light)));
+        // entityGroups is Map<String (groupKey), List<Entity>>
+        // For lights: groupKey is determined by LightMixingMode (room name, HA entity name, or "Home").
+        // For other entities: groupKey is the entity domain (e.g., "sensor", "switch").
+        for (String groupKey : new TreeSet<String>(entityGroups.keySet())) {
+            List<Entity> entitiesInGroup = entityGroups.get(groupKey);
+            if (entitiesInGroup == null || entitiesInGroup.isEmpty()) {
+                continue;
             }
-            else
-                groupNode = new DefaultMutableTreeNode(new EntityNode(entityGroups.get(group).get(0)));
-            model.insertNodeInto(groupNode, root, root.getChildCount());
-        }
 
+            DefaultMutableTreeNode groupDisplayNode;
+
+            // Create a node for the groupKey (e.g., Room Name, HA Entity Name for CSS lights, or Domain for other entities).
+            groupDisplayNode = new DefaultMutableTreeNode(groupKey);
+            // Sort entities within the group using Entity.compareTo (which now includes SH3D ID)
+            for (Entity entity : new TreeSet<>(entitiesInGroup)) { 
+                groupDisplayNode.add(new DefaultMutableTreeNode(new EntityNode(entity, this.controller)));
+            }
+            model.insertNodeInto(groupDisplayNode, root, root.getChildCount());
+        }
         for (int i = 0; i < tree.getRowCount(); i++) {
             tree.expandRow(i);
         }

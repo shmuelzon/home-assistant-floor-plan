@@ -4,6 +4,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Locale;
 import java.util.Map;
 import java.util.MissingResourceException;
@@ -21,6 +22,7 @@ public class Entity implements Comparable<Entity> {
     public enum Property {ALWAYS_ON, IS_RGB, POSITION, SCALE_FACTOR, DISPLAY_CONDITION, FURNITURE_DISPLAY_CONDITION} // Added DISPLAY_CONDITION & FURNITURE_DISPLAY_CONDITION
     public enum DisplayType {BADGE, ICON, LABEL, ICON_AND_ANIMATED_FAN}
     public enum ClickableAreaType { ENTITY_SIZE, ROOM_SIZE } // Added missing enum definition
+    public enum FanSize {SMALL, MEDIUM, LARGE} // Added FanSize enum
     public enum FanColor {WHITE, BLACK}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE, TOGGLE_FAN}
 
@@ -52,12 +54,18 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID = "associatedFanEntityId";
     private static final String SETTING_NAME_FAN_COLOR = "fanColor";
     private static final String SETTING_NAME_SHOW_FAN_WHEN_OFF = "showFanWhenOff";
+    private static final String SETTING_NAME_FAN_SIZE = "fanSize"; // Added FanSize setting constant
     private static final String SETTING_NAME_SHOW_BORDER_AND_BACKGROUND = "showBorderAndBackground";
+    private static final String SETTING_NAME_LABEL_COLOR = "labelColor";
+    private static final String SETTING_NAME_LABEL_TEXT_SHADOW = "labelTextShadow";
+    private static final String SETTING_NAME_LABEL_FONT_WEIGHT = "labelFontWeight";
+    private static final String SETTING_NAME_LABEL_SUFFIX = "labelSuffix";
 
     // --- Fields ---
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
     private String id;
     private String name;
+    private String attribute;
     private Point2d position;
     private boolean blinking;
     private int opacity;
@@ -80,6 +88,7 @@ public class Entity implements Comparable<Entity> {
     private String associatedFanEntityId;
     private FanColor fanColor;
     private boolean showFanWhenOff;
+    private FanSize fanSize; // Added FanSize field
     private boolean showBorderAndBackground;
     private boolean alwaysOn;
     private boolean isRgb;
@@ -88,6 +97,10 @@ public class Entity implements Comparable<Entity> {
     private boolean isUserDefinedPosition;
     private PropertyChangeSupport propertyChangeSupport;
     private double defaultIconBadgeBaseSizePercent;
+    private String labelColor;
+    private String labelTextShadow;
+    private String labelFontWeight;
+    private String labelSuffix;
 
     public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture, ResourceBundle resourceBundle) {
         this.settings = settings;
@@ -107,6 +120,13 @@ public class Entity implements Comparable<Entity> {
         loadDefaultAttributes();
     }
 
+    // Helper method to create unique setting keys
+    private String getSettingKey(String settingSuffix) {
+        // this.name is the HA entity name (e.g., light.living_room)
+        // this.id is the SH3D piece ID (e.g., "obj123")
+        return this.name + "_" + this.id + "." + settingSuffix;
+    }
+
     public void move(Vector2d direction) {
         if (isUserDefinedPosition)
             return;
@@ -119,6 +139,10 @@ public class Entity implements Comparable<Entity> {
 
     public String getName() {
         return name;
+    }
+
+    public String getAttribute() {
+        return attribute;
     }
 
     public List<? extends HomePieceOfFurniture> getPiecesOfFurniture() {
@@ -139,11 +163,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setDisplayType(DisplayType displayType) {
         this.displayType = displayType;
-        settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, displayType.name());
+        settings.set(getSettingKey(SETTING_NAME_DISPLAY_TYPE), displayType.name());
     }
 
     public boolean isDisplayTypeModified() {
-        return settings.get(name + "." + SETTING_NAME_DISPLAY_TYPE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_DISPLAY_TYPE)) != null;
     }
     
     public DisplayOperator getDisplayOperator() {
@@ -152,7 +176,7 @@ public class Entity implements Comparable<Entity> {
 
     public void setDisplayOperator(DisplayOperator displayOperator) {
         this.displayOperator = displayOperator;
-        settings.set(name + "." + SETTING_NAME_DISPLAY_OPERATOR, displayOperator.name());
+        settings.set(getSettingKey(SETTING_NAME_DISPLAY_OPERATOR), displayOperator.name());
     }
     
     public String getDisplayValue() {
@@ -161,12 +185,12 @@ public class Entity implements Comparable<Entity> {
 
     public void setDisplayValue(String displayValue) {
         this.displayValue = displayValue;
-        settings.set(name + "." + SETTING_NAME_DISPLAY_VALUE, displayValue);
+        settings.set(getSettingKey(SETTING_NAME_DISPLAY_VALUE), displayValue);
     }
     
     public boolean isDisplayConditionModified() {
-        return settings.get(name + "." + SETTING_NAME_DISPLAY_OPERATOR) != null 
-            || settings.get(name + "." + SETTING_NAME_DISPLAY_VALUE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_DISPLAY_OPERATOR)) != null
+            || settings.get(getSettingKey(SETTING_NAME_DISPLAY_VALUE)) != null;
     }
 
     public DisplayOperator getFurnitureDisplayOperator() {
@@ -175,7 +199,7 @@ public class Entity implements Comparable<Entity> {
 
     public void setFurnitureDisplayOperator(DisplayOperator furnitureDisplayOperator) {
         this.furnitureDisplayOperator = furnitureDisplayOperator;
-        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, furnitureDisplayOperator.name());
+        settings.set(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_OPERATOR), furnitureDisplayOperator.name());
         propertyChangeSupport.firePropertyChange(Property.FURNITURE_DISPLAY_CONDITION.name(), null, furnitureDisplayOperator);
     }
 
@@ -190,8 +214,8 @@ public class Entity implements Comparable<Entity> {
     }
     
     public boolean isFurnitureDisplayConditionModified() {
-        return settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR) != null 
-            || settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_OPERATOR)) != null
+            || settings.get(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_VALUE)) != null;
     }
 
     public Action getTapAction() {
@@ -200,11 +224,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setTapAction(Action tapAction) {
         this.tapAction = tapAction;
-        settings.set(name + "." + SETTING_NAME_TAP_ACTION, tapAction.name());
+        settings.set(getSettingKey(SETTING_NAME_TAP_ACTION), tapAction.name());
     }
 
     public boolean isTapActionModified() {
-        return settings.get(name + "." + SETTING_NAME_TAP_ACTION) != null;
+        return settings.get(getSettingKey(SETTING_NAME_TAP_ACTION)) != null;
     }
 
     public String getTapActionValue() {
@@ -213,11 +237,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setTapActionValue(String tapActionValue) {
         this.tapActionValue = tapActionValue;
-        settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, tapActionValue);
+        settings.set(getSettingKey(SETTING_NAME_TAP_ACTION_VALUE), tapActionValue);
     }
 
     public boolean isTapActionValueModified() {
-        return settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_TAP_ACTION_VALUE)) != null;
     }
 
     public Action getDoubleTapAction() {
@@ -226,11 +250,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setDoubleTapAction(Action doubleTapAction) {
         this.doubleTapAction = doubleTapAction;
-        settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, doubleTapAction.name());
+        settings.set(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION), doubleTapAction.name());
     }
 
     public boolean isDoubleTapActionModified() {
-        return settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION) != null;
+        return settings.get(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION)) != null;
     }
 
     public String getDoubleTapActionValue() {
@@ -239,11 +263,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setDoubleTapActionValue(String doubleTapActionValue) {
         this.doubleTapActionValue = doubleTapActionValue;
-        settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, doubleTapActionValue);
+        settings.set(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION_VALUE), doubleTapActionValue);
     }
 
     public boolean isDoubleTapActionValueModified() {
-        return settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION_VALUE)) != null;
     }
 
     public Action getHoldAction() {
@@ -252,11 +276,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setHoldAction(Action holdAction) {
         this.holdAction = holdAction;
-        settings.set(name + "." + SETTING_NAME_HOLD_ACTION, holdAction.name());
+        settings.set(getSettingKey(SETTING_NAME_HOLD_ACTION), holdAction.name());
     }
 
     public boolean isHoldActionModified() {
-        return settings.get(name + "." + SETTING_NAME_HOLD_ACTION) != null;
+        return settings.get(getSettingKey(SETTING_NAME_HOLD_ACTION)) != null;
     }
 
     public String getHoldActionValue() {
@@ -265,11 +289,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setHoldActionValue(String holdActionValue) {
         this.holdActionValue = holdActionValue;
-        settings.set(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, holdActionValue);
+        settings.set(getSettingKey(SETTING_NAME_HOLD_ACTION_VALUE), holdActionValue);
     }
 
     public boolean isHoldActionValueModified() {
-        return settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_HOLD_ACTION_VALUE)) != null;
     }
 
     public String getAssociatedFanEntityId() {
@@ -278,11 +302,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setAssociatedFanEntityId(String associatedFanEntityId) {
         this.associatedFanEntityId = associatedFanEntityId;
-        settings.set(name + "." + SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID, associatedFanEntityId);
+        settings.set(getSettingKey(SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID), associatedFanEntityId);
     }
 
     public boolean isAssociatedFanEntityIdModified() {
-        return settings.get(name + "." + SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID) != null;
+        return settings.get(getSettingKey(SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID)) != null;
     }
 
     public boolean getShowFanWhenOff() {
@@ -291,11 +315,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setShowFanWhenOff(boolean showFanWhenOff) {
         this.showFanWhenOff = showFanWhenOff;
-        settings.setBoolean(name + "." + SETTING_NAME_SHOW_FAN_WHEN_OFF, showFanWhenOff);
+        settings.setBoolean(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), showFanWhenOff);
     }
 
     public boolean isShowFanWhenOffModified() {
-        return settings.get(name + "." + SETTING_NAME_SHOW_FAN_WHEN_OFF) != null;
+        return settings.get(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF)) != null;
     }
 
     public FanColor getFanColor() {
@@ -304,7 +328,7 @@ public class Entity implements Comparable<Entity> {
 
     public void setFanColor(FanColor fanColor) {
         this.fanColor = fanColor;
-        settings.set(name + "." + SETTING_NAME_FAN_COLOR, fanColor.name());
+        settings.set(getSettingKey(SETTING_NAME_FAN_COLOR), fanColor.name());
     }
 
     public boolean isFanColorModified() {
@@ -317,11 +341,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setShowBorderAndBackground(boolean showBorderAndBackground) {
         this.showBorderAndBackground = showBorderAndBackground;
-        settings.setBoolean(name + "." + SETTING_NAME_SHOW_BORDER_AND_BACKGROUND, showBorderAndBackground);
+        settings.setBoolean(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), showBorderAndBackground);
     }
 
     public boolean isShowBorderAndBackgroundModified() {
-        return settings.get(name + "." + SETTING_NAME_SHOW_BORDER_AND_BACKGROUND) != null;
+        return settings.get(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND)) != null;
     }
 
     public boolean getAlwaysOn() {
@@ -331,12 +355,12 @@ public class Entity implements Comparable<Entity> {
     public void setAlwaysOn(boolean alwaysOn) {
         boolean oldAlwaysOn = this.alwaysOn;
         this.alwaysOn = alwaysOn;
-        settings.setBoolean(name + "." + SETTING_NAME_ALWAYS_ON, alwaysOn);
+        settings.setBoolean(getSettingKey(SETTING_NAME_ALWAYS_ON), alwaysOn);
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
     }
 
     public boolean isAlwaysOnModified() {
-        return settings.get(name + "." + SETTING_NAME_ALWAYS_ON) != null;
+        return settings.get(getSettingKey(SETTING_NAME_ALWAYS_ON)) != null;
     }
 
     public boolean getIsRgb() {
@@ -346,12 +370,12 @@ public class Entity implements Comparable<Entity> {
     public void setIsRgb(boolean isRgb) {
         boolean oldIsRgb = this.isRgb;
         this.isRgb = isRgb;
-        settings.setBoolean(name + "." + SETTING_NAME_IS_RGB, isRgb);
+        settings.setBoolean(getSettingKey(SETTING_NAME_IS_RGB), isRgb);
         propertyChangeSupport.firePropertyChange(Property.IS_RGB.name(), oldIsRgb, isRgb);
     }
 
     public boolean isIsRgbModified() {
-        return settings.get(name + "." + SETTING_NAME_IS_RGB) != null;
+        return settings.get(getSettingKey(SETTING_NAME_IS_RGB)) != null;
     }
 
     public Point2d getPosition() {
@@ -368,14 +392,14 @@ public class Entity implements Comparable<Entity> {
         if (!savePersistent)
             return;
 
-        settings.setDouble(name + "." + SETTING_NAME_LEFT_POSITION, position.x);
-        settings.setDouble(name + "." + SETTING_NAME_TOP_POSITION, position.y);
+        settings.setDouble(getSettingKey(SETTING_NAME_LEFT_POSITION), position.x);
+        settings.setDouble(getSettingKey(SETTING_NAME_TOP_POSITION), position.y);
         isUserDefinedPosition = true;
         propertyChangeSupport.firePropertyChange(Property.POSITION.name(), oldPosition, position);
     }
 
     public boolean isPositionModified() {
-        return settings.get(name + "." + SETTING_NAME_LEFT_POSITION) != null;
+        return settings.get(getSettingKey(SETTING_NAME_LEFT_POSITION)) != null;
     }
 
     public boolean getBlinking() {
@@ -384,11 +408,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setBlinking(boolean blinking) {
         this.blinking = blinking;
-        settings.setBoolean(name + "." + SETTING_NAME_BLINKING, blinking);
+        settings.setBoolean(getSettingKey(SETTING_NAME_BLINKING), blinking);
     }
 
     public boolean isBlinkingModified() {
-        return settings.get(name + "." + SETTING_NAME_BLINKING) != null;
+        return settings.get(getSettingKey(SETTING_NAME_BLINKING)) != null;
     }
     public int getOpacity() {
         return opacity;
@@ -396,11 +420,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setOpacity(int opacity) {
         this.opacity = opacity;
-        settings.setInteger(name + "." + SETTING_NAME_OPACITY, opacity);
+        settings.setInteger(getSettingKey(SETTING_NAME_OPACITY), opacity);
     }
 
     public boolean isOpacityModified() {
-        return settings.get(name + "." + SETTING_NAME_OPACITY) != null;
+        return settings.get(getSettingKey(SETTING_NAME_OPACITY)) != null;
     }
 
     public double getScaleFactor() {
@@ -410,12 +434,12 @@ public class Entity implements Comparable<Entity> {
     public void setScaleFactor(double scaleFactor) {
         double oldScaleFactor = this.scaleFactor;
         this.scaleFactor = scaleFactor;
-        settings.setDouble(name + "." + SETTING_NAME_SCALE_FACTOR, scaleFactor);
+        settings.setDouble(getSettingKey(SETTING_NAME_SCALE_FACTOR), scaleFactor);
         propertyChangeSupport.firePropertyChange(Property.SCALE_FACTOR.name(), oldScaleFactor, scaleFactor);
     }
 
     public boolean isScaleFactorModified() {
-        return settings.get(name + "." + SETTING_NAME_SCALE_FACTOR) != null;
+        return settings.get(getSettingKey(SETTING_NAME_SCALE_FACTOR)) != null;
     }
 
     public String getBackgroundColor() {
@@ -424,11 +448,11 @@ public class Entity implements Comparable<Entity> {
 
     public void setBackgroundColor(String backgroundColor) {
         this.backgroundColor = backgroundColor;
-        settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, backgroundColor);
+        settings.set(getSettingKey(SETTING_NAME_BACKGROUND_COLOR), backgroundColor);
     }
 
     public boolean isBackgroundColorModified() {
-        return settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR) != null;
+        return settings.get(getSettingKey(SETTING_NAME_BACKGROUND_COLOR)) != null;
     }
 
     public ClickableAreaType getClickableAreaType() {
@@ -437,11 +461,77 @@ public class Entity implements Comparable<Entity> {
 
     public void setClickableAreaType(ClickableAreaType clickableAreaType) {
         this.clickableAreaType = clickableAreaType;
-        settings.set(name + "." + SETTING_NAME_CLICKABLE_AREA_TYPE, clickableAreaType.name());
+        settings.set(getSettingKey(SETTING_NAME_CLICKABLE_AREA_TYPE), clickableAreaType.name());
     }
 
     public boolean isClickableAreaTypeModified() {
-        return settings.get(name + "." + SETTING_NAME_CLICKABLE_AREA_TYPE) != null;
+        return settings.get(getSettingKey(SETTING_NAME_CLICKABLE_AREA_TYPE)) != null;
+    }
+
+    public FanSize getFanSize() {
+        return fanSize;
+    }
+
+    public void setFanSize(FanSize fanSize) {
+        this.fanSize = fanSize;
+        settings.set(getSettingKey(SETTING_NAME_FAN_SIZE), fanSize.name());
+    }
+
+    public boolean isFanSizeModified() {
+        return settings.get(getSettingKey(SETTING_NAME_FAN_SIZE)) != null;
+    }
+
+
+    public String getLabelColor() {
+        return labelColor;
+    }
+
+    public void setLabelColor(String labelColor) {
+        this.labelColor = labelColor;
+        settings.set(getSettingKey(SETTING_NAME_LABEL_COLOR), labelColor);
+    }
+
+    public boolean isLabelColorModified() {
+        return settings.get(getSettingKey(SETTING_NAME_LABEL_COLOR)) != null;
+    }
+
+    public String getLabelTextShadow() {
+        return labelTextShadow;
+    }
+
+    public void setLabelTextShadow(String labelTextShadow) {
+        this.labelTextShadow = labelTextShadow;
+        settings.set(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), labelTextShadow);
+    }
+
+    public boolean isLabelTextShadowModified() {
+        return settings.get(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW)) != null;
+    }
+
+    public String getLabelFontWeight() {
+        return labelFontWeight;
+    }
+
+    public void setLabelFontWeight(String labelFontWeight) {
+        this.labelFontWeight = labelFontWeight;
+        settings.set(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), labelFontWeight);
+    }
+
+    public boolean isLabelFontWeightModified() {
+        return settings.get(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT)) != null;
+    }
+
+    public String getLabelSuffix() {
+        return labelSuffix;
+    }
+
+    public void setLabelSuffix(String labelSuffix) {
+        this.labelSuffix = labelSuffix;
+        settings.set(getSettingKey(SETTING_NAME_LABEL_SUFFIX), labelSuffix);
+    }
+
+    public boolean isLabelSuffixModified() {
+        return settings.get(getSettingKey(SETTING_NAME_LABEL_SUFFIX)) != null;
     }
 
     public void resetToDefaults() {
@@ -449,29 +539,37 @@ public class Entity implements Comparable<Entity> {
         boolean oldIsRgb = isRgb;
         Point2d oldPosition = getPosition();
 
-        settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
-        settings.set(name + "." + SETTING_NAME_DISPLAY_OPERATOR, null);
-        settings.set(name + "." + SETTING_NAME_DISPLAY_VALUE, null);
-        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, null);
-        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, null);
-        settings.set(name + "." + SETTING_NAME_TAP_ACTION, null);
-        settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, null);
-        settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, null);
-        settings.set(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, null);
-        settings.set(name + "." + SETTING_NAME_HOLD_ACTION, null);
-        settings.set(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, null);
-        settings.set(name + "." + SETTING_NAME_ALWAYS_ON, null);
-        settings.set(name + "." + SETTING_NAME_IS_RGB, null);
-        settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
-        settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
-        settings.set(name + "." + SETTING_NAME_BLINKING, null);
-        settings.set(name + "." + SETTING_NAME_OPACITY, null);
-        settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
-        settings.set(name + "." + SETTING_NAME_SCALE_FACTOR, null); // Added reset for scale factor
-        settings.set(name + "." + SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID, null);
-        settings.set(name + "." + SETTING_NAME_SHOW_FAN_WHEN_OFF, null);
-        settings.set(name + "." + SETTING_NAME_FAN_COLOR, null);
-        settings.set(name + "." + SETTING_NAME_SHOW_BORDER_AND_BACKGROUND, null);
+        double oldScaleFactor = scaleFactor; // Store old scaleFactor
+
+        settings.set(getSettingKey(SETTING_NAME_DISPLAY_TYPE), null);
+        settings.set(getSettingKey(SETTING_NAME_DISPLAY_OPERATOR), null);
+        settings.set(getSettingKey(SETTING_NAME_DISPLAY_VALUE), null);
+        settings.set(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_OPERATOR), null);
+        settings.set(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_VALUE), null);
+        settings.set(getSettingKey(SETTING_NAME_TAP_ACTION), null);
+        settings.set(getSettingKey(SETTING_NAME_TAP_ACTION_VALUE), null);
+        settings.set(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION), null);
+        settings.set(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION_VALUE), null);
+        settings.set(getSettingKey(SETTING_NAME_HOLD_ACTION), null);
+        settings.set(getSettingKey(SETTING_NAME_HOLD_ACTION_VALUE), null);
+        settings.set(getSettingKey(SETTING_NAME_ALWAYS_ON), null);
+        settings.set(getSettingKey(SETTING_NAME_IS_RGB), null);
+        settings.set(getSettingKey(SETTING_NAME_LEFT_POSITION), null);
+        settings.set(getSettingKey(SETTING_NAME_TOP_POSITION), null);
+        settings.set(getSettingKey(SETTING_NAME_BLINKING), null);
+        settings.set(getSettingKey(SETTING_NAME_OPACITY), null);
+        settings.set(getSettingKey(SETTING_NAME_BACKGROUND_COLOR), null);
+        settings.set(getSettingKey(SETTING_NAME_SCALE_FACTOR), null);
+        settings.set(getSettingKey(SETTING_NAME_CLICKABLE_AREA_TYPE), null); // Reset clickable area type
+        settings.set(getSettingKey(SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID), null);
+        settings.set(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), null);
+        settings.set(getSettingKey(SETTING_NAME_FAN_COLOR), null);
+        settings.set(getSettingKey(SETTING_NAME_FAN_SIZE), null); // Reset FanSize
+        settings.set(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), null);
+        settings.set(getSettingKey(SETTING_NAME_LABEL_COLOR), null);
+        settings.set(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), null);
+        settings.set(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), null);
+        settings.set(getSettingKey(SETTING_NAME_LABEL_SUFFIX), null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -531,8 +629,8 @@ public class Entity implements Comparable<Entity> {
             put(DisplayType.BADGE, "state-badge");
             put(DisplayType.ICON, "state-icon");
             put(DisplayType.LABEL, "state-label");
-            // ICON_AND_ANIMATED_FAN is handled specially
         }};
+
 
         // Use the new displayOperator logic
         if (this.displayOperator == DisplayOperator.NEVER && !getAlwaysOn()) {
@@ -543,6 +641,7 @@ public class Entity implements Comparable<Entity> {
 
         if (displayType == DisplayType.ICON_AND_ANIMATED_FAN) {
             DisplayType iconPartDisplayType = DisplayType.ICON; // Default to ICON for the icon part
+
             String iconYamlString = displayTypeToYamlString.get(iconPartDisplayType);
             if (iconYamlString == null) iconYamlString = "state-icon"; // Fallback
 
@@ -578,6 +677,7 @@ public class Entity implements Comparable<Entity> {
             String iconElementYaml = String.format(Locale.US,
                 "  - type: %s\n" +
                 "    entity: %s\n" +
+                (this.attribute != null && !this.attribute.isEmpty() ? "    attribute: " + this.attribute + "\n" : "") +
                 (iconPartDisplayType == DisplayType.BADGE ? "" : "    title: " + (title != null ? title : "null") + "\n") +
                 "    style:\n" +
                 "%s" +
@@ -596,20 +696,32 @@ public class Entity implements Comparable<Entity> {
             String fanImageOn;
             String fanImageOffSuffix;
             if (this.fanColor == FanColor.WHITE) {
-                fanImageOn = "/local/floorplan/animated_fan.gif";
-                fanImageOffSuffix = "/local/floorplan/animated_fan_still.gif";
-            } else { // BLACK or default
                 fanImageOn = "/local/floorplan/animated_fan_grey.gif";
                 fanImageOffSuffix = "/local/floorplan/animated_fan_still_grey.gif";
+            } else { // BLACK or default
+                fanImageOn = "/local/floorplan/animated_fan.gif";
+                fanImageOffSuffix = "/local/floorplan/animated_fan_still.gif";
             }
             String fanImageOff = this.showFanWhenOff ? fanImageOffSuffix : "/local/floorplan/transparent.png";
 
             StringBuilder fanStyleProperties = new StringBuilder();
             fanStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
             fanStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
-            double fanElementSizePercent = scaleFactor * this.defaultIconBadgeBaseSizePercent; // Match icon size
-            fanStyleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", fanElementSizePercent));
-            fanStyleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", fanElementSizePercent));
+            // Calculate fan dimensions based on a 2:3 width:height aspect ratio
+            // Use FanSize to determine dimensions
+            double fanWidthPercent;
+            double fanHeightPercent;
+            switch (this.fanSize) {
+                case SMALL: fanWidthPercent = 2.0; fanHeightPercent = 3.0; break;
+                case MEDIUM: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                case LARGE: fanWidthPercent = 6.0; fanHeightPercent = 7.0; break;
+                default: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break; // Default to Medium
+            }
+            // Apply scaleFactor to the chosen size
+            fanWidthPercent *= scaleFactor;
+            fanHeightPercent *= scaleFactor;
+            fanStyleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", fanWidthPercent)); // Use calculated width
+            fanStyleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", fanHeightPercent));
             fanStyleProperties.append("      transform: translate(-50%, -50%);\n");
             fanStyleProperties.append("      pointer-events: none;\n");
 
@@ -658,14 +770,50 @@ public class Entity implements Comparable<Entity> {
                 // Ensure transform is always present for centering, even if scale is 1.0
                 styleProperties.append(String.format(Locale.US, "      transform: %s\n", visualElementTransform)); // No quotes, no semicolon
             }
+
+            if (displayType == DisplayType.LABEL) {
+                if (labelColor != null && !labelColor.trim().isEmpty()) {
+                    styleProperties.append(String.format(Locale.US, "      color: %s\n", labelColor));
+                }
+                if (labelTextShadow != null && !labelTextShadow.trim().isEmpty()) {
+                    styleProperties.append(String.format(Locale.US, "      text-shadow: 1px 1px 1px %s\n", labelTextShadow));
+                }
+                if (labelFontWeight != null && !labelFontWeight.trim().isEmpty()) {
+                    styleProperties.append(String.format(Locale.US, "      font-weight: %s\n", labelFontWeight));
+                }
+            }
              if (clickableAreaType == ClickableAreaType.ROOM_SIZE && displayType != DisplayType.ICON_AND_ANIMATED_FAN) { // visual element non-clickable unless it's the room itself
                 styleProperties.append("      pointer-events: none;\n");
             }
 
+            // Prepare conditional parts as arguments for String.format
+            // These will be substituted into %s placeholders.
+            String attributeString = (this.attribute != null && !this.attribute.isEmpty())
+                                   ? String.format("    attribute: %s\n", this.attribute) : "";
+
+            String suffixString = "";
+            if (displayType == DisplayType.LABEL) {
+                if (labelSuffix != null && !labelSuffix.trim().isEmpty()) {
+                    // For the inner String.format("suffix: '%s'", ...), if labelSuffix contains a literal '%'
+                    // it should be escaped as '%%' if it were part of the format string.
+                    // However, as an argument to %s, it's usually literal.
+                    // The .replace("'", "''") is for YAML single-quoted strings containing single quotes.
+                    suffixString = String.format("    suffix: '%s'\n", labelSuffix.replace("'", "''"));
+                } else if (this.attribute != null && !this.attribute.isEmpty()) {
+                    // Default suffix when attribute is present and no custom suffix
+                    suffixString = "    suffix: '°'\n"; // Literal single quotes are fine here
+                }
+            }
+
+            String titleString = (displayType == DisplayType.BADGE) ? ""
+                               : String.format("    title: %s\n", (title != null ? title : "null"));
+
             elementYaml = String.format(Locale.US,
                 "  - type: %s\n" +
                 "    entity: %s\n" +
-                (displayType == DisplayType.BADGE ? "" : "    title: " + (title != null ? title : "null") + "\n") +
+                "%s" + // attributeString
+                "%s" + // suffixString
+                "%s" + // titleString
                 "    style:\n" +
                 "%s" +
                 "    tap_action:\n" +
@@ -675,6 +823,7 @@ public class Entity implements Comparable<Entity> {
                 "    hold_action:\n" +
                 "      action: %s\n",
                 displayTypeToYamlString.get(displayType), name,
+                attributeString, suffixString, titleString, // Pass pre-formatted strings as arguments
                 styleProperties.toString(),
                 actionYaml(tapAction, tapActionValue, this.associatedFanEntityId),
                 actionYaml(doubleTapAction, doubleTapActionValue, this.associatedFanEntityId),
@@ -794,6 +943,10 @@ public class Entity implements Comparable<Entity> {
             return "";
         }
 
+        String conditionAttributePart = (this.attribute != null && !this.attribute.isEmpty())
+                                        ? String.format("        attribute: %s\n", this.attribute)
+                                        : "";
+
         String conditionYaml;
         switch (this.displayOperator) {
             case IS:
@@ -801,6 +954,7 @@ public class Entity implements Comparable<Entity> {
                     "    conditions:\n" + // Ensure conditions block starts here
                     "      - condition: state\n" +
                     "        entity: %s\n" +
+                    conditionAttributePart +
                     "        state: '%s'",
                     name, this.displayValue);
                 break;
@@ -809,6 +963,7 @@ public class Entity implements Comparable<Entity> {
                     "    conditions:\n" +
                     "      - condition: state\n" +
                     "        entity: %s\n" +
+                    conditionAttributePart +
                     "        state_not: '%s'",
                     name, this.displayValue);
                 break;
@@ -817,6 +972,7 @@ public class Entity implements Comparable<Entity> {
                     "    conditions:\n" +
                     "      - condition: numeric_state\n" +
                     "        entity: %s\n" +
+                    conditionAttributePart +
                     "        above: %s",
                     name, this.displayValue);
                 break;
@@ -825,11 +981,13 @@ public class Entity implements Comparable<Entity> {
                     "    conditions:\n" +
                     "      - condition: numeric_state\n" +
                     "        entity: %s\n" +
+                    conditionAttributePart +
                     "        below: %s",
                     name, this.displayValue);
                 break;
             default:
                 // Fallback for unhandled or ALWAYS/NEVER if logic changes (should be caught above)
+                // If no specific operator condition, but we have an attribute, the elementYaml already includes it.
                 return elementYaml; // Or handle as error
         }
         return String.format(
@@ -876,38 +1034,77 @@ public class Entity implements Comparable<Entity> {
     private void loadDefaultAttributes() {
         HomePieceOfFurniture firstPiece = piecesOfFurniture.get(0);
         id = firstPiece.getId();
-        name = firstPiece.getName();
+
+        String rawPieceName = firstPiece.getName();
+        if (rawPieceName != null && rawPieceName.contains("/")) {
+            int slashIndex = rawPieceName.indexOf('/');
+            this.name = rawPieceName.substring(0, slashIndex);
+            this.attribute = rawPieceName.substring(slashIndex + 1);
+        } else {
+            this.name = rawPieceName;
+            this.attribute = null;
+        }
         position = loadPosition();
-        displayType = getSavedEnumValue(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
+        displayType = getSavedEnumValue(DisplayType.class, getSettingKey(SETTING_NAME_DISPLAY_TYPE), defaultDisplayType());
         
-        displayOperator = getSavedEnumValue(DisplayOperator.class, name + "." + SETTING_NAME_DISPLAY_OPERATOR, DisplayOperator.ALWAYS);
-        displayValue = settings.get(name + "." + SETTING_NAME_DISPLAY_VALUE, "");
+        displayOperator = getSavedEnumValue(DisplayOperator.class, getSettingKey(SETTING_NAME_DISPLAY_OPERATOR), DisplayOperator.ALWAYS);
+        displayValue = settings.get(getSettingKey(SETTING_NAME_DISPLAY_VALUE), "");
         
-        furnitureDisplayOperator = getSavedEnumValue(DisplayOperator.class, name + "." + SETTING_NAME_FURNITURE_DISPLAY_OPERATOR, DisplayOperator.ALWAYS);
+        furnitureDisplayOperator = getSavedEnumValue(DisplayOperator.class, getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_OPERATOR), DisplayOperator.ALWAYS);
         // --- MODIFIED: Default to an empty string to prevent OutOfMemoryError ---
-        furnitureDisplayValue = settings.get(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, "");
-        clickableAreaType = getSavedEnumValue(ClickableAreaType.class, name + "." + SETTING_NAME_CLICKABLE_AREA_TYPE, ClickableAreaType.ENTITY_SIZE);
+        furnitureDisplayValue = settings.get(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_VALUE), "");
+        clickableAreaType = getSavedEnumValue(ClickableAreaType.class, getSettingKey(SETTING_NAME_CLICKABLE_AREA_TYPE), ClickableAreaType.ENTITY_SIZE);
 
-        tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
-        tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");
-        doubleTapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, Action.NONE);
-        doubleTapActionValue = settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, "");
-        holdAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
-        holdActionValue = settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, "");
-        blinking = settings.getBoolean(name + "." + SETTING_NAME_BLINKING, false);
+        tapAction = getSavedEnumValue(Action.class, getSettingKey(SETTING_NAME_TAP_ACTION), defaultAction());
+        tapActionValue = settings.get(getSettingKey(SETTING_NAME_TAP_ACTION_VALUE), "");
+        doubleTapAction = getSavedEnumValue(Action.class, getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION), Action.NONE);
+        doubleTapActionValue = settings.get(getSettingKey(SETTING_NAME_DOUBLE_TAP_ACTION_VALUE), "");
+        holdAction = getSavedEnumValue(Action.class, getSettingKey(SETTING_NAME_HOLD_ACTION), Action.MORE_INFO);
+        holdActionValue = settings.get(getSettingKey(SETTING_NAME_HOLD_ACTION_VALUE), "");
+        blinking = settings.getBoolean(getSettingKey(SETTING_NAME_BLINKING), false);
         title = firstPiece.getDescription();
-        opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
-        backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
-        scaleFactor = settings.getDouble(name + "." + SETTING_NAME_SCALE_FACTOR, 1.0);
-        alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
-        associatedFanEntityId = settings.get(name + "." + SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID, "");
-        fanColor = getSavedEnumValue(FanColor.class, name + "." + SETTING_NAME_FAN_COLOR, FanColor.BLACK);
-        showFanWhenOff = settings.getBoolean(name + "." + SETTING_NAME_SHOW_FAN_WHEN_OFF, true);
-        showBorderAndBackground = settings.getBoolean(name + "." + SETTING_NAME_SHOW_BORDER_AND_BACKGROUND, true);
-        isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
+        opacity = settings.getInteger(getSettingKey(SETTING_NAME_OPACITY), 100);
+        backgroundColor = settings.get(getSettingKey(SETTING_NAME_BACKGROUND_COLOR), "rgba(255, 255, 255, 0.3)");
+        scaleFactor = settings.getDouble(getSettingKey(SETTING_NAME_SCALE_FACTOR), 1.0);
+        alwaysOn = settings.getBoolean(getSettingKey(SETTING_NAME_ALWAYS_ON), false);
+        associatedFanEntityId = settings.get(getSettingKey(SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID), "");
+        fanColor = getSavedEnumValue(FanColor.class, getSettingKey(SETTING_NAME_FAN_COLOR), FanColor.BLACK);
+        showFanWhenOff = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), true);
+        fanSize = getSavedEnumValue(FanSize.class, getSettingKey(SETTING_NAME_FAN_SIZE), FanSize.MEDIUM); // Load FanSize, default to Medium
+        showBorderAndBackground = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), true);
+        labelColor = settings.get(getSettingKey(SETTING_NAME_LABEL_COLOR), "black"); // Default to "black"
+        labelTextShadow = settings.get(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), "");
+        labelFontWeight = settings.get(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), "normal"); // Default to "normal"
+        labelSuffix = settings.get(getSettingKey(SETTING_NAME_LABEL_SUFFIX), "");
 
-        isLight = firstPiece instanceof HomeLight;
+        isRgb = settings.getBoolean(getSettingKey(SETTING_NAME_IS_RGB), false);
+        
+        // Determine if this Entity represents a light based on its HA name or if any associated SH3D piece is a HomeLight
+        boolean hasAnySh3dLightPiece = false;
+        if (piecesOfFurniture != null) { // piecesOfFurniture should not be null here
+            for (HomePieceOfFurniture pof : piecesOfFurniture) {
+                if (pof instanceof HomeLight) {
+                    hasAnySh3dLightPiece = true;
+                    break;
+                }
+            }
+        }
+        this.isLight = (name != null && (name.startsWith("light.") || name.startsWith("switch."))) || hasAnySh3dLightPiece;
         saveInitialLightPowerValues();
+
+        // Apply specific defaults for binary_sensor entities
+        // These will apply if no user-saved setting exists for these properties,
+        // or when resetToDefaults() is called.
+        if (name != null && name.startsWith("binary_sensor.") && name.contains("motion")) {
+            this.displayType = DisplayType.ICON;
+            this.displayOperator = DisplayOperator.IS;
+            this.displayValue = "on"; // Common 'active' state for binary_sensors
+            this.tapAction = Action.NONE;
+            this.doubleTapAction = Action.NONE; // Already the general default, but explicit
+            this.holdAction = Action.NONE;
+            this.blinking = true;
+            // Other defaults like opacity, scaleFactor, clickableAreaType, showBorderAndBackground, furnitureDisplayOperator are generally fine.
+        }
     }
 
     private DisplayType defaultDisplayType() {
@@ -919,7 +1116,11 @@ public class Entity implements Comparable<Entity> {
     }
 
     public int compareTo(Entity other) {
-        return getName().compareTo(other.getName());
+        int nameCompare = getName().compareTo(other.getName());
+        if (nameCompare == 0) {
+            return getId().compareTo(other.getId()); // getId() is the sh3dPieceId
+        }
+        return nameCompare;
     }
 
     private Action defaultAction() {
@@ -948,8 +1149,8 @@ public class Entity implements Comparable<Entity> {
     }
 
     private Point2d loadPosition() {
-        double leftPosition = settings.getDouble(name + "." + SETTING_NAME_LEFT_POSITION, -1);
-        double topPosition = settings.getDouble(name + "." + SETTING_NAME_TOP_POSITION, -1);
+        double leftPosition = settings.getDouble(getSettingKey(SETTING_NAME_LEFT_POSITION), -1);
+        double topPosition = settings.getDouble(getSettingKey(SETTING_NAME_TOP_POSITION), -1);
         if (leftPosition != -1 || topPosition != -1) {
             isUserDefinedPosition = true;
             return new Point2d(leftPosition, topPosition);
