@@ -741,7 +741,10 @@ public class Entity implements Comparable<Entity> {
                     fanImageOff,
                     fanStyleProperties.toString());
             }
-            elementYaml = iconElementYaml + fanImageElementYaml;
+            // The fan image should come before the icon in YAML for better layering
+            // (icon on top of fan) and to address the request of having the
+            // non-interactive image part appear before the interactive icon part.
+            elementYaml = fanImageElementYaml + iconElementYaml;
         } else {
             StringBuilder styleProperties = new StringBuilder();
             styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));

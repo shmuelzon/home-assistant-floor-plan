@@ -1188,8 +1188,9 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             return new Point2d(-1.0, -1.0); 
         }
         float levelOffset = piece.getLevel() != null ? piece.getLevel().getElevation() : 0;
-        // Calculate the vertical center of the piece in world coordinates.
-        float pieceWorldY = (((piece.getElevation() * 2) + piece.getHeight()) / 2) + levelOffset;
+        // Calculate the Y-coordinate of the top surface of the piece in world coordinates.
+        // piece.getElevation() is relative to its level's floor.
+        float pieceWorldY = piece.getElevation() + piece.getHeight() + levelOffset;
 
         // World coordinates of the point to project (center of the furniture piece)
         // (worldX, worldY_vertical, worldZ_depth, 1.0)
