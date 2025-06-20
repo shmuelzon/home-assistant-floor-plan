@@ -1245,17 +1245,21 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             }
         });
 
-        return allEntities.stream()
-            .map(entity -> entity.buildYaml(this)) // Pass controller instance
-            .filter(yamlString -> yamlString != null && !yamlString.isEmpty()) // Filter out empty YAML strings
-            .collect(Collectors.joining());
+        List<String> allYamlElements = new ArrayList<>();
+        for (Entity entity : allEntities) {
+            // entity.buildYaml(this) now returns a List<String>
+            allYamlElements.addAll(entity.buildYaml(this)); 
+        }
+
+        // Join all collected elements into a single string
+        return String.join("", allYamlElements);
     }
 
     private void repositionEntities() {
         build3dProjection();
         calculateHouseNdcBounds(); // Calculate overall house bounds in NDC
         calculateEntityPositions();
-        // moveEntityIconsToAvoidIntersection(); // Temporarily comment out to disable collision avoidance
+        moveEntityIconsToAvoidIntersection();
     }
 
     private void calculateEntityPositions() {
@@ -1271,14 +1275,37 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
+        // The icon size is now responsive, defined as a percentage of the card dimensions.
+        // This collision detection logic must therefore calculate the icon's size in pixels
+        // based on the render dimensions to accurately check for overlap.
 
-        Point2d firstPositionInPixels = new Point2d(first.getPosition().x / 100.0 * renderWidth, first.getPosition().y / 100 * renderHeight);
-        Point2d secondPositionInPixels = new Point2d(second.getPosition().x / 100.0 * renderWidth, second.getPosition().y / 100 * renderHeight);
+        // Calculate the scaled size percentage for each icon
+        double firstScaledSizePercent = first.getDefaultIconBadgeBaseSizePercent() * first.getScaleFactor();
+        double secondScaledSizePercent = second.getDefaultIconBadgeBaseSizePercent() * second.getScaleFactor();
 
-        double x = Math.pow(firstPositionInPixels.x - secondPositionInPixels.x, 2) + Math.pow(firstPositionInPixels.y - secondPositionInPixels.y, 2);
+        // Calculate diameter in pixels for each icon. Since the render area may not be square,
+        // we calculate X and Y diameters and average them to approximate a circular shape for the check.
+        double firstDiameterXPx = (firstScaledSizePercent / 100.0) * renderWidth;
+        double firstDiameterYPx = (firstScaledSizePercent / 100.0) * renderHeight;
+        double firstAvgDiameter = (firstDiameterXPx + firstDiameterYPx) / 2.0;
 
-        return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
+        double secondDiameterXPx = (secondScaledSizePercent / 100.0) * renderWidth;
+        double secondDiameterYPx = (secondScaledSizePercent / 100.0) * renderHeight;
+        double secondAvgDiameter = (secondDiameterXPx + secondDiameterYPx) / 2.0;
+
+        // The minimum distance between centers is the sum of their radii.
+        double minCenterDist = (firstAvgDiameter / 2.0) + (secondAvgDiameter / 2.0);
+        
+        // Add a margin to prevent icons from touching. 20% of the minimum distance is a reasonable gap.
+        double margin = minCenterDist * 0.20;
+        double requiredDist = minCenterDist + margin;
+
+        Point2d firstPositionInPixels = new Point2d(first.getPosition().x / 100.0 * renderWidth, first.getPosition().y / 100.0 * renderHeight);
+        Point2d secondPositionInPixels = new Point2d(second.getPosition().x / 100.0 * renderWidth, second.getPosition().y / 100.0 * renderHeight);
+
+        double distSq = Math.pow(firstPositionInPixels.x - secondPositionInPixels.x, 2) + Math.pow(firstPositionInPixels.y - secondPositionInPixels.y, 2);
+
+        return distSq <= Math.pow(requiredDist, 2);
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
@@ -1337,7 +1364,23 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     }
 
     private void separateStateIcons(Set<Entity> entities) {
-        final double STEP_SIZE = 2.0;
+        // Calculate an average icon diameter for the group to determine a proportional step size.
+        // This makes the separation step scale with the size of the icons being moved.
+        double totalDiameter = 0;
+        int count = 0;
+        for (Entity entity : entities) {
+            double scaledSizePercent = entity.getDefaultIconBadgeBaseSizePercent() * entity.getScaleFactor();
+            double diameterXPx = (scaledSizePercent / 100.0) * renderWidth;
+            double diameterYPx = (scaledSizePercent / 100.0) * renderHeight;
+            totalDiameter += (diameterXPx + diameterYPx) / 2.0;
+            count++;
+        }
+        double avgIconDiameterPx = (count > 0) ? totalDiameter / count : 25.0; // Fallback if no entities
+
+        // Define the step size as a percentage of the average icon diameter.
+        // For example, 5% of the average icon diameter per step.
+        final double PROPORTIONAL_STEP_FACTOR = 0.05; // 5% of icon diameter
+        double pixelStepSize = avgIconDiameterPx * PROPORTIONAL_STEP_FACTOR;
 
         Point2d centerPostition = getCenterOfStateIcons(entities);
 
@@ -1345,13 +1388,20 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             Vector2d direction = new Vector2d(entity.getPosition().x - centerPostition.x, entity.getPosition().y - centerPostition.y);
 
             if (direction.length() == 0) {
-                double[] randomRepeatableDirection = { entity.getId().hashCode(), entity.getName().hashCode() };
-                direction.set(randomRepeatableDirection);
+                // If an entity is exactly at the center, give it a deterministic "random" push.
+                // Use entity's hash codes for repeatability across runs.
+                double angle = Math.atan2(entity.getName().hashCode(), entity.getId().hashCode());
+                direction.set(Math.cos(angle), Math.sin(angle));
             }
 
             direction.normalize();
-            direction.x = direction.x * (100.0 * (STEP_SIZE / renderWidth));
-            direction.y = direction.y * (100.0 * (STEP_SIZE / renderHeight));
+            // Convert pixelStepSize to percentage relative to render dimensions
+            double percentageStepX = (pixelStepSize / renderWidth) * 100.0;
+            double percentageStepY = (pixelStepSize / renderHeight) * 100.0;
+
+            direction.x *= percentageStepX;
+            direction.y *= percentageStepY;
+
             entity.move(direction);
         }
     }
