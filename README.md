@@ -85,10 +85,12 @@ the room they're located in. Please verify the list matches your expectations.
 * Width / Height - Configure the required output resolution of the rendered
   images
 * Light mixing mode - See [Rendering Modes](#rendering-modes)
-* Render times - The date and times of the rendered images, affects the sun
-  position, intensity and color. Each render will be displayed from the selected
-  time until the next one in the list. Adding more than one hour requires
-  [adding a time sensor](#adding-time-sensor)
+* Render time - The date and time of the rendered image, affects the sun
+  position, intensity and color
+* Night-time render - Allows setting an additional render to be used during the
+  night. Enabling this requires the
+  [Sun](https://www.home-assistant.io/integrations/sun/) integration, which is
+  enabled by default
 * Renderer - Select which rendering engine to use, YafaRay or SunFlow
 * Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Quality - Choose the rendering quality (low or high)
@@ -133,32 +135,6 @@ that allow you to customize the entity according to your needs.
 
   :warning: **Note:** RGB/dimmable lights are only supported in the CSS
   rendering mode.
-
-### Adding Time Sensor
-
-In order to support displaying different floorplan images according to the
-current time, we need to add a sensor to HA that will represent the time. This
-needs to be done only once for each Home Assistant instance.
-
-First, we add a `Time & Date` sensor by clicking on
-[<img src="https://my.home-assistant.io/badges/config_flow_start.svg" width="125">](https://my.home-assistant.io/redirect/config_flow_start/?domain=time_date)
-or, by manually navigating to `Settings` ->`Devices & services` ->
-`Add integration` -> `Time & Date`. Then, choose the `Time (UTC)` sensor type and click `Submit`.
-
-Next, we'll need to create a template sensor that will convert this textual
-sensor to a numeric one that can be used by the floorplan YAML. Click on
-[<img src="https://my.home-assistant.io/badges/helpers.svg" width="125">](https://my.home-assistant.io/redirect/helpers/)
-or, manually navigate to `Settings` -> `Devices & services` -> `Helpers`. Click
-the `Create Helper` button, choose a `Template` helper and click on
-`Template a sensor`. Name the sensor, `Time as number (UTC)` and enter the
-following template:
-```
-{{states("sensor.time_utc").split(":") | join | int}}
-```
-
-> [!TIP]
-> As these sensors will change their value every minute, it's best to exclude
-> them from the recorder so they won't be logged
 
 ## Preparation
 
