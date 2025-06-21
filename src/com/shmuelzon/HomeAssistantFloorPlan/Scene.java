@@ -14,6 +14,7 @@ import com.eteks.sweethome3d.model.Camera;
 
 public class Scene {
     private String name;
+    private String title;
     private Camera camera;
     private List<Long> renderingTimes;
     private long renderingTime;
@@ -27,11 +28,15 @@ public class Scene {
         this.entitiesToShowHide = entitiesToShowHide;
         this.entitiesToShow = entitiesToShow;
 
-        name = buildName();
+        generateNameAndTitle();
     }
 
     public String getName() {
         return name;
+    }
+
+    public String getTitle() {
+        return title;
     }
 
     public void prepare() {
@@ -92,14 +97,20 @@ public class Scene {
         return dateFormat.format(date);
     }
 
-    private String buildName() {
+    private void generateNameAndTitle() {
         List<String> nameParts = new ArrayList<>();
+        List<String> titleParts = new ArrayList<>();
 
-        if (renderingTimes.size() > 1)
+        if (renderingTimes.size() > 1) {
             nameParts.add(timestampTo24HourString(renderingTime));
-        for (Entity entity : entitiesToShowHide)
+            titleParts.add(renderingTimes.indexOf(renderingTime) == 0 ?  "Day-time" : "Night-time");
+        }
+        for (Entity entity : entitiesToShowHide) {
             nameParts.add(entity.getName() + "-" + (entitiesToShow.contains(entity) ? "visible" : "hidden"));
+            titleParts.add((entitiesToShow.contains(entity) ? "With" : "Without") + " " + entity.getName());
+        }
 
-        return String.join("_", nameParts);
+        name = String.join("_", nameParts);
+        title = String.join(",", titleParts);
     }
 };
