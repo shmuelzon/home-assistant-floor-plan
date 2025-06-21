@@ -633,6 +633,13 @@ public class Controller {
         return generateLightYaml(scene, lights, onLights, imageName, true);
     }
 
+    private String generateTitle(Scene scene, List<Entity> onLights) {
+        List<String> titleParts = onLights != null ?  onLights.stream().map(Entity::getName).collect(Collectors.toList()) : new ArrayList<>(Arrays.asList("Base"));
+        titleParts.add(0, scene.getTitle());
+
+        return titleParts.stream().filter(s -> !s.isEmpty()).collect(Collectors.joining(", "));
+    }
+
     private String generateLightYaml(Scene scene, List<Entity> lights, List<Entity> onLights, String imageName, boolean includeMixBlend) throws IOException {
         String conditions = "";
         for (Entity light : lights) {
@@ -648,6 +655,7 @@ public class Controller {
 
         return String.format(
             "  - type: conditional\n" +
+            "    title: %s\n" +
             "    conditions:\n%s" +
             "    elements:\n" +
             "      - type: image\n" +
@@ -661,7 +669,8 @@ public class Controller {
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n%s",
-            conditions, normalizePath(imageName), getFloorplanImageExtention(), renderHash(imageName),
+            generateTitle(scene, onLights), conditions, normalizePath(imageName),
+            getFloorplanImageExtention(), renderHash(imageName),
             includeMixBlend && lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
@@ -670,6 +679,7 @@ public class Controller {
 
         return String.format(
             "  - type: conditional\n" +
+            "    title: %s\n" +
             "    conditions:\n" +
             "      - condition: state\n" +
             "        entity: %s\n" +
@@ -698,6 +708,7 @@ public class Controller {
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n",
+            generateTitle(scene, Arrays.asList(light)),
             lightName, scene.getConditions(), lightName, lightName, lightName, lightName, lightName,
             normalizePath(imageName), renderHash(imageName, true), normalizePath(imageName) + ".red", renderHash(imageName + ".red", true));
     }
