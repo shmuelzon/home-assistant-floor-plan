@@ -63,6 +63,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.LineBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.plaf.basic.BasicTreeUI;
 import javax.swing.text.DateFormatter;
@@ -90,7 +91,8 @@ import com.eteks.sweethome3d.viewcontroller.View;
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
     private enum ActionType {ADD_RENDER_TIME, REMOVE_RENDER_TIME, BROWSE, START, STOP, CLOSE, PREVIEW}
-
+    private Plugin.HomeAssistantFloorPlanAction pluginAction;
+    
     final TimeZone timeZone = TimeZone.getTimeZone("UTC");
     private static Panel currentPanel;
     private UserPreferences preferences;
@@ -101,6 +103,10 @@ public class Panel extends JPanel implements DialogView {
     private JTree detectedLightsTree;
     private JLabel otherEntitiesLabel;
     private JTree otherEntitiesTree;
+    private JLabel pointOfViewLabel;
+    private JComboBox<String> pointOfViewComboBox;
+    private JLabel furnitureToCenterLabel;
+    private JTextField furnitureToCenterTextField;
     private JLabel widthLabel;
     private JSpinner widthSpinner;
     private JLabel heightLabel;
@@ -280,7 +286,7 @@ public class Panel extends JPanel implements DialogView {
             
             // Check if there's a meaningful, non-empty condition set for the furniture
             String furnitureValue = entity.getFurnitureDisplayValue();
-            if (furnitureValue != null && !furnitureValue.trim().isEmpty()) {
+            if (entity.getFurnitureDisplayOperator() != Entity.DisplayOperator.ALWAYS) {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.displayByState.text"));
             }
             if (entity.getBlinking())
@@ -295,10 +301,11 @@ public class Panel extends JPanel implements DialogView {
             return attributes;
         }
     }
-    public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
+    public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller, Plugin.HomeAssistantFloorPlanAction pluginAction) {
         super(new GridBagLayout());
         this.preferences = preferences;
         this.controller = controller;
+        this.pluginAction = pluginAction;
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
         createActions();
@@ -526,6 +533,31 @@ public class Panel extends JPanel implements DialogView {
         return tree;
     }
 
+    private void restartPlugin() {
+        // Use invokeLater to ensure the current event dispatching is complete
+        // before we dispose the window and start a new action.
+        SwingUtilities.invokeLater(() -> {
+            Window window = SwingUtilities.getWindowAncestor(this);
+            if (window != null) {
+                window.dispose();
+            }
+            // Stop any running render before restarting
+            stop();
+            pluginAction.execute();
+        });
+    }
+
+    private void handlePointOfViewChange() {
+        String selection = (String) pointOfViewComboBox.getSelectedItem();
+        if (selection == null) return;
+
+        // The point of view selection always triggers a restart if changed.
+        if (!selection.equals(controller.getPointOfViewName())) {
+            controller.setPointOfViewName(selection);
+            restartPlugin();
+        }
+    }
+
     private void createComponents() {
         final ActionMap actionMap = getActionMap();
 
@@ -566,6 +598,45 @@ public class Panel extends JPanel implements DialogView {
             other.addPropertyChangeListener(Entity.Property.FURNITURE_DISPLAY_CONDITION, updateTreeOnProperyChanged);
         }
         // --- END NEW ---
+
+        pointOfViewLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.pointOfViewLabel.text"));
+        pointOfViewComboBox = new JComboBox<>();
+        furnitureToCenterLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.furnitureToCenterLabel.text"));
+        furnitureToCenterTextField = new JTextField(20);
+
+        final String currentViewOption = resource.getString("HomeAssistantFloorPlan.Panel.pointOfView.currentView.text");
+
+        // Check Sweet Home 3D's preference for "aerial view centered on selection"
+        boolean isAerialViewCenteredOnSelection = preferences.isAerialViewCenteredOnSelectionEnabled();
+
+        pointOfViewComboBox.addItem(currentViewOption);
+        for (String cameraName : controller.getStoredCameraNames()) {
+            pointOfViewComboBox.addItem(cameraName);
+        }
+
+        // Set selected item
+        String savedPov = controller.getPointOfViewName();
+        pointOfViewComboBox.setSelectedItem(savedPov);
+
+        pointOfViewComboBox.addActionListener(e -> handlePointOfViewChange());
+
+        furnitureToCenterTextField.setText(controller.getFurnitureNameToCenter());
+        furnitureToCenterTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                controller.setFurnitureNameToCenter(furnitureToCenterTextField.getText());
+            }
+        });
+        furnitureToCenterTextField.addActionListener(e -> {
+            // This listener is triggered on "Enter" key press
+            // Save the latest text field value and then restart
+            controller.setFurnitureNameToCenter(furnitureToCenterTextField.getText());
+            restartPlugin();
+        });
+
+        // Initial visibility of furniture to center on depends on SH3D preference
+        furnitureToCenterLabel.setVisible(isAerialViewCenteredOnSelection);
+        furnitureToCenterTextField.setVisible(isAerialViewCenteredOnSelection);
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
@@ -840,6 +911,26 @@ public class Panel extends JPanel implements DialogView {
         add(otherEntitiesScrollPane, new GridBagConstraints( // Make trees expand
             2, currentGridYIndex, 2, 1, 0.5, 1.0, GridBagConstraints.CENTER, // weightx=0.5, weighty=1.0
             GridBagConstraints.BOTH, insets, 0, 0));      // fill=BOTH
+        currentGridYIndex++;
+
+        /* Point of View */
+        add(pointOfViewLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        pointOfViewLabel.setHorizontalAlignment(labelAlignment);
+        add(pointOfViewComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Furniture to Center */
+        add(furnitureToCenterLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        furnitureToCenterLabel.setHorizontalAlignment(labelAlignment);
+        add(furnitureToCenterTextField, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Resolution */

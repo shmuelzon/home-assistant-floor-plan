@@ -72,6 +72,8 @@ public class Controller {
     private static final String CONTROLLER_QUALITY = "quality";
     private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
+    private static final String CONTROLLER_POINT_OF_VIEW = "pointOfView";
+    private static final String CONTROLLER_FURNITURE_TO_CENTER = "furnitureToCenter";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
 
@@ -98,6 +100,8 @@ public class Controller {
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
+    private String pointOfViewName;
+    private String furnitureNameToCenter;
     private boolean useExistingRenders;
     private Scenes scenes;
     private Map<String, Double> houseNdcBounds;
@@ -141,6 +145,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
+        pointOfViewName = settings.get(CONTROLLER_POINT_OF_VIEW, resourceBundle.getString("HomeAssistantFloorPlan.Panel.pointOfView.currentView.text"));
+        furnitureNameToCenter = settings.get(CONTROLLER_FURNITURE_TO_CENTER, "");
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
@@ -286,9 +292,31 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         buildScenes();
     }
     
-    // Method to get stored camera names, might be useful if re-enabled or for other purposes
-    // public List<String> getStoredCameraNamesFromHome() { ... }
-    
+    public List<String> getStoredCameraNames() {
+        return home.getStoredCameras().stream()
+                   .map(Camera::getName)
+                   .filter(name -> name != null && !name.isEmpty())
+                   .sorted()
+                   .collect(Collectors.toList());
+    }
+
+    public String getPointOfViewName() {
+        return pointOfViewName;
+    }
+
+    public void setPointOfViewName(String pointOfViewName) {
+        this.pointOfViewName = pointOfViewName;
+        settings.set(CONTROLLER_POINT_OF_VIEW, pointOfViewName);
+    }
+
+    public String getFurnitureNameToCenter() {
+        return furnitureNameToCenter;
+    }
+
+    public void setFurnitureNameToCenter(String furnitureNameToCenter) {
+        this.furnitureNameToCenter = furnitureNameToCenter;
+        settings.set(CONTROLLER_FURNITURE_TO_CENTER, furnitureNameToCenter);
+    }
     public BufferedImage generatePreviewImage() throws IOException, InterruptedException {
         // The plugin's 'this.camera' is already a clone of home.getCamera()
         // from when the modal dialog was opened.
