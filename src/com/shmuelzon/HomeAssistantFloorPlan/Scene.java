@@ -50,35 +50,16 @@ public class Scene {
     }
 
     private String getRenderTimeCondition() {
-        final long oneMinuteInMs = 60000;
         if (renderingTimes.size() <= 1)
             return "";
 
-        int indexInTimes = renderingTimes.indexOf(renderingTime);
-        int numberOfTimes = renderingTimes.size();
-        boolean isLast = indexInTimes == numberOfTimes - 1;
-
-        if (!isLast) {
-            return String.format(
-                "      - condition: numeric_state\n" +
-                "        entity: sensor.time_as_number_utc\n" +
-                "        above: %d\n" +
-                "        below: %d\n",
-                Integer.valueOf(timestampTo24HourString(renderingTimes.get(indexInTimes) - oneMinuteInMs)),
-                Integer.valueOf(timestampTo24HourString(renderingTimes.get(indexInTimes + 1))));
-        }
+        boolean isDayTimeRender = renderingTimes.indexOf(renderingTime) == 0;
 
         return String.format(
-            "      - condition: or\n" +
-            "        conditions:\n" +
-            "          - condition: numeric_state\n" +
-            "            entity: sensor.time_as_number_utc\n" +
-            "            above: %d\n" +
-            "          - condition: numeric_state\n" +
-            "            entity: sensor.time_as_number_utc\n" +
-            "            below: %d\n",
-            Integer.valueOf(timestampTo24HourString(renderingTimes.get(indexInTimes) - oneMinuteInMs)),
-            Integer.valueOf(timestampTo24HourString(renderingTimes.get(0))));
+            "      - condition: state\n" +
+            "        entity: sun.sun\n" +
+            "        state: %s\n",
+            isDayTimeRender ? "above_horizon" : "below_horizon");
     }
 
     private String getEntitiesToShowHideCondition() {
