@@ -668,7 +668,7 @@ public class Entity implements Comparable<Entity> {
             iconStyleProperties.append("      transform: translate(-50%, -50%)\n");
 
             // Set a responsive font-size, which will serve as the base for scaling all em-based units.
-            double iconSizeVw = 2.0 * scaleFactor; // Increased base size for icon glyph
+            double iconSizeVw = 2.3 * scaleFactor; // Increased base size for icon glyph
             iconStyleProperties.append(String.format(Locale.US, "      --mdc-icon-size: %.2fvw\n", iconSizeVw));
             iconStyleProperties.append("      pointer-events: none;\n"); // Icon part is not clickable if background handles it
 
@@ -763,7 +763,7 @@ public class Entity implements Comparable<Entity> {
             }
 
             if (displayType == DisplayType.ICON || displayType == DisplayType.BADGE) { // Icon or Badge
-                double iconSizeVw = 2.0 * scaleFactor; // Increased base size for icon glyph
+                double iconSizeVw = 2.3 * scaleFactor; // Increased base size for icon glyph
                 styleProperties.append(String.format(Locale.US, "      --mdc-icon-size: %.2fvw\n", iconSizeVw));
                 // No background/border styling here, as it's handled by the separate image element
             }
