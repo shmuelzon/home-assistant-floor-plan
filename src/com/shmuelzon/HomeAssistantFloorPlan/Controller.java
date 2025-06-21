@@ -442,6 +442,7 @@ public class Controller {
             "sensor.",
             "siren.",
             "switch.",
+            "sun.",
             "todo.",
             "update.",
             "vacuum.",
