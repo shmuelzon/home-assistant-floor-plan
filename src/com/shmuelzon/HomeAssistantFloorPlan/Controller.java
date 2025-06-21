@@ -161,6 +161,10 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         propertyChangeSupport.removePropertyChangeListener(property.name(), listener);
     }
     
+    public Home getHome() {
+        return this.home;
+    }
+
     public List<Entity> getLightEntities() {
         return lightEntities;
     }

@@ -15,6 +15,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.Cursor;
 import java.awt.event.ItemListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -106,7 +107,7 @@ public class Panel extends JPanel implements DialogView {
     private JLabel pointOfViewLabel;
     private JComboBox<String> pointOfViewComboBox;
     private JLabel furnitureToCenterLabel;
-    private JTextField furnitureToCenterTextField;
+    private JComboBox<String> furnitureToCenterComboBox;
     private JLabel widthLabel;
     private JSpinner widthSpinner;
     private JLabel heightLabel;
@@ -118,10 +119,12 @@ public class Panel extends JPanel implements DialogView {
     private JLabel rendererLabel;
     private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
-    private JComboBox<Controller.Quality> qualityComboBox;
+    private JComboBox<Controller.Quality> qualityComboBox;    
+    private JLabel renderDateLabel;
+    private JLabel renderTimeLabel;
+    private JLabel addRemoveTimesLabel;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
-    private JLabel renderTimesLabel;
     private SpinnerDateModel dateModel;
     private JSpinner renderDateSpinner;
     private SpinnerDateModel timeModel;
@@ -129,6 +132,7 @@ public class Panel extends JPanel implements DialogView {
     private JButton renderTimeAddButton;
     private JButton renderTimeRemoveButton;
     private DefaultListModel<Long> renderTimesListModel;
+    private JLabel addedTimesLabel;
     private JList<Long> renderTimesList;
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
@@ -602,7 +606,7 @@ public class Panel extends JPanel implements DialogView {
         pointOfViewLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.pointOfViewLabel.text"));
         pointOfViewComboBox = new JComboBox<>();
         furnitureToCenterLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.furnitureToCenterLabel.text"));
-        furnitureToCenterTextField = new JTextField(20);
+        furnitureToCenterComboBox = new JComboBox<>();
 
         final String currentViewOption = resource.getString("HomeAssistantFloorPlan.Panel.pointOfView.currentView.text");
 
@@ -619,24 +623,54 @@ public class Panel extends JPanel implements DialogView {
         pointOfViewComboBox.setSelectedItem(savedPov);
 
         pointOfViewComboBox.addActionListener(e -> handlePointOfViewChange());
+        // --- NEW: Apply consistent look and feel ---
+        pointOfViewComboBox.setEditable(true);
+        JTextField pointOfViewEditor = (JTextField) pointOfViewComboBox.getEditor().getEditorComponent();
+        pointOfViewEditor.setEditable(false);
+        pointOfViewEditor.setFocusable(false);
+        makeClickableToOpenDropdown(pointOfViewComboBox);
+        // --- END NEW ---
 
-        furnitureToCenterTextField.setText(controller.getFurnitureNameToCenter());
-        furnitureToCenterTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
-            @Override
-            public void executeUpdate(DocumentEvent e) {
-                controller.setFurnitureNameToCenter(furnitureToCenterTextField.getText());
+        // Populate the furniture to center on combo box
+        final String noCenterOption = "<None>";
+        furnitureToCenterComboBox.addItem(noCenterOption);
+        TreeSet<String> furnitureNames = new TreeSet<>();
+        for (HomePieceOfFurniture piece : controller.getHome().getFurniture()) {
+            if (piece.getName() != null && !piece.getName().trim().isEmpty()) {
+                furnitureNames.add(piece.getName());
+            }
+        }
+        for (String name : furnitureNames) {
+            furnitureToCenterComboBox.addItem(name);
+        }
+
+        String savedFurniture = controller.getFurnitureNameToCenter();
+        if (savedFurniture == null || savedFurniture.trim().isEmpty()) {
+            furnitureToCenterComboBox.setSelectedItem(noCenterOption);
+        } else {
+            furnitureToCenterComboBox.setSelectedItem(savedFurniture);
+        }
+
+        furnitureToCenterComboBox.addActionListener(e -> {
+            String selection = (String) furnitureToCenterComboBox.getSelectedItem();
+            String valueToSet = noCenterOption.equals(selection) ? "" : selection;
+
+            if (!valueToSet.equals(controller.getFurnitureNameToCenter())) {
+                controller.setFurnitureNameToCenter(valueToSet);
+                restartPlugin();
             }
         });
-        furnitureToCenterTextField.addActionListener(e -> {
-            // This listener is triggered on "Enter" key press
-            // Save the latest text field value and then restart
-            controller.setFurnitureNameToCenter(furnitureToCenterTextField.getText());
-            restartPlugin();
-        });
+        // --- NEW: Apply consistent look and feel ---
+        furnitureToCenterComboBox.setEditable(true);
+        JTextField furnitureToCenterEditor = (JTextField) furnitureToCenterComboBox.getEditor().getEditorComponent();
+        furnitureToCenterEditor.setEditable(false);
+        furnitureToCenterEditor.setFocusable(false);
+        makeClickableToOpenDropdown(furnitureToCenterComboBox);
+        // --- END NEW ---
 
         // Initial visibility of furniture to center on depends on SH3D preference
         furnitureToCenterLabel.setVisible(isAerialViewCenteredOnSelection);
-        furnitureToCenterTextField.setVisible(isAerialViewCenteredOnSelection);
+        furnitureToCenterComboBox.setVisible(isAerialViewCenteredOnSelection);
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
@@ -665,6 +699,15 @@ public class Panel extends JPanel implements DialogView {
         lightMixingModeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.tooltip"));
         lightMixingModeComboBox = new JComboBox<Controller.LightMixingMode>(Controller.LightMixingMode.values());
         lightMixingModeComboBox.setSelectedItem(controller.getLightMixingMode());
+        // --- NEW: Apply consistent look and feel ---
+        lightMixingModeComboBox.setEditable(true);
+        JTextField lightMixingModeEditor = (JTextField) lightMixingModeComboBox.getEditor().getEditorComponent();
+        lightMixingModeEditor.setEditable(false);
+        lightMixingModeEditor.setFocusable(false);
+        if (controller.getLightMixingMode() != null) {
+            String initialDisplayText = resource.getString(String.format("HomeAssistantFloorPlan.Panel.lightMixingModeComboBox.%s.text", controller.getLightMixingMode().name()));
+            lightMixingModeEditor.setText(initialDisplayText);
+        }
         lightMixingModeComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
@@ -674,9 +717,12 @@ public class Panel extends JPanel implements DialogView {
         });
         lightMixingModeComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setLightMixingMode((Controller.LightMixingMode)lightMixingModeComboBox.getSelectedItem());
+                Controller.LightMixingMode selectedMode = (Controller.LightMixingMode)lightMixingModeComboBox.getSelectedItem();
+                controller.setLightMixingMode(selectedMode);
+                updateComboBoxEditorText(lightMixingModeComboBox, "HomeAssistantFloorPlan.Panel.lightMixingModeComboBox.%s.text", selectedMode);
             }
         });
+        makeClickableToOpenDropdown(lightMixingModeComboBox);
 
         sensitivityLabel = new JLabel();
         sensitivityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.text"));
@@ -693,6 +739,15 @@ public class Panel extends JPanel implements DialogView {
         rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
         rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
         rendererComboBox.setSelectedItem(controller.getRenderer());
+        // --- NEW: Apply consistent look and feel ---
+        rendererComboBox.setEditable(true);
+        JTextField rendererEditor = (JTextField) rendererComboBox.getEditor().getEditorComponent();
+        rendererEditor.setEditable(false);
+        rendererEditor.setFocusable(false);
+        if (controller.getRenderer() != null) {
+            String initialDisplayText = resource.getString(String.format("HomeAssistantFloorPlan.Panel.rendererComboBox.%s.text", controller.getRenderer().name()));
+            rendererEditor.setText(initialDisplayText);
+        }
         rendererComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
@@ -702,14 +757,26 @@ public class Panel extends JPanel implements DialogView {
         });
         rendererComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setRenderer((Controller.Renderer)rendererComboBox.getSelectedItem());
+                Controller.Renderer selectedRenderer = (Controller.Renderer)rendererComboBox.getSelectedItem();
+                controller.setRenderer(selectedRenderer);
+                updateComboBoxEditorText(rendererComboBox, "HomeAssistantFloorPlan.Panel.rendererComboBox.%s.text", selectedRenderer);
             }
         });
+        makeClickableToOpenDropdown(rendererComboBox);
 
         qualityLabel = new JLabel();
         qualityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.qualityLabel.text"));
         qualityComboBox = new JComboBox<Controller.Quality>(Controller.Quality.values());
         qualityComboBox.setSelectedItem(controller.getQuality());
+        // --- NEW: Apply consistent look and feel ---
+        qualityComboBox.setEditable(true);
+        JTextField qualityEditor = (JTextField) qualityComboBox.getEditor().getEditorComponent();
+        qualityEditor.setEditable(false);
+        qualityEditor.setFocusable(false);
+        if (controller.getQuality() != null) {
+            String initialDisplayText = resource.getString(String.format("HomeAssistantFloorPlan.Panel.qualityComboBox.%s.text", controller.getQuality().name()));
+            qualityEditor.setText(initialDisplayText);
+        }
         qualityComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
@@ -719,12 +786,17 @@ public class Panel extends JPanel implements DialogView {
         });
         qualityComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setQuality((Controller.Quality)qualityComboBox.getSelectedItem());
+                Controller.Quality selectedQuality = (Controller.Quality)qualityComboBox.getSelectedItem();
+                controller.setQuality(selectedQuality);
+                updateComboBoxEditorText(qualityComboBox, "HomeAssistantFloorPlan.Panel.qualityComboBox.%s.text", selectedQuality);
             }
         });
+        makeClickableToOpenDropdown(qualityComboBox);
 
-        renderTimesLabel = new JLabel();
-        renderTimesLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimesLabel.text"));
+        renderDateLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.renderDateLabel.text"));
+        renderTimeLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.text"));
+        addRemoveTimesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.addRemoveTimesLabel.text"));
+        addedTimesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.addedTimesLabel.text"));
         dateModel = new SpinnerDateModel();
         renderDateSpinner = new JSpinner(dateModel);
         final JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(renderDateSpinner);
@@ -740,14 +812,19 @@ public class Panel extends JPanel implements DialogView {
             }
         });
         timeModel = new SpinnerDateModel();
-        renderTimeSpinner = new JSpinner(timeModel);
+        renderTimeSpinner = new JSpinner(timeModel); // Keep this as it's used by the spinner
         final JSpinner.DateEditor timeEditor = new JSpinner.DateEditor(renderTimeSpinner);
         timeEditor.getFormat().setTimeZone(timeZone);
         timeEditor.getFormat().applyPattern("HH:mm");
         renderTimeSpinner.setEditor(timeEditor);
         final DateFormatter timeFormatter = (DateFormatter)timeEditor.getTextField().getFormatter();
         timeFormatter.setAllowsInvalid(false);
-        timeFormatter.setOverwriteMode(true);
+        timeFormatter.setOverwriteMode(true);        
+        renderTimeAddButton = new JButton(actionMap.get(ActionType.ADD_RENDER_TIME));
+        renderTimeAddButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.addTimeButton.text"));
+        renderTimeRemoveButton = new JButton(actionMap.get(ActionType.REMOVE_RENDER_TIME));
+        renderTimeRemoveButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.removeTimeButton.text"));
+        
         renderTimesListModel = new DefaultListModel<>();
         renderTimesList = new JList<>(renderTimesListModel);
         renderTimesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -761,21 +838,19 @@ public class Panel extends JPanel implements DialogView {
         });
         updateRenderingTimesList(true);
 
-        renderTimeAddButton = new JButton(actionMap.get(ActionType.ADD_RENDER_TIME));
-        renderTimeAddButton.setText("+");
-        renderTimeAddButton.setMargin(new Insets(0, 0, 0, 0));
-        Dimension buttonDimnesion = renderTimeAddButton.getPreferredSize();
-        buttonDimnesion.width = 20;
-        renderTimeAddButton.setPreferredSize(buttonDimnesion);
-        renderTimeRemoveButton = new JButton(actionMap.get(ActionType.REMOVE_RENDER_TIME));
-        renderTimeRemoveButton.setText("-");
-        renderTimeRemoveButton.setMargin(new Insets(0, 0, 0, 0));
-        renderTimeRemoveButton.setPreferredSize(buttonDimnesion);
-
         imageFormatLabel = new JLabel();
         imageFormatLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.text"));
         imageFormatComboBox = new JComboBox<Controller.ImageFormat>(Controller.ImageFormat.values());
         imageFormatComboBox.setSelectedItem(controller.getImageFormat());
+        // --- NEW: Apply consistent look and feel ---
+        imageFormatComboBox.setEditable(true);
+        JTextField imageFormatEditor = (JTextField) imageFormatComboBox.getEditor().getEditorComponent();
+        imageFormatEditor.setEditable(false);
+        imageFormatEditor.setFocusable(false);
+        if (controller.getImageFormat() != null) {
+            String initialDisplayText = resource.getString(String.format("HomeAssistantFloorPlan.Panel.imageFormatComboBox.%s.text", controller.getImageFormat().name()));
+            imageFormatEditor.setText(initialDisplayText);
+        }
         imageFormatComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
@@ -785,9 +860,12 @@ public class Panel extends JPanel implements DialogView {
         });
         imageFormatComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setImageFormat((Controller.ImageFormat)imageFormatComboBox.getSelectedItem());
+                Controller.ImageFormat selectedFormat = (Controller.ImageFormat)imageFormatComboBox.getSelectedItem();
+                controller.setImageFormat(selectedFormat);
+                updateComboBoxEditorText(imageFormatComboBox, "HomeAssistantFloorPlan.Panel.imageFormatComboBox.%s.text", selectedFormat);
             }
         });
+        makeClickableToOpenDropdown(imageFormatComboBox);
 
         useExistingRendersCheckbox = new JCheckBox();
         useExistingRendersCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.text"));
@@ -913,23 +991,20 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.BOTH, insets, 0, 0));      // fill=BOTH
         currentGridYIndex++;
 
-        /* Point of View */
+        /* Point of View and Furniture to Center */
         add(pointOfViewLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         pointOfViewLabel.setHorizontalAlignment(labelAlignment);
         add(pointOfViewComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        /* Furniture to Center */
-        add(furnitureToCenterLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(furnitureToCenterLabel, new GridBagConstraints( // Add furniture label to the same row
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, new Insets(0, standardGap * 2, 0, standardGap), 0, 0));
         furnitureToCenterLabel.setHorizontalAlignment(labelAlignment);
-        add(furnitureToCenterTextField, new GridBagConstraints(
-            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
+        add(furnitureToCenterComboBox, new GridBagConstraints( // Add furniture combo box to the same row
+            3, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -950,64 +1025,79 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Light mixing mode + render times */
+        /* Light mixing mode + Render Date */
         add(lightMixingModeLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(lightMixingModeComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimesLabel, new GridBagConstraints(
+        // Render Date on the same row
+        add(renderDateLabel, new GridBagConstraints(
             2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        /* Render times list */
-        JPanel renderingTimesPanel = new JPanel(new GridBagLayout());
-        renderingTimesPanel.add(renderDateSpinner, new GridBagConstraints(
-            0, 0, 1, 1, 2, 1, GridBagConstraints.CENTER,
+        renderDateLabel.setHorizontalAlignment(labelAlignment);
+        add(renderDateSpinner, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        renderingTimesPanel.add(renderTimeSpinner, new GridBagConstraints(
-            1, 0, 1, 1, 2, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        renderingTimesPanel.add(renderTimeAddButton, new GridBagConstraints(
-            2, 0, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        renderingTimesPanel.add(new JScrollPane(renderTimesList), new GridBagConstraints(
-            1, 1, 1, 1, 2, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        renderingTimesPanel.add(renderTimeRemoveButton, new GridBagConstraints(
-            2, 1, 1, 1, 1, 1, GridBagConstraints.NORTH,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-
-        add(renderingTimesPanel, new GridBagConstraints(
-            3, currentGridYIndex, 1, 4, 0, 0, GridBagConstraints.NORTH,
-            GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
         currentGridYIndex++;
 
-        /* Renderer */
+        /* Renderer + Render Time */
         add(rendererLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(rendererComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        // Render Time on the same row
+        add(renderTimeLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderTimeLabel.setHorizontalAlignment(labelAlignment);
+        add(renderTimeSpinner, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Quality */
+        /* Image format + Add/Remove Times */
         add(imageFormatLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(imageFormatComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        // Add/Remove Times on the same row
+        add(addRemoveTimesLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        addRemoveTimesLabel.setHorizontalAlignment(labelAlignment);
+        JPanel addRemoveButtonsPanel = new JPanel(new GridBagLayout());
+        addRemoveButtonsPanel.add(renderTimeAddButton, new GridBagConstraints(
+            0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.NONE, insets, 0, 0));
+        addRemoveButtonsPanel.add(renderTimeRemoveButton, new GridBagConstraints(
+            1, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.NONE, insets, 0, 0));
+        add(addRemoveButtonsPanel, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Image format */
+        /* Quality + Added times list */
         add(qualityLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(qualityComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        // Added times list on the same row
+        add(addedTimesLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.NORTH,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        addedTimesLabel.setHorizontalAlignment(labelAlignment);
+        add(new JScrollPane(renderTimesList), new GridBagConstraints(
+            3, currentGridYIndex, 1, 2, 1.0, 0.0, GridBagConstraints.LINE_START,
+            GridBagConstraints.BOTH, insets, 0, 0));
         currentGridYIndex++;
 
         /* Sensitivity */
@@ -1161,5 +1251,63 @@ public class Panel extends JPanel implements DialogView {
         Window window = SwingUtilities.getWindowAncestor(this);
         if (window.isDisplayable())
             window.dispose();
+    }
+
+    // --- NEW: Helper method to update editor text for non-editable JComboBoxes ---
+    private <T extends Enum<T>> void updateComboBoxEditorText(JComboBox<T> comboBox, String resourceKeyPattern, T selectedValue) {
+        // This helper is for JComboBoxes that are set to editable() but whose editor JTextField is set to non-editable.
+        // It ensures the editor displays the localized string instead of the enum's toString().
+        if (comboBox == null || !comboBox.isEditable()) {
+            return;
+        }
+        Component editorComp = comboBox.getEditor().getEditorComponent();
+        if (!(editorComp instanceof JTextField)) { // Ensure the editor component is a JTextField
+            return;
+        }
+        JTextField editorTextField = (JTextField) editorComp;
+        // Only apply if the JTextField itself is not editable (our "fake" setup)
+        if (editorTextField.isEditable()) { 
+            return;
+        }
+
+        String determinedTextValue; // Use a non-final temporary variable
+        if (selectedValue != null) {
+            if (resource != null) {
+                try {
+                    determinedTextValue = resource.getString(String.format(resourceKeyPattern, selectedValue.name()));
+                } catch (java.util.MissingResourceException e) {
+                    // Fallback if resource key is missing, log and use enum's default toString()
+                    System.err.println("Warning: Missing resource for JComboBox editor text: " + String.format(resourceKeyPattern, selectedValue.name()) + ". Using default name.");
+                    determinedTextValue = selectedValue.toString(); 
+                }
+            } else { // resource is null, but selectedValue is not
+                determinedTextValue = selectedValue.toString(); // Fallback if resource bundle is somehow null
+            }
+        } else { // selectedValue is null
+            determinedTextValue = ""; // Empty string for a null selectedValue
+        }
+        final String textToSet = determinedTextValue; // Assign to the final variable once
+
+        // Directly set the text of the JTextField component of the editor.
+        // Only update if the text is actually different to avoid potential event loops or unnecessary screen flicker.
+        if (!editorTextField.getText().equals(textToSet)) {
+            editorTextField.setText(textToSet);
+        }
+    }
+
+    // --- NEW: Helper method to make the editor area of a non-typable editable combo box clickable ---
+    private <T> void makeClickableToOpenDropdown(JComboBox<T> comboBox) {
+        if (comboBox == null || !comboBox.isEditable()) return;
+        Component editorComp = comboBox.getEditor().getEditorComponent();
+        if (editorComp == null || (editorComp instanceof JTextField && ((JTextField) editorComp).isEditable())) return;
+
+        editorComp.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (comboBox.isEnabled()) {
+                    SwingUtilities.invokeLater(() -> comboBox.setPopupVisible(!comboBox.isPopupVisible()));
+                }
+            }
+        });
     }
 };
