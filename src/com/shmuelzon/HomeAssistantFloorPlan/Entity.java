@@ -668,8 +668,11 @@ public class Entity implements Comparable<Entity> {
             iconStyleProperties.append("      transform: translate(-50%, -50%)\n");
 
             // Set a responsive font-size, which will serve as the base for scaling all em-based units.
-            double iconSizeVw = 2.3 * scaleFactor; // Increased base size for icon glyph
-            iconStyleProperties.append(String.format(Locale.US, "      --mdc-icon-size: %.2fvw\n", iconSizeVw));
+            // Using calc() adds a fixed base size to the scalable vw unit. This prevents icons from
+            // becoming too small on narrow screens while still allowing them to grow on wider screens.
+            double iconSizeVw = 2.0 * scaleFactor;
+            double iconSizePx = 10.0 * scaleFactor;
+            iconStyleProperties.append(String.format(Locale.US, "      --mdc-icon-size: calc(%.2fvw + %.2fpx)\n", iconSizeVw, iconSizePx));
             iconStyleProperties.append("      pointer-events: none;\n"); // Icon part is not clickable if background handles it
 
             // No background/border styling here, as it's handled by the separate image element
@@ -763,8 +766,11 @@ public class Entity implements Comparable<Entity> {
             }
 
             if (displayType == DisplayType.ICON || displayType == DisplayType.BADGE) { // Icon or Badge
-                double iconSizeVw = 2.3 * scaleFactor; // Increased base size for icon glyph
-                styleProperties.append(String.format(Locale.US, "      --mdc-icon-size: %.2fvw\n", iconSizeVw));
+                // Using calc() adds a fixed base size to the scalable vw unit. This prevents icons from
+                // becoming too small on narrow screens while still allowing them to grow on wider screens.
+                double iconSizeVw = 2.0 * scaleFactor;
+                double iconSizePx = 10.0 * scaleFactor;
+                styleProperties.append(String.format(Locale.US, "      --mdc-icon-size: calc(%.2fvw + %.2fpx)\n", iconSizeVw, iconSizePx));
                 // No background/border styling here, as it's handled by the separate image element
             }
 
@@ -788,11 +794,11 @@ public class Entity implements Comparable<Entity> {
                 if (labelFontWeight != null && !labelFontWeight.trim().isEmpty()) {
                     styleProperties.append(String.format(Locale.US, "      font-weight: %s\n", labelFontWeight));
                 }
-                // For labels, apply scaleFactor to font-size for responsiveness.
-                // Using 'vw' (viewport width) unit makes the font size relative to the screen width.
-                // The base size (e.2) can be adjusted. A scaleFactor of 1.0 will result in 1.2vw.
-                double scaledFontSize = 1.2 * scaleFactor;
-                styleProperties.append(String.format(Locale.US, "      font-size: %.2fvw\n", scaledFontSize));
+                // Using calc() for labels provides a minimum font size and prevents text from becoming
+                // too small on narrow screens, improving readability.
+                double scaledFontVw = 0.8 * scaleFactor;
+                double scaledFontPx = 5.0 * scaleFactor;
+                styleProperties.append(String.format(Locale.US, "      font-size: calc(%.2fvw + %.2fpx)\n", scaledFontVw, scaledFontPx));
             }
             
             // Prepare conditional parts as arguments for String.format
@@ -1028,10 +1034,11 @@ public class Entity implements Comparable<Entity> {
         backgroundStyleProperties.append("      transform: translate(-50%, -50%)\n");
 
         // Calculate the size of the background circle in vw units.
-        // This size should be large enough to contain the icon comfortably.
-        // A base of 2.0vw * scaleFactor seems reasonable for the overall circle diameter.
-        double backgroundSizeVw = 3 * scaleFactor; // Increased background size by 10% (2.5 * 1.1)
-        backgroundStyleProperties.append(String.format(Locale.US, "      --mdc-icon-size: %.2fvw\n", backgroundSizeVw));
+        // This size should be large enough to contain the icon. We use calc() to keep it
+        // proportional to the icon's size across all screen widths.
+        double backgroundSizeVw = 3.0 * scaleFactor;
+        double backgroundSizePx = 15.0 * scaleFactor;
+        backgroundStyleProperties.append(String.format(Locale.US, "      --mdc-icon-size: calc(%.2fvw + %.2fpx)\n", backgroundSizeVw, backgroundSizePx));
         // The color of the icon IS the background color.
         backgroundStyleProperties.append(String.format(Locale.US, "      color: %s\n", backgroundColor));
 
