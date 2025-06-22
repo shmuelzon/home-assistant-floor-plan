@@ -54,6 +54,7 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JSplitPane;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SwingWorker;
@@ -879,7 +880,7 @@ public class Panel extends JPanel implements DialogView {
 
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
-        outputDirectoryTextField = new JTextField(20);
+        outputDirectoryTextField = new JTextField();
         outputDirectoryTextField.setText(controller.getOutputDirectory());
         outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -950,17 +951,6 @@ public class Panel extends JPanel implements DialogView {
             startButton.setAction(getActionMap().get(ActionType.STOP));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.stopButton.text"));
         }
-
-        // After changing button text, the panel might need to resize.
-        // Revalidate the panel and then repack its parent dialog if visible.
-        revalidate();
-        Window window = SwingUtilities.getWindowAncestor(this);
-        if (window instanceof JDialog && window.isVisible()) {
-            JDialog dialog = (JDialog) window;
-            dialog.pack();
-            // Optionally re-center, though pack might do this or it might not be desired for this specific case.
-            // dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
-        }
     }
 
     private void layoutComponents() {
@@ -980,31 +970,46 @@ public class Panel extends JPanel implements DialogView {
 
         /* Detected entities trees */
         JScrollPane detectedLightsScrollPane = new JScrollPane(detectedLightsTree);
-        detectedLightsScrollPane.setPreferredSize(new Dimension(275, 350));
-        add(detectedLightsScrollPane, new GridBagConstraints( // Make trees expand
-            0, currentGridYIndex, 2, 1, 0.5, 1.0, GridBagConstraints.CENTER, // weightx=0.5, weighty=1.0
-            GridBagConstraints.BOTH, insets, 0, 0));      // fill=BOTH
         JScrollPane otherEntitiesScrollPane = new JScrollPane(otherEntitiesTree);
-        otherEntitiesScrollPane.setPreferredSize(new Dimension(275, 350));
-        add(otherEntitiesScrollPane, new GridBagConstraints( // Make trees expand
-            2, currentGridYIndex, 2, 1, 0.5, 1.0, GridBagConstraints.CENTER, // weightx=0.5, weighty=1.0
-            GridBagConstraints.BOTH, insets, 0, 0));      // fill=BOTH
+
+        JSplitPane treesSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                                                   detectedLightsScrollPane,
+                                                   otherEntitiesScrollPane);
+        treesSplitPane.setResizeWeight(0.33);
+        treesSplitPane.setOneTouchExpandable(true);
+        treesSplitPane.setContinuousLayout(true);
+        treesSplitPane.setPreferredSize(new Dimension(800, 350));
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                treesSplitPane.setDividerLocation(0.33);
+            }
+        });
+
+        add(treesSplitPane, new GridBagConstraints(
+            0, currentGridYIndex, 4, 1, 1.0, 1.0, GridBagConstraints.CENTER,
+            GridBagConstraints.BOTH, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Point of View and Furniture to Center */
+        // --- Refactored to a 2-column layout for narrower, more stable width ---
+
+        /* Point of View */
         add(pointOfViewLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         pointOfViewLabel.setHorizontalAlignment(labelAlignment);
         add(pointOfViewComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(furnitureToCenterLabel, new GridBagConstraints( // Add furniture label to the same row
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, new Insets(0, standardGap * 2, 0, standardGap), 0, 0));
+        currentGridYIndex++;
+
+        /* Furniture to Center */
+        add(furnitureToCenterLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         furnitureToCenterLabel.setHorizontalAlignment(labelAlignment);
-        add(furnitureToCenterComboBox, new GridBagConstraints( // Add furniture combo box to the same row
-            3, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.LINE_START,
+        add(furnitureToCenterComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
@@ -1013,117 +1018,102 @@ public class Panel extends JPanel implements DialogView {
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         widthLabel.setHorizontalAlignment(labelAlignment);
-        add(widthSpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(heightLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        heightLabel.setHorizontalAlignment(labelAlignment);
-        add(heightSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        JPanel resolutionPanel = new JPanel(new GridBagLayout());
+        resolutionPanel.add(widthSpinner, new GridBagConstraints(
+            0, 0, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0,0,0,standardGap), 0, 0));
+        resolutionPanel.add(heightLabel, new GridBagConstraints(
+            1, 0, 1, 1, 0, 0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0,0,0,standardGap), 0, 0));
+        resolutionPanel.add(heightSpinner, new GridBagConstraints(
+            2, 0, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0,0,0,0), 0, 0));
+        add(resolutionPanel, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Light mixing mode + Render Date */
+        /* Light mixing mode */
         add(lightMixingModeLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        lightMixingModeLabel.setHorizontalAlignment(labelAlignment);
         add(lightMixingModeComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        // Render Date on the same row
-        add(renderDateLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        renderDateLabel.setHorizontalAlignment(labelAlignment);
-        add(renderDateSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Renderer + Render Time */
+        // --- Refactored to add components directly to the main panel's GridBagLayout ---
+        // --- This ensures that columns align vertically across these two rows. ---
+
+        /* Renderer and Quality Row */
         add(rendererLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(rendererComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        // Render Time on the same row
-        add(renderTimeLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        renderTimeLabel.setHorizontalAlignment(labelAlignment);
-        add(renderTimeSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        rendererLabel.setHorizontalAlignment(labelAlignment);
+        add(rendererComboBox, new GridBagConstraints(1, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(qualityLabel, new GridBagConstraints(2, currentGridYIndex, 1, 1, 0.0, 0, GridBagConstraints.CENTER, GridBagConstraints.NONE, insets, 0, 0));
+        add(qualityComboBox, new GridBagConstraints(3, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Image format + Add/Remove Times */
+        /* Image format and Sensitivity Row */
         add(imageFormatLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(imageFormatComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        imageFormatLabel.setHorizontalAlignment(labelAlignment);
+        add(imageFormatComboBox, new GridBagConstraints(1, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(sensitivityLabel, new GridBagConstraints(2, currentGridYIndex, 1, 1, 0.0, 0, GridBagConstraints.CENTER, GridBagConstraints.NONE, insets, 0, 0));
+        add(sensitivitySpinner, new GridBagConstraints(3, currentGridYIndex, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Render Date and Time */
+        add(renderDateLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        // Add/Remove Times on the same row
-        add(addRemoveTimesLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        addRemoveTimesLabel.setHorizontalAlignment(labelAlignment);
-        JPanel addRemoveButtonsPanel = new JPanel(new GridBagLayout());
-        addRemoveButtonsPanel.add(renderTimeAddButton, new GridBagConstraints(
-            0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.NONE, insets, 0, 0));
-        addRemoveButtonsPanel.add(renderTimeRemoveButton, new GridBagConstraints(
-            1, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.NONE, insets, 0, 0));
-        add(addRemoveButtonsPanel, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        renderDateLabel.setHorizontalAlignment(labelAlignment);
+        JPanel dateTimePanel = new JPanel(new GridBagLayout());
+        dateTimePanel.add(renderDateSpinner, new GridBagConstraints(
+            0, 0, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0,0,0,standardGap), 0, 0));
+        dateTimePanel.add(renderTimeLabel, new GridBagConstraints(
+            1, 0, 1, 1, 0, 0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0,0,0,standardGap), 0, 0));
+        dateTimePanel.add(renderTimeSpinner, new GridBagConstraints(
+            2, 0, 1, 1, 0.5, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0,0,0,0), 0, 0));
+        add(dateTimePanel, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Quality + Added times list */
-        add(qualityLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        // Added times list on the same row
+        /* Added Times List and Buttons */
         add(addedTimesLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.NORTH,
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.NORTH,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         addedTimesLabel.setHorizontalAlignment(labelAlignment);
-        add(new JScrollPane(renderTimesList), new GridBagConstraints(
-            3, currentGridYIndex, 1, 2, 1.0, 0.0, GridBagConstraints.LINE_START,
+        JPanel timesListPanel = new JPanel(new java.awt.BorderLayout(standardGap, 0));
+        timesListPanel.add(new JScrollPane(renderTimesList), java.awt.BorderLayout.CENTER);
+        JPanel addRemoveButtonsPanel = new JPanel(new GridBagLayout());
+        addRemoveButtonsPanel.add(renderTimeAddButton, new GridBagConstraints(
+            0, 0, 1, 1, 0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0,0,standardGap,0), 0, 0));
+        addRemoveButtonsPanel.add(renderTimeRemoveButton, new GridBagConstraints(
+            0, 1, 1, 1, 0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0,0,0,0), 0, 0));
+        timesListPanel.add(addRemoveButtonsPanel, java.awt.BorderLayout.EAST);
+        add(timesListPanel, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0.0, GridBagConstraints.LINE_START,
             GridBagConstraints.BOTH, insets, 0, 0));
-        currentGridYIndex++;
-
-        /* Sensitivity */
-        add(sensitivityLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(sensitivitySpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(outputDirectoryTextField, new GridBagConstraints(
-            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(outputDirectoryBrowseButton, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        outputDirectoryLabel.setHorizontalAlignment(labelAlignment);
+        JPanel outputDirectoryPanel = new JPanel(new java.awt.BorderLayout(standardGap, 0));
+        outputDirectoryPanel.add(outputDirectoryTextField, java.awt.BorderLayout.CENTER);
+        outputDirectoryPanel.add(outputDirectoryBrowseButton, java.awt.BorderLayout.EAST);
+        add(outputDirectoryPanel, new GridBagConstraints(
+            1, currentGridYIndex, 3, 1, 1.0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Options */
         add(useExistingRendersCheckbox, new GridBagConstraints(
-            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
