@@ -357,7 +357,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
     public Map<String, Double> getRoomBoundingBoxPercent(Entity entity) {
         if (this.houseNdcBounds == null) {
-            System.err.println("Error: houseNdcBounds not calculated. Cannot get room bounding box.");
+            System.err.println("Warning: houseNdcBounds not calculated. Cannot get room bounding box for entity " + (entity != null ? entity.getName() : "null"));
             return null;
         }
         if (entity == null) { // getRoomForEntity will handle if piecesOfFurniture is empty
@@ -398,7 +398,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         double minCornerX = Double.POSITIVE_INFINITY, maxCornerX = Double.NEGATIVE_INFINITY;
         double minCornerY = Double.POSITIVE_INFINITY, maxCornerY = Double.NEGATIVE_INFINITY;
 
-        float roomBaseElevation = room.getLevel() != null ? room.getLevel().getElevation() : 0;
+        float roomFloorElevation = room.getLevel() != null ? room.getLevel().getElevation() : 0;
         
         float actualRoomHeight;
         if (room.getLevel() != null) {
@@ -411,18 +411,22 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         } else {
             actualRoomHeight = home.getWallHeight(); // Fallback if room has no level
         }
-                               
-        float roomCeilingElevation = roomBaseElevation + actualRoomHeight;
+
+        // To emphasize the ceiling, we can project the "floor" of the clickable area from a higher elevation.
+        // This makes the projected 2D box appear higher on the screen, more aligned with the ceiling.
+        // Using 0.5f means the clickable area will effectively represent the top 50% of the room's height.
+        float projectionBaseElevation = roomFloorElevation + (actualRoomHeight * 0.5f); 
+        float projectionCeilingElevation = roomFloorElevation + actualRoomHeight; // Ceiling remains the same
 
         List<Vector4d> cornerPointsToProject = new ArrayList<>();
         // Add floor points: p[0] is X, p[1] is Z (depth). Y is vertical.
-        for (float[] p2d : roomWorldPoints) {
-            cornerPointsToProject.add(new Vector4d(p2d[0], roomBaseElevation, p2d[1], 1.0));
+        for (float[] p2d : roomWorldPoints) { // Use the 2D points of the room
+            cornerPointsToProject.add(new Vector4d(p2d[0], projectionBaseElevation, p2d[1], 1.0));
         }
         // Add ceiling points
         if (room.isCeilingVisible() && actualRoomHeight > 0) { // Only add if room has height and visible ceiling
             for (float[] p2d : roomWorldPoints) {
-                cornerPointsToProject.add(new Vector4d(p2d[0], roomCeilingElevation, p2d[1], 1.0));
+                cornerPointsToProject.add(new Vector4d(p2d[0], projectionCeilingElevation, p2d[1], 1.0));
             }
         }
 
@@ -550,10 +554,6 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
-
-        // Ensure the plugin's working camera and projection are up-to-date with the selected setting
-        applySelectedCameraToWorkingCamera(); // Refreshes this.camera
-        build3dProjection(); // Rebuilds this.perspectiveTransform based on the refreshed this.camera
 
         try {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
@@ -1369,6 +1369,19 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
 
         Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .filter(entity -> {
+                // Exclude entities whose icons are completely invisible AND non-interactive.
+                // These entities serve no visual or interactive purpose, so their position does not need to be adjusted for overlap.
+                return !(entity.getOpacity() == 0 &&
+                         entity.getTapAction() == Entity.Action.NONE &&
+                         entity.getDoubleTapAction() == Entity.Action.NONE &&
+                         entity.getHoldAction() == Entity.Action.NONE);
+            })
+            .filter(entity -> {
+                // Exclude entities explicitly marked to be excluded from overlap detection
+                boolean explicitlyExcluded = entity.isExcludedFromOverlap();
+                return !explicitlyExcluded;
+            })
             .forEach(entity -> {
                 Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
                 if (interectingSet != null) {
@@ -1417,6 +1430,11 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         Point2d centerPostition = getCenterOfStateIcons(entities);
 
         for (Entity entity : entities) {
+            // This check should ideally not be needed here if filtering in findIntersectingStateIcons is correct,
+            // but added for robustness in debugging.
+            if (entity.isExcludedFromOverlap()) {
+                continue;
+            }
             Vector2d direction = new Vector2d(entity.getPosition().x - centerPostition.x, entity.getPosition().y - centerPostition.y);
 
             if (direction.length() == 0) {
@@ -1622,21 +1640,13 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             Double.isInfinite(minNdcY) || Double.isInfinite(maxNdcY) ||
             minNdcX >= maxNdcX || minNdcY >= maxNdcY) { 
             this.houseNdcBounds = createDefaultNdcBounds();
-            System.err.println("DEBUG: Invalid house NDC bounds calculated. Defaulting to full view. MinX=" + minNdcX + ", MaxX=" + maxNdcX + ", MinY=" + minNdcY + ", MaxY=" + maxNdcY);
-            System.out.println("DEBUG: Using DEFAULT houseNdcBounds: minX=" + this.houseNdcBounds.get("minX") + 
-                               ", maxX=" + this.houseNdcBounds.get("maxX") + 
-                               ", minY=" + this.houseNdcBounds.get("minY") + 
-                               ", maxY=" + this.houseNdcBounds.get("maxY"));
+            System.err.println("Warning: Invalid house NDC bounds calculated. Defaulting to full view.");
         } else {
             this.houseNdcBounds = new HashMap<>();
             this.houseNdcBounds.put("minX", minNdcX);
             this.houseNdcBounds.put("maxX", maxNdcX);
             this.houseNdcBounds.put("minY", minNdcY);
             this.houseNdcBounds.put("maxY", maxNdcY);
-            System.out.println("DEBUG: Calculated houseNdcBounds: minX=" + minNdcX + 
-                               ", maxX=" + maxNdcX + 
-                               ", minY=" + minNdcY + 
-                               ", maxY=" + maxNdcY);
         }
     }
 

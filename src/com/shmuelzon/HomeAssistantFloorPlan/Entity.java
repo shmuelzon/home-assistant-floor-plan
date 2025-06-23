@@ -53,6 +53,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
     private static final String SETTING_NAME_SCALE_FACTOR = "scaleFactor"; // Added missing constant
     private static final String SETTING_NAME_CLICKABLE_AREA_TYPE = "clickableAreaType";
+    private static final String SETTING_NAME_EXCLUDE_FROM_OVERLAP = "excludeFromOverlap";
     private static final String SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID = "associatedFanEntityId";
     private static final String SETTING_NAME_FAN_COLOR = "fanColor";
     private static final String SETTING_NAME_SHOW_FAN_WHEN_OFF = "showFanWhenOff";
@@ -103,6 +104,7 @@ public class Entity implements Comparable<Entity> {
     private String labelTextShadow;
     private String labelFontWeight;
     private String labelSuffix;
+    private boolean excludeFromOverlap;
 
     public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture, ResourceBundle resourceBundle) {
         this.settings = settings;
@@ -440,6 +442,16 @@ public class Entity implements Comparable<Entity> {
         propertyChangeSupport.firePropertyChange(Property.SCALE_FACTOR.name(), oldScaleFactor, scaleFactor);
     }
 
+    public boolean isExcludedFromOverlap() {
+        return excludeFromOverlap;
+    }
+
+    public void setExcludeFromOverlap(boolean excludeFromOverlap) {
+        this.excludeFromOverlap = excludeFromOverlap;
+        settings.setBoolean(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), excludeFromOverlap);
+    }
+
+
     public boolean isScaleFactorModified() {
         return settings.get(getSettingKey(SETTING_NAME_SCALE_FACTOR)) != null;
     }
@@ -576,6 +588,8 @@ public class Entity implements Comparable<Entity> {
         settings.set(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), null);
         settings.set(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), null);
         settings.set(getSettingKey(SETTING_NAME_LABEL_SUFFIX), null);
+        settings.set(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), null);
+        settings.set(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -644,7 +658,8 @@ public class Entity implements Comparable<Entity> {
 
 
         // Use the new displayOperator logic
-        if (this.displayOperator == DisplayOperator.NEVER && !getAlwaysOn()) {
+        // If the entity is configured to never be displayed, or is an "always on" light (which has no icon)
+        if (this.displayOperator == DisplayOperator.NEVER || getAlwaysOn()) {
             return new ArrayList<>(); // Return empty list if never displayed
         }
 
@@ -773,6 +788,16 @@ public class Entity implements Comparable<Entity> {
                 styleProperties.append(String.format(Locale.US, "      --mdc-icon-size: calc(%.2fvw + %.2fpx)\n", iconSizeVw, iconSizePx));
                 // No background/border styling here, as it's handled by the separate image element
             }
+            
+            if (displayType == DisplayType.LABEL) {
+                // Add background and border if requested for labels. This is applied directly
+                // to the label element, allowing the background to size with the text content.
+                if (this.showBorderAndBackground) { // This condition is controlled by the "Border/Background" checkbox in the UI
+                    styleProperties.append(String.format(Locale.US, "      background: %s\n", this.backgroundColor));
+                    styleProperties.append("      border-radius: 50%\n"); // Make it circular/elliptical (fixed extra %)
+                    // Removed box-sizing: border-box as requested
+                }
+            }
 
             if (displayType == DisplayType.LABEL || displayType == DisplayType.BADGE) { // Badges can also have text
                 styleProperties.append("      text-align: center\n");
@@ -785,6 +810,7 @@ public class Entity implements Comparable<Entity> {
             }
 
             if (displayType == DisplayType.LABEL) {
+
                 if (labelColor != null && !labelColor.trim().isEmpty()) {
                     styleProperties.append(String.format(Locale.US, "      color: %s\n", labelColor));
                 }
@@ -845,11 +871,6 @@ public class Entity implements Comparable<Entity> {
         if (clickableAreaType == ClickableAreaType.ROOM_SIZE && controller != null) {
             Map<String, Double> roomBounds = controller.getRoomBoundingBoxPercent(this);
             if (roomBounds != null) {
-                System.out.println(String.format(Locale.US, 
-                    "DEBUG Entity.java: For entity '%s', Icon Center (L:%.2f%%, T:%.2f%%). Controller-provided (shrunken) bounds: (L:%.2f%%, T:%.2f%%, W:%.2f%%, H:%.2f%%)",
-                    this.name, this.position.x, this.position.y,
-                    roomBounds.get("left"), roomBounds.get("top"), roomBounds.get("width"), roomBounds.get("height")
-                ));
                 // Check if the icon's center is within the calculated room bounds
                 double iconCenterY = this.position.y;
                 double iconCenterX = this.position.x;
@@ -907,11 +928,16 @@ public class Entity implements Comparable<Entity> {
                 pngWidthPx = Math.max(1, pngWidthPx);
                 pngHeightPx = Math.max(1, pngHeightPx);
 
-                String transparentImageBaseName = "transparent_" + this.name;
+                String baseNameForImage = this.name;
+                String fullImageName = "transparent_" + baseNameForImage;
+
                 try {
-                    controller.ensureEntityTransparentImageGenerated(transparentImageBaseName, pngWidthPx, pngHeightPx);
-                    String transparentImageHash = controller.renderHash(transparentImageBaseName, true);
-                    String transparentImagePath = "/local/floorplan/" + transparentImageBaseName + ".png?version=" + transparentImageHash;
+                    // ensureEntityTransparentImageGenerated prepends "transparent_" internally
+                    controller.ensureEntityTransparentImageGenerated(baseNameForImage, pngWidthPx, pngHeightPx);
+                    // renderHash needs the full name of the file that was created
+                    String transparentImageHash = controller.renderHash(fullImageName, true);
+                    // The path for Home Assistant also needs the full name
+                    String transparentImagePath = "/local/floorplan/" + fullImageName + ".png?version=" + transparentImageHash;
 
                     clickableAreaYaml = String.format(Locale.US,
                         "  - type: image\n" +
@@ -1136,12 +1162,13 @@ public class Entity implements Comparable<Entity> {
         fanColor = getSavedEnumValue(FanColor.class, getSettingKey(SETTING_NAME_FAN_COLOR), FanColor.BLACK);
         showFanWhenOff = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), true);
         fanSize = getSavedEnumValue(FanSize.class, getSettingKey(SETTING_NAME_FAN_SIZE), FanSize.MEDIUM);
-        showBorderAndBackground = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), false);
-        labelColor = settings.get(getSettingKey(SETTING_NAME_LABEL_COLOR), "black"); // Default to "black"
+        showBorderAndBackground = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), false); // Default to false
+        labelColor = settings.get(getSettingKey(SETTING_NAME_LABEL_COLOR), "white"); // Default to "white" for better contrast with dark backgrounds
         labelTextShadow = settings.get(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), "");
         labelFontWeight = settings.get(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), "normal"); // Default to "normal"
         labelSuffix = settings.get(getSettingKey(SETTING_NAME_LABEL_SUFFIX), "");
 
+        excludeFromOverlap = settings.getBoolean(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), false);
         isRgb = settings.getBoolean(getSettingKey(SETTING_NAME_IS_RGB), false);
         
         // Determine if this Entity represents a light based on its HA name or if any associated SH3D piece is a HomeLight

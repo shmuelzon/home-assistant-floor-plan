@@ -144,6 +144,7 @@ public class Panel extends JPanel implements DialogView {
     private JButton startButton;
     private JButton closeButton;
     private JButton previewButton;
+    private boolean isProgrammaticTimeChange = false;
 
     private class EntityNode {
         public Entity entity;
@@ -823,6 +824,48 @@ public class Panel extends JPanel implements DialogView {
         timeFormatter.setOverwriteMode(true);        
         renderTimeAddButton = new JButton(actionMap.get(ActionType.ADD_RENDER_TIME));
         renderTimeAddButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.addTimeButton.text"));
+
+        // This listener updates the selected time in the list when the spinner is changed.
+        renderTimeSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                if (isProgrammaticTimeChange) {
+                    return; // Do nothing if the change was triggered programmatically
+                }
+
+                int selectedIndex = renderTimesList.getSelectedIndex();
+                if (selectedIndex == -1) {
+                    // If no item is selected, do not modify the list.
+                    // The user must click "Add" to add a new time.
+                    return;
+                }
+
+                // An item is selected, so update its time component.
+                LocalTime newTime = ((Date) renderTimeSpinner.getValue()).toInstant().atZone(timeZone.toZoneId()).toLocalTime();
+                List<Long> currentRenderingTimes = controller.getRenderDateTimes();
+
+                if (selectedIndex < currentRenderingTimes.size()) {
+                    Long selectedTimestamp = currentRenderingTimes.get(selectedIndex);
+                    LocalDate selectedDate = Instant.ofEpochMilli(selectedTimestamp).atZone(timeZone.toZoneId()).toLocalDate();
+                    Long updatedTimestamp = selectedDate.atTime(newTime).atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+
+                    // Prevent updating if it creates a duplicate time
+                    boolean alreadyExists = false;
+                    for (int i = 0; i < currentRenderingTimes.size(); i++) {
+                        if (i != selectedIndex && currentRenderingTimes.get(i).equals(updatedTimestamp)) {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+
+                    if (!alreadyExists) {
+                        currentRenderingTimes.set(selectedIndex, updatedTimestamp);
+                        controller.setRenderDateTimes(new ArrayList<>(new TreeSet<>(currentRenderingTimes)));
+                        updateRenderingTimesList(false);
+                        renderTimesList.setSelectedValue(updatedTimestamp, true); // Re-select the (possibly moved) item
+                    }
+                }
+            }
+        });
         renderTimeRemoveButton = new JButton(actionMap.get(ActionType.REMOVE_RENDER_TIME));
         renderTimeRemoveButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.removeTimeButton.text"));
         
@@ -835,6 +878,17 @@ public class Panel extends JPanel implements DialogView {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 return super.getListCellRendererComponent(list, timeEditor.getFormat().format(new Date((Long) value)), index, isSelected, cellHasFocus);
+            }
+        });
+        // This listener updates the spinner when a time is selected in the list.
+        renderTimesList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                Long selectedValue = renderTimesList.getSelectedValue();
+                if (selectedValue != null) {
+                    isProgrammaticTimeChange = true;
+                    timeModel.setValue(new Date(selectedValue));
+                    isProgrammaticTimeChange = false;
+                }
             }
         });
         updateRenderingTimesList(true);
@@ -1215,8 +1269,8 @@ public class Panel extends JPanel implements DialogView {
         List<Long> currentRenderingTimes = controller.getRenderDateTimes();
         LocalDate newDate = ((Date)renderDateSpinner.getValue()).toInstant().atZone(timeZone.toZoneId()).toLocalDate();
         List<Long> newRenderingTimes = currentRenderingTimes.stream().map(timestamp -> {
-            LocalTime time = Instant.ofEpochMilli(timestamp).atZone(timeZone.toZoneId()).toLocalTime();
-            return newDate.atTime(time).atZone(timeZone.toZoneId()).toEpochSecond() * 1000;
+            LocalTime time = Instant.ofEpochMilli(timestamp).atZone(timeZone.toZoneId()).toLocalTime(); // This line was duplicated, but now it's the only one.
+            return newDate.atTime(time).atZone(timeZone.toZoneId()).toInstant().toEpochMilli(); // Use toEpochMilli for consistency
         }).collect(Collectors.toList());
 
         controller.setRenderDateTimes(newRenderingTimes);
@@ -1226,7 +1280,7 @@ public class Panel extends JPanel implements DialogView {
     private void openEntityOptionsPanel(Entity entity) {
         // Pass the main 'controller' instance to the options panel constructor.
         // This gives the panel the reference it needs to get state suggestions and other controller interactions.
-        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity, this.controller);
+        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity, this.controller); // Pass 'this.controller'
         entityOptionsPanel.displayView(this);
     }
 

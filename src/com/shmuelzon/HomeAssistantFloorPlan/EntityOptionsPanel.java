@@ -118,8 +118,9 @@ public class EntityOptionsPanel extends JPanel {
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
-    private boolean isProgrammaticClickableAreaChange = false;
-
+    private boolean isProgrammaticClickableAreaChange = false; // This should be a field
+    private JLabel excludeFromOverlapLabel; // Declare the JLabel
+    private JCheckBox excludeFromOverlapCheckbox; // Declare the JCheckBox
     // --- Constants for ComboBox population, moved to class level for wider access ---
     private static final String[] LABEL_COLOR_KEYS = {"BLACK", "WHITE", "RED", "BLUE", "GREEN", "YELLOW", "GRAY", "ORANGE", "PURPLE"}; // No "NONE"
     private static final String[] FONT_WEIGHT_KEYS = {"NORMAL", "BOLD"}; // Simplified
@@ -844,6 +845,14 @@ public class EntityOptionsPanel extends JPanel {
             markModified();
         });
 
+        excludeFromOverlapLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.excludeFromOverlapLabel.text"));
+        excludeFromOverlapCheckbox = new JCheckBox();
+        excludeFromOverlapCheckbox.setSelected(entity.isExcludedFromOverlap());
+        excludeFromOverlapCheckbox.addActionListener(e -> {
+            entity.setExcludeFromOverlap(excludeFromOverlapCheckbox.isSelected());
+            markModified();
+        });
+
 
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
@@ -1076,12 +1085,16 @@ public class EntityOptionsPanel extends JPanel {
         currentGridYIndex++;
 
         if (entity.getIsLight())
-            layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
+            currentGridYIndex = layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
         else
-            layoutNonLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
+            currentGridYIndex = layoutNonLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
+
+        /* Overlap Detection */
+        layoutOverlapDetectionComponents(labelAlignment, insets, currentGridYIndex);
+        currentGridYIndex++; // Increment after adding overlap components
     }
 
-    private void layoutLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
+    private int layoutLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
         /* Always on */
         add(alwaysOnLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -1101,9 +1114,10 @@ public class EntityOptionsPanel extends JPanel {
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
+        return currentGridYIndex;
     }
 
-    private void layoutNonLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
+    private int layoutNonLightSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
         /* Display Furniture Condition */
         add(furnitureDisplayStateLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -1117,8 +1131,18 @@ public class EntityOptionsPanel extends JPanel {
             1, currentGridYIndex, 4, 1, 1, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
+        return currentGridYIndex;
     }
 
+    private void layoutOverlapDetectionComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
+        add(excludeFromOverlapLabel, new GridBagConstraints(
+                0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+                GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        excludeFromOverlapLabel.setHorizontalAlignment(labelAlignment);
+        add(excludeFromOverlapCheckbox, new GridBagConstraints(
+                1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+                GridBagConstraints.NONE, insets, 0, 0));
+    }
     private void markModified() {
         Color modifiedColor = new Color(200, 0, 0);
 
