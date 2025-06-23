@@ -55,31 +55,43 @@ public class Scene {
         if (renderingTimes.size() <= 1)
             return "";
 
-        int indexInTimes = renderingTimes.indexOf(renderingTime);
-        int numberOfTimes = renderingTimes.size();
-        boolean isLast = indexInTimes == numberOfTimes - 1;
+        final int indexInTimes = renderingTimes.indexOf(renderingTime);
+        final int numberOfTimes = renderingTimes.size();
+        
+        // Determine the start and end times for this scene's active period.
+        final long startTime = renderingTimes.get(indexInTimes);
+        // The end time is the next time in the list, or the first time if this is the last one.
+        final long endTime = (indexInTimes == numberOfTimes - 1) 
+                           ? renderingTimes.get(0) 
+                           : renderingTimes.get(indexInTimes + 1);
 
-        if (!isLast) {
+        // Convert timestamps to numeric HHmm format for the condition.
+        // The 'above' value is exclusive, so we subtract a minute from the start time to make it inclusive.
+        final int startTimeNumeric = Integer.valueOf(timestampTo24HourStringUtc(startTime - oneMinuteInMs));
+        final int endTimeNumeric = Integer.valueOf(timestampTo24HourStringUtc(endTime));
+
+        // If the start time is less than the end time, it's a simple range within a single day.
+        if (startTimeNumeric < endTimeNumeric) {
             return String.format(
                 "      - condition: numeric_state\n" +
                 "        entity: sensor.time_as_number_utc\n" +
                 "        above: %d\n" +
                 "        below: %d\n",
-                Integer.valueOf(timestampTo24HourString(renderingTimes.get(indexInTimes) - oneMinuteInMs)),
-                Integer.valueOf(timestampTo24HourString(renderingTimes.get(indexInTimes + 1))));
+                startTimeNumeric,
+                endTimeNumeric);
+        } else { // Otherwise, the range wraps around midnight.
+            return String.format(
+                "      - condition: or\n" +
+                "        conditions:\n" +
+                "          - condition: numeric_state\n" +
+                "            entity: sensor.time_as_number_utc\n" +
+                "            above: %d\n" +
+                "          - condition: numeric_state\n" +
+                "            entity: sensor.time_as_number_utc\n" +
+                "            below: %d\n",
+                startTimeNumeric,
+                endTimeNumeric);
         }
-
-        return String.format(
-            "      - condition: or\n" +
-            "        conditions:\n" +
-            "          - condition: numeric_state\n" +
-            "            entity: sensor.time_as_number_utc\n" +
-            "            above: %d\n" +
-            "          - condition: numeric_state\n" +
-            "            entity: sensor.time_as_number_utc\n" +
-            "            below: %d\n",
-            Integer.valueOf(timestampTo24HourString(renderingTimes.get(indexInTimes) - oneMinuteInMs)),
-            Integer.valueOf(timestampTo24HourString(renderingTimes.get(0))));
     }
 
     // --- MODIFIED: This method now correctly uses the new operator/value fields from Entity.java ---
@@ -118,11 +130,25 @@ public class Scene {
         return condition;
     }
 
-    private String timestampTo24HourString(long timestamp) {
+    /**
+     * Formats a timestamp into "HHmm" string using the UTC time zone.
+     * This is used for Home Assistant conditions that rely on UTC time sensors.
+     */
+    private String timestampTo24HourStringUtc(long timestamp) {
         Date date = new Date(timestamp);
         SimpleDateFormat dateFormat = new SimpleDateFormat("HHmm");
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return dateFormat.format(date);
+    }
 
+    /**
+     * Formats a timestamp into "HHmm" string using the system's default local time zone.
+     * This is used for naming output folders to reflect local time.
+     */
+    private String timestampTo24HourStringLocal(long timestamp) {
+        Date date = new Date(timestamp);
+        SimpleDateFormat dateFormat = new SimpleDateFormat("HHmm");
+        dateFormat.setTimeZone(TimeZone.getDefault()); // Use local time zone
         return dateFormat.format(date);
     }
 
@@ -130,7 +156,7 @@ public class Scene {
         List<String> nameParts = new ArrayList<>();
 
         if (renderingTimes.size() > 1)
-            nameParts.add(timestampTo24HourString(renderingTime));
+            nameParts.add(timestampTo24HourStringLocal(renderingTime)); // Use local time for folder names
         for (Entity entity : entitiesToShowHide)
             nameParts.add(entity.getName() + "-" + (entitiesToShow.contains(entity) ? "visible" : "hidden"));
 

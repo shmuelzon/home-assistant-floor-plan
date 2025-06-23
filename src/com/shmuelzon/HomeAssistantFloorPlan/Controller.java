@@ -554,6 +554,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
+        repositionEntities(); // Re-calculate positions based on current settings, including overlap exclusion
 
         try {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));

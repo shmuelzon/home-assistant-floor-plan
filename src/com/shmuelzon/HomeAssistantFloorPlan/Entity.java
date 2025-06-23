@@ -589,7 +589,6 @@ public class Entity implements Comparable<Entity> {
         settings.set(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), null);
         settings.set(getSettingKey(SETTING_NAME_LABEL_SUFFIX), null);
         settings.set(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), null);
-        settings.set(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -679,7 +678,7 @@ public class Entity implements Comparable<Entity> {
             StringBuilder iconStyleProperties = new StringBuilder();
             iconStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
             iconStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
-            iconStyleProperties.append("      position: absolute;\n"); // Ensure absolute positioning
+            iconStyleProperties.append("      position: absolute\n"); // Ensure absolute positioning
             iconStyleProperties.append("      transform: translate(-50%, -50%)\n");
 
             // Set a responsive font-size, which will serve as the base for scaling all em-based units.
@@ -688,7 +687,11 @@ public class Entity implements Comparable<Entity> {
             double iconSizeVw = 2.0 * scaleFactor;
             double iconSizePx = 10.0 * scaleFactor;
             iconStyleProperties.append(String.format(Locale.US, "      --mdc-icon-size: calc(%.2fvw + %.2fpx)\n", iconSizeVw, iconSizePx));
-            iconStyleProperties.append("      pointer-events: none;\n"); // Icon part is not clickable if background handles it
+            
+            // Icon part is not clickable if background handles it, otherwise it should be clickable
+            if (needsSeparateBackground) {
+                iconStyleProperties.append("      pointer-events: none\n");
+            }
 
             // No background/border styling here, as it's handled by the separate image element
             if (blinking) {
@@ -697,15 +700,40 @@ public class Entity implements Comparable<Entity> {
                 iconStyleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity));
             }
 
-            String iconElementYaml = String.format(Locale.US,
-                "  - type: state-icon\n" + // Always state-icon for the icon part
-                "    entity: %s\n" +
-                (this.attribute != null && !this.attribute.isEmpty() ? "    attribute: " + this.attribute + "\n" : "") +
-                "    title: " + (title != null ? title : "null") + "\n" +
-                "    style:\n" +
-                "%s",
-                name,
-                iconStyleProperties.toString());
+            String iconElementYaml;
+            String attributePart = (this.attribute != null && !this.attribute.isEmpty() ? "    attribute: " + this.attribute + "\n" : "");
+            String titlePart = "    title: " + (title != null ? title : "null") + "\n";
+
+            if (needsSeparateBackground) {
+                iconElementYaml = String.format(Locale.US,
+                    "  - type: state-icon\n" +
+                    "    entity: %s\n" +
+                    attributePart +
+                    titlePart +
+                    "    style:\n" +
+                    "%s",
+                    name,
+                    iconStyleProperties.toString());
+            } else {
+                iconElementYaml = String.format(Locale.US,
+                    "  - type: state-icon\n" +
+                    "    entity: %s\n" +
+                    attributePart +
+                    titlePart +
+                    "    tap_action:\n" +
+                    "      action: %s\n" +
+                    "    double_tap_action:\n" +
+                    "      action: %s\n" +
+                    "    hold_action:\n" +
+                    "      action: %s\n" +
+                    "    style:\n" +
+                    "%s",
+                    name,
+                    actionYaml(tapAction, tapActionValue, this.associatedFanEntityId),
+                    actionYaml(doubleTapAction, doubleTapActionValue, this.associatedFanEntityId),
+                    actionYaml(holdAction, holdActionValue, this.associatedFanEntityId),
+                    iconStyleProperties.toString());
+            }
 
             // --- Generate the Fan Image part of ICON_AND_ANIMATED_FAN ---
             String fanImageOn;
@@ -722,7 +750,7 @@ public class Entity implements Comparable<Entity> {
             StringBuilder fanStyleProperties = new StringBuilder();
             fanStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
             fanStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
-            fanStyleProperties.append("      position: absolute;\n"); // Ensure absolute positioning
+            fanStyleProperties.append("      position: absolute\n"); // Ensure absolute positioning
             // Calculate fan dimensions based on a 2:3 width:height aspect ratio
             double fanWidthPercent; // This is the width of the fan image
             double fanHeightPercent;
@@ -738,7 +766,7 @@ public class Entity implements Comparable<Entity> {
             fanStyleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", fanWidthPercent)); // Use calculated width
             fanStyleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", fanHeightPercent));
             fanStyleProperties.append("      transform: translate(-50%, -50%)\n");
-            fanStyleProperties.append("      pointer-events: none;\n"); // Fan image is not clickable
+            fanStyleProperties.append("      pointer-events: none\n"); // Fan image is not clickable
 
             String fanImageElementYaml = "";
             if (this.associatedFanEntityId != null && !this.associatedFanEntityId.trim().isEmpty()) {
@@ -770,14 +798,14 @@ public class Entity implements Comparable<Entity> {
             StringBuilder styleProperties = new StringBuilder();
             styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
             styleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
-            styleProperties.append("      position: absolute;\n"); // Ensure absolute positioning
+            styleProperties.append("      position: absolute\n"); // Ensure absolute positioning
             styleProperties.append("      transform: translate(-50%, -50%)\n");
             
             // If there's a separate background element, this visual element should not be clickable
             if (needsSeparateBackground) {
-                styleProperties.append("      pointer-events: none;\n");
+                styleProperties.append("      pointer-events: none\n");
             } else if (clickableAreaType == ClickableAreaType.ROOM_SIZE) {
-                styleProperties.append("      pointer-events: none;\n"); // Room size clickable area handles clicks
+                styleProperties.append("      pointer-events: none\n"); // Room size clickable area handles clicks
             }
 
             if (displayType == DisplayType.ICON || displayType == DisplayType.BADGE) { // Icon or Badge
@@ -1056,7 +1084,7 @@ public class Entity implements Comparable<Entity> {
         StringBuilder backgroundStyleProperties = new StringBuilder();
         backgroundStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
         backgroundStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
-        backgroundStyleProperties.append("      position: absolute;\n");
+        backgroundStyleProperties.append("      position: absolute\n");
         backgroundStyleProperties.append("      transform: translate(-50%, -50%)\n");
 
         // Calculate the size of the background circle in vw units.

@@ -95,7 +95,7 @@ public class Panel extends JPanel implements DialogView {
     private enum ActionType {ADD_RENDER_TIME, REMOVE_RENDER_TIME, BROWSE, START, STOP, CLOSE, PREVIEW}
     private Plugin.HomeAssistantFloorPlanAction pluginAction;
     
-    final TimeZone timeZone = TimeZone.getTimeZone("UTC");
+    final TimeZone timeZone = TimeZone.getDefault(); // Interpret user input in local time zone
     private static Panel currentPanel;
     private UserPreferences preferences;
     private Controller controller;
@@ -877,7 +877,7 @@ public class Panel extends JPanel implements DialogView {
         renderTimesList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                return super.getListCellRendererComponent(list, timeEditor.getFormat().format(new Date((Long) value)), index, isSelected, cellHasFocus);
+                return super.getListCellRendererComponent(list, timeEditor.getFormat().format(Date.from(Instant.ofEpochMilli((Long) value).atZone(timeZone.toZoneId()).toInstant())), index, isSelected, cellHasFocus);
             }
         });
         // This listener updates the spinner when a time is selected in the list.
