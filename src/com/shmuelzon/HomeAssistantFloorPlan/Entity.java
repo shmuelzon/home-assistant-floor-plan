@@ -58,6 +58,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_FAN_COLOR = "fanColor";
     private static final String SETTING_NAME_SHOW_FAN_WHEN_OFF = "showFanWhenOff";
     private static final String SETTING_NAME_FAN_SIZE = "fanSize"; // Added FanSize setting constant
+    private static final String SETTING_NAME_FAN_OPACITY = "fanOpacity";
     private static final String SETTING_NAME_SHOW_BORDER_AND_BACKGROUND = "showBorderAndBackground";
     private static final String SETTING_NAME_LABEL_COLOR = "labelColor";
     private static final String SETTING_NAME_LABEL_TEXT_SHADOW = "labelTextShadow";
@@ -92,6 +93,7 @@ public class Entity implements Comparable<Entity> {
     private FanColor fanColor;
     private boolean showFanWhenOff;
     private FanSize fanSize; // Added FanSize field
+    private int fanOpacity;
     private boolean showBorderAndBackground;
     private boolean alwaysOn;
     private boolean isRgb;
@@ -495,6 +497,19 @@ public class Entity implements Comparable<Entity> {
         return settings.get(getSettingKey(SETTING_NAME_FAN_SIZE)) != null;
     }
 
+    public int getFanOpacity() {
+        return fanOpacity;
+    }
+
+    public void setFanOpacity(int fanOpacity) {
+        this.fanOpacity = fanOpacity;
+        settings.setInteger(getSettingKey(SETTING_NAME_FAN_OPACITY), fanOpacity);
+    }
+
+    public boolean isFanOpacityModified() {
+        return settings.get(getSettingKey(SETTING_NAME_FAN_OPACITY)) != null;
+    }
+
     public double getDefaultIconBadgeBaseSizePercent() {
         return this.defaultIconBadgeBaseSizePercent;
     }
@@ -583,6 +598,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), null);
         settings.set(getSettingKey(SETTING_NAME_FAN_COLOR), null);
         settings.set(getSettingKey(SETTING_NAME_FAN_SIZE), null); // Reset FanSize
+        settings.set(getSettingKey(SETTING_NAME_FAN_OPACITY), null);
         settings.set(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), null);
         settings.set(getSettingKey(SETTING_NAME_LABEL_COLOR), null);
         settings.set(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), null);
@@ -767,6 +783,7 @@ public class Entity implements Comparable<Entity> {
             fanStyleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", fanHeightPercent));
             fanStyleProperties.append("      transform: translate(-50%, -50%)\n");
             fanStyleProperties.append("      pointer-events: none\n"); // Fan image is not clickable
+            fanStyleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", this.fanOpacity));
 
             String fanImageElementYaml = "";
             if (this.associatedFanEntityId != null && !this.associatedFanEntityId.trim().isEmpty()) {
@@ -1190,6 +1207,7 @@ public class Entity implements Comparable<Entity> {
         fanColor = getSavedEnumValue(FanColor.class, getSettingKey(SETTING_NAME_FAN_COLOR), FanColor.BLACK);
         showFanWhenOff = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), true);
         fanSize = getSavedEnumValue(FanSize.class, getSettingKey(SETTING_NAME_FAN_SIZE), FanSize.MEDIUM);
+        fanOpacity = settings.getInteger(getSettingKey(SETTING_NAME_FAN_OPACITY), 100);
         showBorderAndBackground = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_BORDER_AND_BACKGROUND), false); // Default to false
         labelColor = settings.get(getSettingKey(SETTING_NAME_LABEL_COLOR), "white"); // Default to "white" for better contrast with dark backgrounds
         labelTextShadow = settings.get(getSettingKey(SETTING_NAME_LABEL_TEXT_SHADOW), "");

@@ -103,6 +103,8 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Entity.FanColor> fanColorComboBox;
     private JLabel fanSizeLabel; // Added Fan Size Label
     private JComboBox<Entity.FanSize> fanSizeComboBox; // Added Fan Size ComboBox
+    private JLabel fanOpacityLabel;
+    private JSpinner fanOpacitySpinner;
     private JLabel showBorderAndBackgroundLabel;
     private JCheckBox showBorderAndBackgroundCheckbox;
 
@@ -162,6 +164,7 @@ public class EntityOptionsPanel extends JPanel {
                 showFanWhenOffCheckbox.setSelected(entity.getShowFanWhenOff());
                 fanColorComboBox.setSelectedItem(entity.getFanColor());
                 fanSizeComboBox.setSelectedItem(entity.getFanSize()); // Update Fan Size ComboBox
+                fanOpacitySpinner.setValue(entity.getFanOpacity() / 100.0);
                 showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
                 setComboBoxSelectionFromEntityValue(labelColorComboBox, entity.getLabelColor(), LABEL_COLOR_KEYS, "HomeAssistantFloorPlan.Panel.labelColorComboBox.%s.text", LABEL_COLOR_KEYS[0]);
                 labelTextShadowComboBox.setSelectedItem(entity.getLabelTextShadow()); // Update ComboBox
@@ -764,6 +767,20 @@ public class EntityOptionsPanel extends JPanel {
         });
         makeClickableToOpenDropdown(fanSizeComboBox);
 
+        fanOpacityLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.fanOpacityLabel.text"));
+        final SpinnerNumberModel fanOpacitySpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.01);
+        fanOpacitySpinner = new AutoCommitSpinner(fanOpacitySpinnerModel);
+        JSpinner.NumberEditor fanOpacityEditor = new JSpinner.NumberEditor(fanOpacitySpinner, "0 %");
+        ((JSpinner.DefaultEditor)fanOpacityEditor).getTextField().setColumns(5);
+        fanOpacitySpinner.setEditor(fanOpacityEditor);
+        fanOpacitySpinnerModel.setValue(entity.getFanOpacity() / 100.0);
+        fanOpacitySpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                entity.setFanOpacity((int)(((Number)fanOpacitySpinnerModel.getValue()).doubleValue() * 100));
+                markModified();
+            }
+        });
+
         showBorderAndBackgroundLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.showBorderAndBackgroundLabel.text"));
         showBorderAndBackgroundCheckbox = new JCheckBox();
         showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
@@ -1047,6 +1064,15 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        add(fanOpacityLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        fanOpacityLabel.setHorizontalAlignment(labelAlignment);
+        add(fanOpacitySpinner, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         // --- NEW: Layout for state-label specific options ---
         add(labelColorLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -1163,6 +1189,8 @@ public class EntityOptionsPanel extends JPanel {
         associatedFanEntityIdLabel.setForeground(entity.isAssociatedFanEntityIdModified() ? modifiedColor : Color.BLACK);
         showFanWhenOffLabel.setForeground(entity.isShowFanWhenOffModified() ? modifiedColor : Color.BLACK);
         fanColorLabel.setForeground(entity.isFanColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        fanSizeLabel.setForeground(entity.isFanSizeModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        fanOpacityLabel.setForeground(entity.isFanOpacityModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         showBorderAndBackgroundLabel.setForeground(entity.isShowBorderAndBackgroundModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         furnitureDisplayStateLabel.setForeground(entity.isFurnitureDisplayConditionModified() ? modifiedColor : Color.BLACK);
         labelColorLabel.setForeground(entity.isLabelColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
@@ -1195,6 +1223,8 @@ public class EntityOptionsPanel extends JPanel {
         fanColorComboBox.setVisible(fanComponentsVisible);
         fanSizeLabel.setVisible(fanComponentsVisible); // Show/hide Fan Size components
         fanSizeComboBox.setVisible(fanComponentsVisible);
+        fanOpacityLabel.setVisible(fanComponentsVisible);
+        fanOpacitySpinner.setVisible(fanComponentsVisible);
 
         // Border and Background option is always visible
         showBorderAndBackgroundLabel.setVisible(true);
