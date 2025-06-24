@@ -33,6 +33,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_IS_RGB = "isRgb";
     private static final String SETTING_NAME_LEFT_POSITION = "leftPosition";
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
+    private static final String SETTING_NAME_BLINKING = "blinking";
     private static final String SETTING_NAME_OPACITY = "opacity";
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION = "displayFurnitureCondition";
@@ -42,6 +43,7 @@ public class Entity implements Comparable<Entity> {
     private String id;
     private String name;
     private Point2d position;
+    private boolean blinking;
     private int opacity;
     private String backgroundColor;
     private DisplayType displayType;
@@ -285,6 +287,18 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_LEFT_POSITION) != null;
     }
 
+    public boolean getBlinking() {
+        return blinking;
+    }
+
+    public void setBlinking(boolean blinking) {
+        this.blinking = blinking;
+        settings.setBoolean(name + "." + SETTING_NAME_BLINKING, blinking);
+    }
+
+    public boolean isBlinkingModified() {
+        return settings.get(name + "." + SETTING_NAME_BLINKING) != null;
+    }
     public int getOpacity() {
         return opacity;
     }
@@ -328,6 +342,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_IS_RGB, null);
         settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
+        settings.set(name + "." + SETTING_NAME_BLINKING, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, null);
@@ -389,24 +404,37 @@ public class Entity implements Comparable<Entity> {
         if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
             return "";
 
+        StringBuilder styleProperties = new StringBuilder();
+        styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
+        styleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
+        styleProperties.append("      transform: translate(-50%, -50%)\n"); // Crucial for centering
+        styleProperties.append("      border-radius: 50%\n"); // Common for icons/badges
+        styleProperties.append("      text-align: center\n"); // Common for labels
+        styleProperties.append(String.format(Locale.US, "      background-color: %s\n", backgroundColor));
+
+        if (blinking) {
+            styleProperties.append("      animation: my-blink 1s linear infinite\n");
+            // When blinking, the animation controls opacity.
+            // A static opacity might interfere or be overridden.
+            // If an initial opacity before animation starts is desired,
+            // it could be set, but for a continuous blink, this is usually sufficient.
+        } else {
+            styleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", opacity));
+        }
+
         String yaml = String.format(Locale.US,
             "  - type: %s\n" +
             "    entity: %s\n" +
             "    title: %s\n" +
             "    style:\n" +
-            "      top: %.2f%%\n" +
-            "      left: %.2f%%\n" +
-            "      border-radius: 50%%\n" +
-            "      text-align: center\n" +
-            "      background-color: %s\n" +
-            "      opacity: %d%%\n" +
+            "%s" + // Insert constructed style properties here
             "    tap_action:\n" +
             "      action: %s\n" +
             "    double_tap_action:\n" +
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity,
+            displayTypeToYamlString.get(displayType), name, title, styleProperties.toString(),
             actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
 
         if (displayCondition == DisplayCondition.ALWAYS)
@@ -469,6 +497,7 @@ public class Entity implements Comparable<Entity> {
         doubleTapActionValue = settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, "");
         holdAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
         holdActionValue = settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, "");
+        blinking = settings.getBoolean(name + "." + SETTING_NAME_BLINKING, false);
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
