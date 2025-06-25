@@ -759,31 +759,31 @@ public class Entity implements Comparable<Entity> {
                 fanImage = "/local/floorplan/fan_blades_black.png";
             }
  
-            double fanWidthPercent; // This is the width of the fan image
-            double fanHeightPercent;
+            double fanSizePercent; // Use a single variable for square aspect ratio
             switch (this.fanSize) {
-                case SMALL: fanWidthPercent = 2.0; fanHeightPercent = 3.0; break;
-                case MEDIUM: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
-                case LARGE: fanWidthPercent = 6.0; fanHeightPercent = 7.0; break;
-                default: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break; // Default to Medium
+                case SMALL:  fanSizePercent = 3.0; break; // Use the larger dimension for square
+                case MEDIUM: fanSizePercent = 5.0; break; // Use the larger dimension for square
+                case LARGE:  fanSizePercent = 7.0; break; // Use the larger dimension for square
+                default:     fanSizePercent = 5.0; break; // Default to Medium (5.0%)
             }
             // Apply scaleFactor to the chosen size
-            fanWidthPercent *= scaleFactor; // Apply scale factor to fan image dimensions
-            fanHeightPercent *= scaleFactor; // Apply scale factor to fan image dimensions
+            fanSizePercent *= scaleFactor; // Apply scale factor to fan image dimensions
 
             if (this.associatedFanEntityId != null && !this.associatedFanEntityId.trim().isEmpty()) {
                 // Base style properties used by both 'on' and 'off' states.
                 // The transform property is handled separately for each state.
+                // Moved transform: translate(-50%, -50%) to baseStyle for consistent centering of the element's bounding box.
+                // FAN_OFFSET_X/Y removed as per user request to rely solely on aspect ratio.
                 String baseStyle = String.format(Locale.US,
                     "          top: %.2f%%\n" +
                     "          left: %.2f%%\n" +
-                    "          width: %.2f%%\n" +
-                    "          height: %.2f%%\n" +
+                    "          width: %.2f%%\n" + // Set width based on fanSizePercent
+                    "          aspect-ratio: 1 / 1;\n" + // Force a square aspect ratio, browser will calculate height
+                    "          transform: translate(-50%%, -50%%)\n" + // Ensure it's always centered
                     "          pointer-events: none\n",
-                    position.y, position.x, fanWidthPercent, fanHeightPercent);
+                    position.y, position.x, fanSizePercent); // Only width is needed, height derived from aspect-ratio
 
                 // --- Element for 'on' state (spinning) ---
-                // The transform is now part of the 'spin' animation keyframes, so it's not needed here.
                 String onStateStyle = baseStyle + String.format(Locale.US,
                     "          animation: spin 1.5s linear infinite\n" +
                     "          opacity: %.2f\n",
@@ -804,9 +804,7 @@ public class Entity implements Comparable<Entity> {
 
                 // --- Element for 'off' state (still) ---
                 if (this.showFanWhenOff) {
-                    // The 'off' state needs a static transform for positioning, since it's not animating.
                     String offStateStyle = baseStyle + String.format(Locale.US,
-                        "          transform: translate(-50%%, -50%%)\n" +
                         "          animation: none\n" +
                         "          opacity: %.2f\n",
                         (double)this.fanOpacity / 100.0);

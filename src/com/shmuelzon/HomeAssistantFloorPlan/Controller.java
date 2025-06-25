@@ -512,19 +512,17 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
                         if (fanImageToDraw != null) {
                             // Fan size is based on fanWidthPercent/fanHeightPercent, not defaultIconBadgeBaseSizePercent
-                            double fanWidthPercent;
-                            double fanHeightPercent;
+                            double fanSizePercent; // Use a single variable for square aspect ratio
                             switch (entity.getFanSize()) {
-                                case SMALL: fanWidthPercent = 2.0; fanHeightPercent = 3.0; break;
-                                case MEDIUM: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
-                                case LARGE: fanWidthPercent = 6.0; fanHeightPercent = 7.0; break;
-                                default: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                                case SMALL:  fanSizePercent = 3.0; break; // Use the larger dimension for square
+                                case MEDIUM: fanSizePercent = 5.0; break; // Use the larger dimension for square
+                                case LARGE:  fanSizePercent = 7.0; break; // Use the larger dimension for square
+                                default:     fanSizePercent = 5.0; break; // Default to Medium (5.0%)
                             }
-                            fanWidthPercent *= entity.getScaleFactor();
-                            fanHeightPercent *= entity.getScaleFactor();
+                            fanSizePercent *= entity.getScaleFactor();
 
-                            int fanWidthPx = (int) Math.ceil(fanWidthPercent / 100.0 * renderWidth); // Round up
-                            int fanHeightPx = (int) Math.ceil(fanHeightPercent / 100.0 * renderHeight); // Round up
+                            int fanWidthPx = (int) Math.ceil(fanSizePercent / 100.0 * renderWidth); // Width is based on renderWidth
+                            int fanHeightPx = fanWidthPx; // Height is the same as width to maintain a square aspect ratio
 
                             // Draw fan blades (round center for drawing)
                             g2d.drawImage(fanImageToDraw, (int)Math.round(centerX - fanWidthPx / 2.0), (int)Math.round(centerY - fanHeightPx / 2.0), fanWidthPx, fanHeightPx, null);
@@ -602,17 +600,17 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             if (entity.getDisplayType() == Entity.DisplayType.ICON_AND_ANIMATED_FAN) {
                 double fanWidthPercent;
                 double fanHeightPercent;
+                double fanSizePercent; // Use a single variable for square aspect ratio
                 switch (entity.getFanSize()) {
-                    case SMALL:  fanWidthPercent = 2.0; fanHeightPercent = 3.0; break;
-                    case MEDIUM: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
-                    case LARGE:  fanWidthPercent = 6.0; fanHeightPercent = 7.0; break;
-                    default:     fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                    case SMALL:  fanSizePercent = 3.0; break; // Use the larger dimension for square
+                    case MEDIUM: fanSizePercent = 5.0; break; // Use the larger dimension for square
+                    case LARGE:  fanSizePercent = 7.0; break; // Use the larger dimension for square
+                    default:     fanSizePercent = 5.0; break; // Default to Medium (5.0%)
                 }
-                fanWidthPercent *= entity.getScaleFactor();
-                fanHeightPercent *= entity.getScaleFactor();
+                fanSizePercent *= entity.getScaleFactor();
 
-                drawWidth = (int) Math.ceil(fanWidthPercent / 100.0 * renderWidth);
-                drawHeight = (int) Math.ceil(fanHeightPercent / 100.0 * renderHeight);
+                drawWidth = (int) Math.ceil(fanSizePercent / 100.0 * renderWidth); // Width is based on renderWidth
+                drawHeight = drawWidth; // Height is the same as width to maintain a square aspect ratio
             } else {
                 // For ICON, BADGE, and LABEL, use the same base size calculation as a square hitbox
                 double baseSizePercent = entity.getDefaultIconBadgeBaseSizePercent();
@@ -903,8 +901,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 "    100% { opacity: 0; }\n" +
                 "  }\n" +
                 "  @keyframes spin {\n" +
-                "    from { transform: translate(-50%, -50%) rotate(0deg); }\n" +
-                "    to   { transform: translate(-50%, -50%) rotate(360deg); }\n" +
+                "    from { transform: translate(-50%, -50%) rotate(0deg); }\n" + // Start at 0 degrees
+                "    to   { transform: translate(-50%, -50%) rotate(-360deg); }\n" + // Rotate to -360 degrees for counter-clockwise
                 "  }\n";
             yaml += globalStyles;
 
