@@ -6,6 +6,7 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Dialog;
 import java.awt.EventQueue;
+import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -56,6 +57,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JSplitPane;
 import javax.swing.JTextField;
+import javax.swing.ToolTipManager;
 import javax.swing.JTree;
 import javax.swing.SwingWorker;
 import javax.swing.ListSelectionModel;
@@ -307,6 +309,44 @@ public class Panel extends JPanel implements DialogView {
             return attributes;
         }
     }
+
+    private class ImagePanel extends JPanel {
+        private BufferedImage image;
+
+        public ImagePanel(BufferedImage image) {
+            this.image = image;
+            // The preferred size of this panel should be the size of the image.
+            // This is crucial for JScrollPane to work correctly.
+            this.setPreferredSize(new Dimension(image.getWidth(), image.getHeight()));
+
+            addMouseMotionListener(new MouseAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    // The mouse coordinates (e.getPoint()) are now directly relative to the image.
+                    List<Entity> entitiesAtPoint = controller.getEntitiesAtPoint(e.getPoint());
+                    if (!entitiesAtPoint.isEmpty()) {
+                        List<String> entityNames = entitiesAtPoint.stream()
+                                                                .map(Entity::getName)
+                                                                .collect(Collectors.toList());
+                        String tooltipText = "<html>" + String.join("<br>", entityNames) + "</html>";
+                        setToolTipText(tooltipText);
+                        // Manually trigger the tooltip manager to show the tooltip immediately.
+                        ToolTipManager.sharedInstance().mouseMoved(e);
+                    } else {
+                        setToolTipText(null);
+                    }
+                }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (image != null) {
+                g.drawImage(image, 0, 0, this);
+            }
+        }
+    }
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller, Plugin.HomeAssistantFloorPlanAction pluginAction) {
         super(new GridBagLayout());
         this.preferences = preferences;
@@ -316,6 +356,9 @@ public class Panel extends JPanel implements DialogView {
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
         createActions();
         createComponents();
+
+        // Set tooltip initial delay to 0 for immediate display
+        ToolTipManager.sharedInstance().setInitialDelay(0);
         layoutComponents();
     }
 
@@ -431,14 +474,17 @@ public class Panel extends JPanel implements DialogView {
                     @Override
                     protected void done() {
                         try {
-                            BufferedImage previewImage = get(); // Get result from doInBackground
+                            final BufferedImage previewImage = get(); // Get result from doInBackground
                             if (previewImage != null) {
-                                ImageIcon icon = new ImageIcon(previewImage);
-                                JLabel imageLabel = new JLabel(icon);
-                                JScrollPane scrollPane = new JScrollPane(imageLabel);
-                                
-                                int prefWidth = Math.min(800, previewImage.getWidth() + 40); // Add some padding for scrollbars
-                                int prefHeight = Math.min(600, previewImage.getHeight() + 40);
+                                // Create an instance of our custom ImagePanel
+                                final ImagePanel imagePanel = new ImagePanel(previewImage);
+
+                                // Put the panel in a scroll pane
+                                JScrollPane scrollPane = new JScrollPane(imagePanel);
+
+                                // Set a reasonable preferred size for the scroll pane itself
+                                int prefWidth = Math.min(1024, previewImage.getWidth()) + 40; // Cap width at 1024px + padding
+                                int prefHeight = Math.min(1024, previewImage.getHeight()) + 40; // Cap height at 1024px + padding
                                 scrollPane.setPreferredSize(new Dimension(prefWidth, prefHeight));
                                 
                                 JDialog previewDialog = new JDialog(SwingUtilities.getWindowAncestor(Panel.this), resource.getString("HomeAssistantFloorPlan.Panel.previewButton.text"), Dialog.ModalityType.APPLICATION_MODAL);

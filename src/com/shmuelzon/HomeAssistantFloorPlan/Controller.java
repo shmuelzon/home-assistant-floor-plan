@@ -381,7 +381,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
                 // Base size for icon/badge/label, scaled by entity's scaleFactor
                 // Using min(renderWidth, renderHeight) helps with more consistent scaling across different aspect ratios
-                double baseSizePx = (entity.getDefaultIconBadgeBaseSizePercent() / 100.0) * Math.min(renderWidth, renderHeight) * entity.getScaleFactor();
+                double rawBaseSizePx = (entity.getDefaultIconBadgeBaseSizePercent() / 100.0) * Math.min(renderWidth, renderHeight) * entity.getScaleFactor();
+                int roundedBaseSizePx = (int) Math.ceil(rawBaseSizePx); // Round up for dimensions
 
                 // Draw background/border if enabled
                 if (entity.getShowBorderAndBackground()) {
@@ -402,8 +403,9 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                         g2d.setColor(Color.GRAY); // Fallback color if parsing fails
                         System.err.println("Warning: Invalid background color for preview: " + entity.getBackgroundColor() + " - " + e.getMessage());
                     }
-                    int bgSizePx = (int) (baseSizePx * 1.5); // Make background larger than icon
-                    g2d.fillOval((int)(centerX - bgSizePx / 2.0), (int)(centerY - bgSizePx / 2.0), bgSizePx, bgSizePx);
+                    int bgSizePx = (int) Math.ceil(rawBaseSizePx * 1.5); // Make background larger than icon, round up dimensions
+                    // Round center coordinates to nearest integer for drawing
+                    g2d.fillOval((int)Math.round(centerX - bgSizePx / 2.0), (int)Math.round(centerY - bgSizePx / 2.0), bgSizePx, bgSizePx);
                 }
 
                 String domain = entity.getName() != null && entity.getName().contains(".") ? entity.getName().split("\\.")[0] : "unknown";
@@ -444,10 +446,10 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                         }
 
                         g2d.setColor(iconColor);
-                        if (iconShape == 0) { // Oval
-                            g2d.fillOval((int)(centerX - baseSizePx / 2.0), (int)(centerY - baseSizePx / 2.0), (int)baseSizePx, (int)baseSizePx);
-                        } else { // Rectangle
-                            g2d.fillRect((int)(centerX - baseSizePx / 2.0), (int)(centerY - baseSizePx / 2.0), (int)baseSizePx, (int)baseSizePx);
+                        if (iconShape == 0) { // Oval (use roundedBaseSizePx for dimensions, round center for drawing)
+                            g2d.fillOval((int)Math.round(centerX - roundedBaseSizePx / 2.0), (int)Math.round(centerY - roundedBaseSizePx / 2.0), roundedBaseSizePx, roundedBaseSizePx);
+                        } else { // Rectangle (use roundedBaseSizePx for dimensions, round center for drawing)
+                            g2d.fillRect((int)Math.round(centerX - roundedBaseSizePx / 2.0), (int)Math.round(centerY - roundedBaseSizePx / 2.0), roundedBaseSizePx, roundedBaseSizePx);
                         }
                         break;
                     case LABEL:
@@ -463,11 +465,11 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                         }
 
                         // Simple font scaling for preview, based on baseSizePx
-                        Font font = new Font("SansSerif", Font.PLAIN, (int)(baseSizePx * 0.8));
+                        Font font = new Font("SansSerif", Font.PLAIN, (int)(rawBaseSizePx * 0.8));
                         g2d.setFont(font);
                         FontMetrics fm = g2d.getFontMetrics(font);
-                        String text = entity.getName(); // Or entity.getTitle() or entity.getAttribute()
-                        int textWidth = fm.stringWidth(text);
+                        String text = entity.getName();
+                        int textWidth = fm.stringWidth(text); // This is already an int
                         int textHeight = fm.getHeight();
                         int textX = (int)(centerX - textWidth / 2.0);
                         int textY = (int)(centerY + textHeight / 4.0); // Adjust for baseline
@@ -476,7 +478,7 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                         if (entity.getLabelTextShadow() != null && !entity.getLabelTextShadow().isEmpty()) {
                             try {
                                 Color shadowColor = Color.decode(entity.getLabelTextShadow());
-                                g2d.setColor(new Color(shadowColor.getRed(), shadowColor.getGreen(), shadowColor.getBlue(), 128)); // Semi-transparent shadow
+                                g2d.setColor(new Color(shadowColor.getRed(), shadowColor.getGreen(), shadowColor.getBlue(), 128)); // Semi-transparent shadow (alpha 128)
                                 g2d.drawString(text, textX + 1, textY + 1); // Simple offset shadow
                                 g2d.setColor(g2d.getColor()); // Restore original color (which was set above)
                             } catch (IllegalArgumentException e) {
@@ -506,17 +508,17 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                             fanWidthPercent *= entity.getScaleFactor();
                             fanHeightPercent *= entity.getScaleFactor();
 
-                            int fanWidthPx = (int) (fanWidthPercent / 100.0 * renderWidth);
-                            int fanHeightPx = (int) (fanHeightPercent / 100.0 * renderHeight);
+                            int fanWidthPx = (int) Math.ceil(fanWidthPercent / 100.0 * renderWidth); // Round up
+                            int fanHeightPx = (int) Math.ceil(fanHeightPercent / 100.0 * renderHeight); // Round up
 
-                            // Draw fan blades
-                            g2d.drawImage(fanImageToDraw, (int)(centerX - fanWidthPx / 2.0), (int)(centerY - fanHeightPx / 2.0), fanWidthPx, fanHeightPx, null);
+                            // Draw fan blades (round center for drawing)
+                            g2d.drawImage(fanImageToDraw, (int)Math.round(centerX - fanWidthPx / 2.0), (int)Math.round(centerY - fanHeightPx / 2.0), fanWidthPx, fanHeightPx, null);
                         }
 
                         // Draw a small icon on top of the fan (optional, but good for visual cue)
                         g2d.setColor(Color.ORANGE); // Placeholder color for icon on fan
-                        int iconOnFanSize = (int)(baseSizePx * 0.5); // Smaller icon
-                        g2d.fillOval((int)(centerX - iconOnFanSize / 2.0), (int)(centerY - iconOnFanSize / 2.0), iconOnFanSize, iconOnFanSize);
+                        int iconOnFanSize = (int) Math.ceil(rawBaseSizePx * 0.5); // Smaller icon, round up
+                        g2d.fillOval((int)Math.round(centerX - iconOnFanSize / 2.0), (int)Math.round(centerY - iconOnFanSize / 2.0), iconOnFanSize, iconOnFanSize);
                         break;
                 }
             }
@@ -528,6 +530,61 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 previewPhotoRenderer.dispose();
             }
         }
+    }
+
+    public List<Entity> getEntitiesAtPoint(java.awt.Point p) {
+        List<Entity> foundEntities = new ArrayList<>();
+        List<Entity> allEntities = Stream.concat(lightEntities.stream(), otherEntities.stream())
+                                       .collect(Collectors.toList());
+
+        for (Entity entity : allEntities) {
+            double rawCenterX = entity.getPosition().x / 100.0 * renderWidth;
+            double rawCenterY = entity.getPosition().y / 100.0 * renderHeight;
+
+            int drawX, drawY, drawWidth, drawHeight;
+
+            if (entity.getDisplayType() == Entity.DisplayType.ICON_AND_ANIMATED_FAN) {
+                double fanWidthPercent;
+                double fanHeightPercent;
+                switch (entity.getFanSize()) {
+                    case SMALL:  fanWidthPercent = 2.0; fanHeightPercent = 3.0; break;
+                    case MEDIUM: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                    case LARGE:  fanWidthPercent = 6.0; fanHeightPercent = 7.0; break;
+                    default:     fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                }
+                fanWidthPercent *= entity.getScaleFactor();
+                fanHeightPercent *= entity.getScaleFactor();
+
+                drawWidth = (int) Math.ceil(fanWidthPercent / 100.0 * renderWidth);
+                drawHeight = (int) Math.ceil(fanHeightPercent / 100.0 * renderHeight);
+            } else {
+                // For ICON, BADGE, and LABEL, use the same base size calculation as a square hitbox
+                double baseSizePercent = entity.getDefaultIconBadgeBaseSizePercent();
+                double scaleFactor = entity.getScaleFactor();
+                drawWidth = (int) Math.ceil((baseSizePercent / 100.0) * Math.min(renderWidth, renderHeight) * scaleFactor);
+                drawHeight = drawWidth; // Square hitbox for icon/badge/label
+            }
+
+            // Round rawCenter to nearest integer for consistency with pixel grid,
+            // then calculate top-left corner.
+            drawX = (int)Math.round(rawCenterX - drawWidth / 2.0);
+            drawY = (int)Math.round(rawCenterY - drawHeight / 2.0);
+            
+            // Significantly increased padding for diagnostic purposes.
+            // This helps determine if the misalignment is due to subtle rendering differences
+            // or floating-point inaccuracies by making the hit area much more forgiving.
+            int padding = 5; // Pixels of padding on each side (increased from 2)
+            int paddedDrawX = drawX - padding;
+            int paddedDrawY = drawY - padding;
+            int paddedDrawWidth = drawWidth + (2 * padding);
+            int paddedDrawHeight = drawHeight + (2 * padding);
+
+            if (p.x >= paddedDrawX && p.x < paddedDrawX + paddedDrawWidth &&
+                p.y >= paddedDrawY && p.y < paddedDrawY + paddedDrawHeight) {
+                foundEntities.add(entity);
+            }
+        }
+        return foundEntities;
     }
 
     public Map<String, Double> getRoomBoundingBoxPercent(Entity entity) {
