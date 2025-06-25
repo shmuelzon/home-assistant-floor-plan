@@ -4,7 +4,7 @@ SRC_DIR=src/com/shmuelzon/HomeAssistantFloorPlan
 SRCS=$(wildcard $(SRC_DIR)/*)
 # Define the relative package path for use in build targets (e.g., com/shmuelzon/HomeAssistantFloorPlan)
 PKG_PATH_RELATIVE=$(subst src/,,$(SRC_DIR))
-PNG_RESOURCE_FILES = $(wildcard $(SRC_DIR)/resources/*.png)
+PNG_RESOURCE_FILES = $(wildcard $(SRC_DIR)/resources/*.png $(SRC_DIR)/resources/icons/*.png)
 PNG_OBJS = $(patsubst $(SRC_DIR)/resources/%.png,build/$(PKG_PATH_RELATIVE)/resources/%.png,$(PNG_RESOURCE_FILES))
 
 # Refine OBJS to only include .class files and the specific .properties file

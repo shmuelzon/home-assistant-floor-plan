@@ -359,6 +359,9 @@ public Controller(Home home, ResourceBundle resourceBundle) {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
+            // Cache for loaded preview icons to avoid reading from disk repeatedly
+            Map<String, BufferedImage> iconCache = new HashMap<>();
+
             // Load fan blade images once for efficiency
             BufferedImage blackFanBlades = null;
             BufferedImage greyFanBlades = null;
@@ -413,43 +416,55 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 switch (entity.getDisplayType()) {
                     case ICON:
                     case BADGE:
-                        // Determine color and shape based on entity domain
-                        Color iconColor = Color.BLUE; // Default
-                        int iconShape = 0; // 0 for oval, 1 for rect
-
+                        // Determine icon name based on the entity's domain and load it
+                        String iconName;
                         switch (domain) {
-                            case "light":
-                                iconColor = Color.YELLOW;
-                                iconShape = 0; // Oval for lightbulb
-                                break;
-                            case "lock":
-                                iconColor = Color.DARK_GRAY;
-                                iconShape = 1; // Rectangle for lock
-                                break;
+                            case "light":           iconName = "mdi_lightbulb"; break;
                             case "switch":
-                            case "binary_sensor":
-                                iconColor = Color.GREEN;
-                                iconShape = 1; // Rectangle for switch/sensor
-                                break;
-                            case "camera":
-                                iconColor = Color.RED;
-                                iconShape = 1; // Rectangle for camera
-                                break;
-                            case "media_player":
-                                iconColor = Color.MAGENTA;
-                                iconShape = 1; // Rectangle for media player
-                                break;
-                            default:
-                                iconColor = Color.BLUE; // Default for others
-                                iconShape = 0; // Default to oval
-                                break;
+                            case "input_button":    iconName = "mdi_power-plug"; break;
+                            case "lock":            iconName = "mdi_lock"; break;
+                            case "camera":          iconName = "mdi_cctv"; break; // Changed from mdi_camera
+                            case "binary_sensor":   iconName = "mdi_eye"; break;
+                            case "media_player":    iconName = "mdi_cast"; break;
+                            case "fan":             iconName = "mdi_fan"; break;
+                            default:                iconName = "mdi_help-circle"; break;
                         }
+                        BufferedImage iconImage = loadPreviewIcon(iconName, iconCache);
+                        if (iconImage != null) {
+                            // Determine tint color based on domain, matching previous shape colors
+                            Color tintColor;
+                            switch (domain) {
+                                case "light":           tintColor = Color.YELLOW; break;
+                                case "lock":            tintColor = Color.DARK_GRAY; break;
+                                case "switch":
+                                case "input_button":
+                                case "binary_sensor":   tintColor = Color.GREEN; break;
+                                case "camera":          tintColor = Color.RED; break;
+                                case "media_player":    tintColor = Color.MAGENTA; break;
+                                case "fan":             tintColor = Color.CYAN; break; // Distinct color for fan icon
+                                default:                tintColor = Color.BLUE; break;
+                            }
 
-                        g2d.setColor(iconColor);
-                        if (iconShape == 0) { // Oval (use roundedBaseSizePx for dimensions, round center for drawing)
+                            // Create a new BufferedImage for tinting
+                            BufferedImage tintedIcon = new BufferedImage(iconImage.getWidth(), iconImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                            Graphics2D g2dTint = tintedIcon.createGraphics();
+                            g2dTint.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                            g2dTint.drawImage(iconImage, 0, 0, null); // Draw original icon
+                            g2dTint.setComposite(java.awt.AlphaComposite.SrcAtop); // Apply tint only where icon pixels are opaque
+                            g2dTint.setColor(tintColor);
+                            g2dTint.fillRect(0, 0, tintedIcon.getWidth(), tintedIcon.getHeight()); // Fill with tint color
+                            g2dTint.dispose();
+
+                            // Draw the icon centered
+                            int iconX = (int)Math.round(centerX - roundedBaseSizePx / 2.0);
+                            int iconY = (int)Math.round(centerY - roundedBaseSizePx / 2.0);
+                            g2d.drawImage(tintedIcon, iconX, iconY, roundedBaseSizePx, roundedBaseSizePx, null);
+                        } else {
+                            // Fallback to drawing a simple shape if icon is missing
+                            g2d.setColor(Color.RED);
                             g2d.fillOval((int)Math.round(centerX - roundedBaseSizePx / 2.0), (int)Math.round(centerY - roundedBaseSizePx / 2.0), roundedBaseSizePx, roundedBaseSizePx);
-                        } else { // Rectangle (use roundedBaseSizePx for dimensions, round center for drawing)
-                            g2d.fillRect((int)Math.round(centerX - roundedBaseSizePx / 2.0), (int)Math.round(centerY - roundedBaseSizePx / 2.0), roundedBaseSizePx, roundedBaseSizePx);
+                            g2d.setColor(Color.WHITE);
+                            g2d.drawString("?", (int)centerX - 3, (int)centerY + 5);
                         }
                         break;
                     case LABEL:
@@ -516,19 +531,60 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                         }
 
                         // Draw a small icon on top of the fan (optional, but good for visual cue)
-                        g2d.setColor(Color.ORANGE); // Placeholder color for icon on fan
-                        int iconOnFanSize = (int) Math.ceil(rawBaseSizePx * 0.5); // Smaller icon, round up
-                        g2d.fillOval((int)Math.round(centerX - iconOnFanSize / 2.0), (int)Math.round(centerY - iconOnFanSize / 2.0), iconOnFanSize, iconOnFanSize);
-                        break;
+                        BufferedImage fanIconImage = loadPreviewIcon("mdi_fan", iconCache); // Always use mdi_fan icon
+                        if (fanIconImage != null) {
+                            Color tintColor = Color.CYAN; // Consistent color for fan icon
+
+                            BufferedImage tintedFanIcon = new BufferedImage(fanIconImage.getWidth(), fanIconImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                            Graphics2D g2dTintFan = tintedFanIcon.createGraphics();
+                            g2dTintFan.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                            g2dTintFan.drawImage(fanIconImage, 0, 0, null);
+                            g2dTintFan.setComposite(java.awt.AlphaComposite.SrcAtop);
+                            g2dTintFan.setColor(tintColor);
+                            g2dTintFan.fillRect(0, 0, tintedFanIcon.getWidth(), tintedFanIcon.getHeight());
+                            g2dTintFan.dispose();
+
+                            int iconOnFanSize = (int) Math.ceil(rawBaseSizePx * 0.7); // Make icon slightly larger on fan
+                            int iconX = (int)Math.round(centerX - iconOnFanSize / 2.0);
+                            int iconY = (int)Math.round(centerY - iconOnFanSize / 2.0);
+                            g2d.drawImage(tintedFanIcon, iconX, iconY, iconOnFanSize, iconOnFanSize, null);
+                        } else {
+                            g2d.setColor(Color.ORANGE); // Fallback if fan icon is missing
+                            int iconOnFanSize = (int) Math.ceil(rawBaseSizePx * 0.5); // Smaller icon, round up
+                            g2d.fillOval((int)Math.round(centerX - iconOnFanSize / 2.0), (int)Math.round(centerY - iconOnFanSize / 2.0), iconOnFanSize, iconOnFanSize);
+                        }
+                        break; // Moved break outside of the else block
                 }
             }
             g2d.dispose(); // Release graphics resources
 
             return image;
-        } finally {
+        } finally { // This 'finally' block is now correctly associated with the 'try' block above
             if (previewPhotoRenderer != null) {
                 previewPhotoRenderer.dispose();
             }
+        }
+    }
+
+    /**
+     * Loads a preview icon from resources, caching it for subsequent use.
+     * Icons are expected to be in /com/shmuelzon/HomeAssistantFloorPlan/resources/icons/
+     * @param iconName The base name of the icon file (e.g., "mdi_lightbulb").
+     * @param iconCache A map to store and retrieve cached icons.
+     * @return The loaded BufferedImage, or null if loading fails.
+     */
+    private BufferedImage loadPreviewIcon(String iconName, Map<String, BufferedImage> iconCache) {
+        if (iconCache.containsKey(iconName)) {
+            return iconCache.get(iconName);
+        }
+        String resourcePath = "/com/shmuelzon/HomeAssistantFloorPlan/resources/icons/" + iconName + ".png";
+        try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
+            BufferedImage icon = ImageIO.read(is);
+            iconCache.put(iconName, icon);
+            return icon;
+        } catch (IOException | IllegalArgumentException e) {
+            System.err.println("Warning: Could not load preview icon from " + resourcePath + ": " + e.getMessage());
+            return null;
         }
     }
 
