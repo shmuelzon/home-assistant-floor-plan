@@ -4,13 +4,13 @@ SRC_DIR=src/com/shmuelzon/HomeAssistantFloorPlan
 SRCS=$(wildcard $(SRC_DIR)/*)
 # Define the relative package path for use in build targets (e.g., com/shmuelzon/HomeAssistantFloorPlan)
 PKG_PATH_RELATIVE=$(subst src/,,$(SRC_DIR))
-GIF_RESOURCE_FILES = $(wildcard $(SRC_DIR)/resources/*.gif)
-GIF_OBJS = $(patsubst $(SRC_DIR)/resources/%.gif,build/$(PKG_PATH_RELATIVE)/resources/%.gif,$(GIF_RESOURCE_FILES))
+PNG_RESOURCE_FILES = $(wildcard $(SRC_DIR)/resources/*.png)
+PNG_OBJS = $(patsubst $(SRC_DIR)/resources/%.png,build/$(PKG_PATH_RELATIVE)/resources/%.png,$(PNG_RESOURCE_FILES))
 
 # Refine OBJS to only include .class files and the specific .properties file
 JAVA_OBJS = $(patsubst $(SRC_DIR)/%.java,build/$(PKG_PATH_RELATIVE)/%.class, $(wildcard $(SRC_DIR)/*.java))
 PROPERTIES_OBJ = build/$(PKG_PATH_RELATIVE)/ApplicationPlugin.properties
-OBJS = $(JAVA_OBJS) $(PROPERTIES_OBJ)
+OBJS = $(JAVA_OBJS) $(PROPERTIES_OBJ) $(PNG_OBJS)
 
 SWEET_HOME_VERSION=7.5
 
@@ -63,12 +63,12 @@ build/$(PKG_PATH_RELATIVE)/ApplicationPlugin.properties: $(SRC_DIR)/ApplicationP
 	$(Q)mkdir -p $(dir $@)
 	$(call exec,GEN,$@,envsubst < $< > $@)
 
-# Rule for copying GIF resource files
-build/$(PKG_PATH_RELATIVE)/resources/%.gif: $(SRC_DIR)/resources/%.gif
+# Rule for copying PNG resource files
+build/$(PKG_PATH_RELATIVE)/resources/%.png: $(SRC_DIR)/resources/%.png
 	$(Q)mkdir -p $(dir $@)
 	$(call exec,CP,$@,cp $< $@)
 
-$(PLUGIN): $(OBJS) $(GIF_OBJS)
+$(PLUGIN): $(OBJS)
 	$(call exec,JAR,$@,$(DOCKER_CMD) jar -cf $@ -C build .)
 
 build: $(PLUGIN)

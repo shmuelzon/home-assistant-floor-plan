@@ -751,23 +751,14 @@ public class Entity implements Comparable<Entity> {
                     iconStyleProperties.toString());
             }
 
-            // --- Generate the Fan Image part of ICON_AND_ANIMATED_FAN ---
-            String fanImageOn;
-            String fanImageOffSuffix;
+            // --- Generate the Fan Image part of ICON_AND_ANIMATED_FAN using standard conditional elements ---
+            String fanImage;
             if (this.fanColor == FanColor.WHITE) {
-                fanImageOn = "/local/floorplan/animated_fan_grey.gif";
-                fanImageOffSuffix = "/local/floorplan/animated_fan_still_grey.gif";
+                fanImage = "/local/floorplan/fan_blades_grey.png";
             } else { // BLACK or default
-                fanImageOn = "/local/floorplan/animated_fan.gif";
-                fanImageOffSuffix = "/local/floorplan/animated_fan_still.gif";
+                fanImage = "/local/floorplan/fan_blades_black.png";
             }
-            String fanImageOff = this.showFanWhenOff ? fanImageOffSuffix : "/local/floorplan/transparent.png";
-
-            StringBuilder fanStyleProperties = new StringBuilder();
-            fanStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
-            fanStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
-            fanStyleProperties.append("      position: absolute\n"); // Ensure absolute positioning
-            // Calculate fan dimensions based on a 2:3 width:height aspect ratio
+ 
             double fanWidthPercent; // This is the width of the fan image
             double fanHeightPercent;
             switch (this.fanSize) {
@@ -779,31 +770,63 @@ public class Entity implements Comparable<Entity> {
             // Apply scaleFactor to the chosen size
             fanWidthPercent *= scaleFactor; // Apply scale factor to fan image dimensions
             fanHeightPercent *= scaleFactor; // Apply scale factor to fan image dimensions
-            fanStyleProperties.append(String.format(Locale.US, "      width: %.2f%%\n", fanWidthPercent)); // Use calculated width
-            fanStyleProperties.append(String.format(Locale.US, "      height: %.2f%%\n", fanHeightPercent));
-            fanStyleProperties.append("      transform: translate(-50%, -50%)\n");
-            fanStyleProperties.append("      pointer-events: none\n"); // Fan image is not clickable
-            fanStyleProperties.append(String.format(Locale.US, "      opacity: %d%%\n", this.fanOpacity));
 
-            String fanImageElementYaml = "";
             if (this.associatedFanEntityId != null && !this.associatedFanEntityId.trim().isEmpty()) {
-                fanImageElementYaml = String.format(Locale.US,
-                    "  - type: image\n" +
-                    "    entity: %s\n" +
-                    "    title: null\n" +
-                    "    state_image:\n" +
-                    "      \"on\": \"%s\"\n" +
-                    "      \"off\": \"%s\"\n" +
-                    "    style:\n" +
+                // Base style properties used by both 'on' and 'off' states.
+                // The transform property is handled separately for each state.
+                String baseStyle = String.format(Locale.US,
+                    "          top: %.2f%%\n" +
+                    "          left: %.2f%%\n" +
+                    "          width: %.2f%%\n" +
+                    "          height: %.2f%%\n" +
+                    "          pointer-events: none\n",
+                    position.y, position.x, fanWidthPercent, fanHeightPercent);
+
+                // --- Element for 'on' state (spinning) ---
+                // The transform is now part of the 'spin' animation keyframes, so it's not needed here.
+                String onStateStyle = baseStyle + String.format(Locale.US,
+                    "          animation: spin 1.5s linear infinite\n" +
+                    "          opacity: %.2f\n",
+                    (double)this.fanOpacity / 100.0);
+
+                String fanOnElementYaml = String.format(Locale.US,
+                    "  - type: conditional\n" +
+                    "    conditions:\n" +
+                    "      - entity: %s\n" +
+                    "        state: \"on\"\n" +
+                    "    elements:\n" +
+                    "      - type: image\n" +
+                    "        image: %s\n" +
+                    "        style:\n" +
                     "%s",
-                    this.associatedFanEntityId,
-                    fanImageOn,
-                    fanImageOff,
-                    fanStyleProperties.toString());
+                    this.associatedFanEntityId, fanImage, onStateStyle);
+                conditionalElements.add(fanOnElementYaml);
+
+                // --- Element for 'off' state (still) ---
+                if (this.showFanWhenOff) {
+                    // The 'off' state needs a static transform for positioning, since it's not animating.
+                    String offStateStyle = baseStyle + String.format(Locale.US,
+                        "          transform: translate(-50%%, -50%%)\n" +
+                        "          animation: none\n" +
+                        "          opacity: %.2f\n",
+                        (double)this.fanOpacity / 100.0);
+
+                    String fanOffElementYaml = String.format(Locale.US,
+                        "  - type: conditional\n" +
+                        "    conditions:\n" +
+                        "      - entity: %s\n" +
+                        "        state: \"off\"\n" +
+                        "    elements:\n" +
+                        "      - type: image\n" +
+                        "        image: %s\n" +
+                        "        style:\n" +
+                        "%s",
+                        this.associatedFanEntityId, fanImage, offStateStyle);
+                    conditionalElements.add(fanOffElementYaml);
+                }
             }
             // The fan image should come before the icon in YAML for proper layering
             // (icon on top of fan).
-            conditionalElements.add(fanImageElementYaml);
             conditionalElements.add(iconElementYaml); // Icon is layered on top of fan
         } else { // Not ICON_AND_ANIMATED_FAN
             // --- Generate Background/Border Element if needed (for ICON or BADGE) ---

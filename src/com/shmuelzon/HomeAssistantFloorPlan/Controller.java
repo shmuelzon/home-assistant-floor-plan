@@ -1,6 +1,9 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -34,6 +37,7 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.nio.file.StandardCopyOption;
+import java.awt.RenderingHints;
 import java.util.ResourceBundle;
 import javax.swing.SwingUtilities;
 import java.util.stream.Stream;
@@ -321,32 +325,203 @@ public Controller(Home home, ResourceBundle resourceBundle) {
         this.furnitureNameToCenter = furnitureNameToCenter;
         settings.set(CONTROLLER_FURNITURE_TO_CENTER, furnitureNameToCenter);
     }
+
+
     public BufferedImage generatePreviewImage() throws IOException, InterruptedException {
-        // The plugin's 'this.camera' is already a clone of home.getCamera()
-        // from when the modal dialog was opened.
-        // renderWidth and renderHeight are current settings.
+        // Ensure entities are repositioned to get their latest calculated screen coordinates
+        // This is crucial for accurate preview of icon/fan/label placement.
+        repositionEntities();
 
         AbstractPhotoRenderer previewPhotoRenderer = null;
+        BufferedImage image = new BufferedImage(this.renderWidth, this.renderHeight, BufferedImage.TYPE_INT_RGB);
         try {
             Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
                 put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
                 put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
             }};
-            // Use the currently selected renderer type, but force LOW quality
+            // Use the currently selected renderer type, but force LOW quality for speed
             previewPhotoRenderer = AbstractPhotoRenderer.createInstance(
                 rendererToClassName.get(this.renderer),
                 this.home, // Pass the actual home object, rendering its current light state
                 null,
                 AbstractPhotoRenderer.Quality.LOW); // Force LOW quality for speed
 
-            BufferedImage image = new BufferedImage(this.renderWidth, this.renderHeight, BufferedImage.TYPE_INT_RGB);
-
-            // Render with the plugin's current working camera
+            // Render the base floor plan image
             previewPhotoRenderer.render(image, this.camera, null);
 
             if (Thread.interrupted()) { // Check if the thread was interrupted during render
                 throw new InterruptedException("Preview rendering interrupted");
             }
+
+            // --- NEW: Draw entities on top of the base image ---
+            Graphics2D g2d = image.createGraphics();
+            // Enable anti-aliasing for smoother shapes and text
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            // Load fan blade images once for efficiency
+            BufferedImage blackFanBlades = null;
+            BufferedImage greyFanBlades = null;
+            try (InputStream isBlack = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/fan_blades_black.png");
+                 InputStream isGrey = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/fan_blades_grey.png")) {
+                if (isBlack != null) blackFanBlades = ImageIO.read(isBlack);
+                if (isGrey != null) greyFanBlades = ImageIO.read(isGrey);
+            } catch (IOException e) {
+                System.err.println("Warning: Could not load fan blade images for preview: " + e.getMessage());
+            }
+
+            List<Entity> allEntities = Stream.concat(lightEntities.stream(), otherEntities.stream())
+                                           .collect(Collectors.toList());
+
+            for (Entity entity : allEntities) {
+                // Calculate pixel coordinates and size based on entity's position and scale factor
+                // entity.getPosition() is in percentage (0-100)
+                double centerX = entity.getPosition().x / 100.0 * renderWidth;
+                double centerY = entity.getPosition().y / 100.0 * renderHeight;
+
+                // Base size for icon/badge/label, scaled by entity's scaleFactor
+                // Using min(renderWidth, renderHeight) helps with more consistent scaling across different aspect ratios
+                double baseSizePx = (entity.getDefaultIconBadgeBaseSizePercent() / 100.0) * Math.min(renderWidth, renderHeight) * entity.getScaleFactor();
+
+                // Draw background/border if enabled
+                if (entity.getShowBorderAndBackground()) {
+                    try {
+                        String bgColor = entity.getBackgroundColor();
+                        if (bgColor.startsWith("rgba")) { // Handle rgba(R, G, B, A)
+                            String[] parts = bgColor.substring(bgColor.indexOf("(") + 1, bgColor.indexOf(")")).split(",");
+                            int r = Integer.parseInt(parts[0].trim());
+                            int g = Integer.parseInt(parts[1].trim());
+                            int b = Integer.parseInt(parts[2].trim());
+                            float a = Float.parseFloat(parts[3].trim());
+                            g2d.setColor(new Color(r, g, b, (int)(a * 255)));
+                        } else { // Assume it's a hex string or named color
+                            g2d.setColor(Color.GRAY); // Fallback to a default if not rgba
+                            System.err.println("Warning: Background color format not fully supported for preview: " + bgColor + ". Using default gray.");
+                        }
+                    } catch (Exception e) {
+                        g2d.setColor(Color.GRAY); // Fallback color if parsing fails
+                        System.err.println("Warning: Invalid background color for preview: " + entity.getBackgroundColor() + " - " + e.getMessage());
+                    }
+                    int bgSizePx = (int) (baseSizePx * 1.5); // Make background larger than icon
+                    g2d.fillOval((int)(centerX - bgSizePx / 2.0), (int)(centerY - bgSizePx / 2.0), bgSizePx, bgSizePx);
+                }
+
+                String domain = entity.getName() != null && entity.getName().contains(".") ? entity.getName().split("\\.")[0] : "unknown";
+
+                switch (entity.getDisplayType()) {
+                    case ICON:
+                    case BADGE:
+                        // Determine color and shape based on entity domain
+                        Color iconColor = Color.BLUE; // Default
+                        int iconShape = 0; // 0 for oval, 1 for rect
+
+                        switch (domain) {
+                            case "light":
+                                iconColor = Color.YELLOW;
+                                iconShape = 0; // Oval for lightbulb
+                                break;
+                            case "lock":
+                                iconColor = Color.DARK_GRAY;
+                                iconShape = 1; // Rectangle for lock
+                                break;
+                            case "switch":
+                            case "binary_sensor":
+                                iconColor = Color.GREEN;
+                                iconShape = 1; // Rectangle for switch/sensor
+                                break;
+                            case "camera":
+                                iconColor = Color.RED;
+                                iconShape = 1; // Rectangle for camera
+                                break;
+                            case "media_player":
+                                iconColor = Color.MAGENTA;
+                                iconShape = 1; // Rectangle for media player
+                                break;
+                            default:
+                                iconColor = Color.BLUE; // Default for others
+                                iconShape = 0; // Default to oval
+                                break;
+                        }
+
+                        g2d.setColor(iconColor);
+                        if (iconShape == 0) { // Oval
+                            g2d.fillOval((int)(centerX - baseSizePx / 2.0), (int)(centerY - baseSizePx / 2.0), (int)baseSizePx, (int)baseSizePx);
+                        } else { // Rectangle
+                            g2d.fillRect((int)(centerX - baseSizePx / 2.0), (int)(centerY - baseSizePx / 2.0), (int)baseSizePx, (int)baseSizePx);
+                        }
+                        break;
+                    case LABEL:
+                        // Attempt to use entity's label color if available and valid, otherwise default to black
+                        try {
+                            if (entity.getLabelColor() != null && !entity.getLabelColor().isEmpty()) {
+                                g2d.setColor(Color.decode(entity.getLabelColor()));
+                            } else {
+                                g2d.setColor(Color.BLACK);
+                            }
+                        } catch (IllegalArgumentException e) {
+                            g2d.setColor(Color.BLACK); // Fallback to default if color string is invalid
+                        }
+
+                        // Simple font scaling for preview, based on baseSizePx
+                        Font font = new Font("SansSerif", Font.PLAIN, (int)(baseSizePx * 0.8));
+                        g2d.setFont(font);
+                        FontMetrics fm = g2d.getFontMetrics(font);
+                        String text = entity.getName(); // Or entity.getTitle() or entity.getAttribute()
+                        int textWidth = fm.stringWidth(text);
+                        int textHeight = fm.getHeight();
+                        int textX = (int)(centerX - textWidth / 2.0);
+                        int textY = (int)(centerY + textHeight / 4.0); // Adjust for baseline
+
+                        // Simple text shadow for preview
+                        if (entity.getLabelTextShadow() != null && !entity.getLabelTextShadow().isEmpty()) {
+                            try {
+                                Color shadowColor = Color.decode(entity.getLabelTextShadow());
+                                g2d.setColor(new Color(shadowColor.getRed(), shadowColor.getGreen(), shadowColor.getBlue(), 128)); // Semi-transparent shadow
+                                g2d.drawString(text, textX + 1, textY + 1); // Simple offset shadow
+                                g2d.setColor(g2d.getColor()); // Restore original color (which was set above)
+                            } catch (IllegalArgumentException e) {
+                                // Fallback if shadow color is invalid
+                            }
+                        }
+                        g2d.drawString(text, textX, textY);
+                        break;
+                    case ICON_AND_ANIMATED_FAN:
+                        BufferedImage fanImageToDraw = null;
+                        if (entity.getFanColor() == Entity.FanColor.BLACK && blackFanBlades != null) {
+                            fanImageToDraw = blackFanBlades;
+                        } else if (entity.getFanColor() == Entity.FanColor.WHITE && greyFanBlades != null) {
+                            fanImageToDraw = greyFanBlades;
+                        }
+
+                        if (fanImageToDraw != null) {
+                            // Fan size is based on fanWidthPercent/fanHeightPercent, not defaultIconBadgeBaseSizePercent
+                            double fanWidthPercent;
+                            double fanHeightPercent;
+                            switch (entity.getFanSize()) {
+                                case SMALL: fanWidthPercent = 2.0; fanHeightPercent = 3.0; break;
+                                case MEDIUM: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                                case LARGE: fanWidthPercent = 6.0; fanHeightPercent = 7.0; break;
+                                default: fanWidthPercent = 4.0; fanHeightPercent = 5.0; break;
+                            }
+                            fanWidthPercent *= entity.getScaleFactor();
+                            fanHeightPercent *= entity.getScaleFactor();
+
+                            int fanWidthPx = (int) (fanWidthPercent / 100.0 * renderWidth);
+                            int fanHeightPx = (int) (fanHeightPercent / 100.0 * renderHeight);
+
+                            // Draw fan blades
+                            g2d.drawImage(fanImageToDraw, (int)(centerX - fanWidthPx / 2.0), (int)(centerY - fanHeightPx / 2.0), fanWidthPx, fanHeightPx, null);
+                        }
+
+                        // Draw a small icon on top of the fan (optional, but good for visual cue)
+                        g2d.setColor(Color.ORANGE); // Placeholder color for icon on fan
+                        int iconOnFanSize = (int)(baseSizePx * 0.5); // Smaller icon
+                        g2d.fillOval((int)(centerX - iconOnFanSize / 2.0), (int)(centerY - iconOnFanSize / 2.0), iconOnFanSize, iconOnFanSize);
+                        break;
+                }
+            }
+            g2d.dispose(); // Release graphics resources
+
             return image;
         } finally {
             if (previewPhotoRenderer != null) {
@@ -613,6 +788,10 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 "    0% { opacity: 0; }\n" +
                 "    50% { opacity: 1; }\n" + // Assuming 100% opacity is 1
                 "    100% { opacity: 0; }\n" +
+                "  }\n" +
+                "  @keyframes spin {\n" +
+                "    from { transform: translate(-50%, -50%) rotate(0deg); }\n" +
+                "    to   { transform: translate(-50%, -50%) rotate(360deg); }\n" +
                 "  }\n";
             yaml += globalStyles;
 
@@ -647,11 +826,8 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
     private void copyStaticAssetsToFloorplanDirectory() {
         String[] staticAssetFiles = {
-            "animated_fan.gif",
-            "animated_fan_still.gif",
-            "animated_fan_grey.gif",
-            "animated_fan_still_grey.gif"
-            // Add any other static assets here
+            "fan_blades_black.png",
+            "fan_blades_grey.png"
         };
    
         Path destinationDir = Paths.get(outputFloorplanDirectoryName);
