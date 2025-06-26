@@ -64,6 +64,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_LABEL_TEXT_SHADOW = "labelTextShadow";
     private static final String SETTING_NAME_LABEL_FONT_WEIGHT = "labelFontWeight";
     private static final String SETTING_NAME_LABEL_SUFFIX = "labelSuffix";
+    private static final String SETTING_NAME_ICON_SHADOW = "iconShadow";
 
     // --- Fields ---
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
@@ -107,6 +108,7 @@ public class Entity implements Comparable<Entity> {
     private String labelFontWeight;
     private String labelSuffix;
     private boolean excludeFromOverlap;
+    private String iconShadow;
 
     public Entity(Settings settings, List<? extends HomePieceOfFurniture> piecesOfFurniture, ResourceBundle resourceBundle) {
         this.settings = settings;
@@ -215,7 +217,7 @@ public class Entity implements Comparable<Entity> {
 
     public void setFurnitureDisplayValue(String furnitureDisplayValue) {
         this.furnitureDisplayValue = furnitureDisplayValue;
-        settings.set(name + "." + SETTING_NAME_FURNITURE_DISPLAY_VALUE, furnitureDisplayValue);
+        settings.set(getSettingKey(SETTING_NAME_FURNITURE_DISPLAY_VALUE), furnitureDisplayValue);
         propertyChangeSupport.firePropertyChange(Property.FURNITURE_DISPLAY_CONDITION.name(), null, furnitureDisplayValue);
     }
     
@@ -338,7 +340,7 @@ public class Entity implements Comparable<Entity> {
     }
 
     public boolean isFanColorModified() {
-        return settings.get(name + "." + SETTING_NAME_FAN_COLOR) != null;
+        return settings.get(getSettingKey(SETTING_NAME_FAN_COLOR)) != null;
     }
 
     public boolean getShowBorderAndBackground() {
@@ -451,6 +453,21 @@ public class Entity implements Comparable<Entity> {
     public void setExcludeFromOverlap(boolean excludeFromOverlap) {
         this.excludeFromOverlap = excludeFromOverlap;
         settings.setBoolean(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), excludeFromOverlap);
+    }
+
+    public String getIconShadow() {
+        return iconShadow;
+    }
+
+    public void setIconShadow(String iconShadow) {
+        this.iconShadow = iconShadow;
+        settings.set(getSettingKey(SETTING_NAME_ICON_SHADOW), iconShadow);
+    }
+
+    public boolean isIconShadowModified() {
+        // Check if the setting exists, which implies it has been modified from the default.
+        // The default is not stored, so a non-null value means it's been set.
+        return settings.get(getSettingKey(SETTING_NAME_ICON_SHADOW)) != null;
     }
 
 
@@ -605,6 +622,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), null);
         settings.set(getSettingKey(SETTING_NAME_LABEL_SUFFIX), null);
         settings.set(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), null);
+        settings.set(getSettingKey(SETTING_NAME_ICON_SHADOW), null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -798,7 +816,8 @@ public class Entity implements Comparable<Entity> {
                     "          width: %.2f%%\n" + // Set width based on fanSizePercent
                     "          aspect-ratio: 1 / 1;\n" + // Force a square aspect ratio, browser will calculate height
                     "          transform: translate(-50%%, -50%%)\n" + // Ensure it's always centered
-                    "          pointer-events: none\n",
+                    "          pointer-events: none\n" +
+                    "          will-change: transform;\n", // Hint to browser for smoother animation
                     position.y, position.x, fanSizePercent); // Only width is needed, height derived from aspect-ratio
 
                 // --- Element for 'on' state (spinning) ---
@@ -909,6 +928,12 @@ public class Entity implements Comparable<Entity> {
                 double scaledFontVw = 0.8 * scaleFactor;
                 double scaledFontPx = 5.0 * scaleFactor;
                 styleProperties.append(String.format(Locale.US, "      font-size: calc(%.2fvw + %.2fpx)\n", scaledFontVw, scaledFontPx));
+            }
+
+            // Add icon shadow filter if applicable
+            if ((displayType == DisplayType.ICON || displayType == DisplayType.BADGE) && iconShadow != null && !iconShadow.equals("none")) {
+                String shadowRgba = iconShadow.equals("white") ? "255,255,255,1" : "0,0,0,1";
+                styleProperties.append(String.format(Locale.US, "      filter: drop-shadow(2px 2px 2px rgba(%s))\n", shadowRgba));
             }
             
             // Prepare conditional parts as arguments for String.format
@@ -1253,6 +1278,7 @@ public class Entity implements Comparable<Entity> {
         labelFontWeight = settings.get(getSettingKey(SETTING_NAME_LABEL_FONT_WEIGHT), "normal"); // Default to "normal"
         labelSuffix = settings.get(getSettingKey(SETTING_NAME_LABEL_SUFFIX), "");
 
+        iconShadow = settings.get(getSettingKey(SETTING_NAME_ICON_SHADOW), "none"); // Default to "none"
         excludeFromOverlap = settings.getBoolean(getSettingKey(SETTING_NAME_EXCLUDE_FROM_OVERLAP), false);
         isRgb = settings.getBoolean(getSettingKey(SETTING_NAME_IS_RGB), false);
         

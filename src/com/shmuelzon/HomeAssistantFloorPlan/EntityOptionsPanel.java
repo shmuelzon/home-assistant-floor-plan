@@ -109,6 +109,8 @@ public class EntityOptionsPanel extends JPanel {
     private JCheckBox showBorderAndBackgroundCheckbox;
 
     // --- NEW: Components for state-label specific options ---
+    private JLabel iconShadowLabel;
+    private JComboBox<String> iconShadowComboBox;
     private JLabel labelColorLabel;
     private JComboBox<String> labelColorComboBox; // Changed from JTextField
     private JLabel labelTextShadowLabel;
@@ -165,6 +167,7 @@ public class EntityOptionsPanel extends JPanel {
                 fanColorComboBox.setSelectedItem(entity.getFanColor());
                 fanSizeComboBox.setSelectedItem(entity.getFanSize()); // Update Fan Size ComboBox
                 fanOpacitySpinner.setValue(entity.getFanOpacity() / 100.0);
+                setComboBoxSelectionFromEntityValue(iconShadowComboBox, entity.getIconShadow(), new String[]{"NONE", "WHITE", "BLACK"}, "HomeAssistantFloorPlan.Panel.iconShadowComboBox.%s.text", "NONE");
                 showBorderAndBackgroundCheckbox.setSelected(entity.getShowBorderAndBackground());
                 setComboBoxSelectionFromEntityValue(labelColorComboBox, entity.getLabelColor(), LABEL_COLOR_KEYS, "HomeAssistantFloorPlan.Panel.labelColorComboBox.%s.text", LABEL_COLOR_KEYS[0]);
                 labelTextShadowComboBox.setSelectedItem(entity.getLabelTextShadow()); // Update ComboBox
@@ -790,6 +793,27 @@ public class EntityOptionsPanel extends JPanel {
             markModified();
         });
 
+        // --- New Dropdown for Icon Shadow ---
+        iconShadowLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.iconShadowLabel.text"));
+        iconShadowComboBox = new JComboBox<>();
+        String[] iconShadowOptions = {"NONE", "WHITE", "BLACK"};
+        for (String optionKey : iconShadowOptions) {
+            iconShadowComboBox.addItem(resource.getString("HomeAssistantFloorPlan.Panel.iconShadowComboBox." + optionKey + ".text"));
+        }
+        setComboBoxSelectionFromEntityValue(iconShadowComboBox, entity.getIconShadow(), iconShadowOptions, "HomeAssistantFloorPlan.Panel.iconShadowComboBox.%s.text", "NONE");
+        iconShadowComboBox.addActionListener(e -> {
+            String selectedLocalized = (String) iconShadowComboBox.getSelectedItem();
+            String valueToStore = getIconShadowValueFromLocalized(selectedLocalized);
+            entity.setIconShadow(valueToStore);
+            markModified();
+        });
+        // --- Apply consistent look and feel and make clickable ---
+        iconShadowComboBox.setEditable(true);
+        JTextField iconShadowEditor = (JTextField) iconShadowComboBox.getEditor().getEditorComponent();
+        iconShadowEditor.setEditable(false);
+        iconShadowEditor.setFocusable(false);
+        makeClickableToOpenDropdown(iconShadowComboBox);
+
         // --- NEW: Create components for state-label specific options ---
         labelColorLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.labelColorLabel.text"));
         labelColorComboBox = new JComboBox<>();
@@ -1027,6 +1051,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Icon Shadow */
+        add(iconShadowLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        iconShadowLabel.setHorizontalAlignment(labelAlignment);
+        add(iconShadowComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         // --- NEW: Layout for ICON_AND_ANIMATED_FAN options ---
         add(associatedFanEntityIdLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -1191,6 +1225,7 @@ public class EntityOptionsPanel extends JPanel {
         fanColorLabel.setForeground(entity.isFanColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         fanSizeLabel.setForeground(entity.isFanSizeModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         fanOpacityLabel.setForeground(entity.isFanOpacityModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
+        iconShadowLabel.setForeground(entity.isIconShadowModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         showBorderAndBackgroundLabel.setForeground(entity.isShowBorderAndBackgroundModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
         furnitureDisplayStateLabel.setForeground(entity.isFurnitureDisplayConditionModified() ? modifiedColor : Color.BLACK);
         labelColorLabel.setForeground(entity.isLabelColorModified() ? modifiedColor : UIManager.getColor("Label.foreground"));
@@ -1233,6 +1268,12 @@ public class EntityOptionsPanel extends JPanel {
         boolean borderBgEnabled = showBorderAndBackgroundCheckbox.isSelected();
         backgroundColorLabel.setEnabled(borderBgEnabled);
         backgroundColorTextField.setEnabled(borderBgEnabled);
+
+        // Show/hide Icon Shadow components
+        boolean iconOrBadgeVisible = (Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.ICON ||
+                                     (Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.BADGE;
+        iconShadowLabel.setVisible(iconOrBadgeVisible);
+        iconShadowComboBox.setVisible(iconOrBadgeVisible);
 
         // Show/hide state-label specific components
         boolean labelSpecificComponentsVisible = (Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.LABEL;
@@ -1494,5 +1535,15 @@ public class EntityOptionsPanel extends JPanel {
             }
         }
         return displayValue; // Should not happen if populated correctly, but as a fallback
+    }
+
+    // NEW Helper to get the iconShadow value to store from its display string
+    private String getIconShadowValueFromLocalized(String localizedValue) {
+        if (localizedValue == null || localizedValue.equals(resource.getString("HomeAssistantFloorPlan.Panel.iconShadowComboBox.NONE.text"))) {
+            return "none";
+        } else if (localizedValue.equals(resource.getString("HomeAssistantFloorPlan.Panel.iconShadowComboBox.WHITE.text"))) {
+            return "white";
+        } // No need for an else-if for black, it's the only other option
+        return "black";
     }
 }

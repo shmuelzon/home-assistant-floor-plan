@@ -202,7 +202,7 @@ following template:
   * `update.xxx`
   * `vacuum.xxx`
   * `valve.xxx`
-  * `water_header.xxx`
+  * `water_heater.xxx`
   * `weather.xxx`
 
 ## Suggestions
