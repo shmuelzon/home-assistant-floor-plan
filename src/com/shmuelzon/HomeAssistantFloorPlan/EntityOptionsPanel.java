@@ -61,6 +61,8 @@ public class EntityOptionsPanel extends JPanel {
     private JSpinner positionTopSpinner;
     private JLabel opacityLabel;
     private JSpinner opacitySpinner;
+    private JLabel scaleFactorLabel;
+    private JSpinner scaleFactorSpinner;
     private JLabel backgroundColorLabel;
     private JTextField backgroundColorTextField;
     private JLabel alwaysOnLabel;
@@ -297,6 +299,22 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        scaleFactorLabel = new JLabel();
+        scaleFactorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.scaleFactorLabel.text"));
+        // Spinner model: initial value 1.0, min 0.1, max 10.0, step 0.1
+        final SpinnerNumberModel scaleFactorSpinnerModel = new SpinnerNumberModel(1.0, 0.1, 10.0, 0.1);
+        scaleFactorSpinner = new AutoCommitSpinner(scaleFactorSpinnerModel);
+        JSpinner.NumberEditor scaleFactorEditor = new JSpinner.NumberEditor(scaleFactorSpinner, "0.0#"); // Format for decimal
+        ((JSpinner.DefaultEditor)scaleFactorEditor).getTextField().setColumns(5);
+        scaleFactorSpinner.setEditor(scaleFactorEditor);
+        scaleFactorSpinnerModel.setValue(entity.getScaleFactor());
+        scaleFactorSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                entity.setScaleFactor(((Number)scaleFactorSpinnerModel.getValue()).doubleValue());
+                markModified();
+            }
+        });
+
         backgroundColorLabel = new JLabel();
         backgroundColorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.text"));
         backgroundColorTextField = new JTextField(20);
@@ -467,6 +485,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Scale Factor */
+        add(scaleFactorLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        scaleFactorLabel.setHorizontalAlignment(labelAlignment);
+        add(scaleFactorSpinner, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Background color */
         add(backgroundColorLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -531,6 +559,7 @@ public class EntityOptionsPanel extends JPanel {
         alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK);
         isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
+        scaleFactorLabel.setForeground(entity.isScaleFactorModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
     }

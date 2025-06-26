@@ -1,6 +1,8 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
 import com.eteks.sweethome3d.plugin.PluginAction;
+import java.util.Locale;
+import java.util.ResourceBundle;
 
 
 public class Plugin extends com.eteks.sweethome3d.plugin.Plugin {
@@ -19,7 +21,8 @@ public class Plugin extends com.eteks.sweethome3d.plugin.Plugin {
 
         @Override
         public void execute() {
-            controller = new Controller(getHome());
+            ResourceBundle resourceBundle = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), getPluginClassLoader());
+            controller = new Controller(getHome(), resourceBundle);
             panel = new Panel(getUserPreferences(), getPluginClassLoader(), controller);
             panel.displayView(getHomeController().getView());
         }
