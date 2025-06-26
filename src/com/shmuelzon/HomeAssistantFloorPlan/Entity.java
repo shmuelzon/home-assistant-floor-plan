@@ -23,9 +23,9 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 public class Entity implements Comparable<Entity> {
     public enum Property {ALWAYS_ON, IS_RGB, POSITION, SCALE_FACTOR, DISPLAY_CONDITION, FURNITURE_DISPLAY_CONDITION} // Added DISPLAY_CONDITION & FURNITURE_DISPLAY_CONDITION
     public enum DisplayType {BADGE, ICON, LABEL, ICON_AND_ANIMATED_FAN}
-    public enum ClickableAreaType { ENTITY_SIZE, ROOM_SIZE } // Added missing enum definition
+    public enum ClickableAreaType { ENTITY_SIZE, ROOM_SIZE }
     public enum FanSize {SMALL, MEDIUM, LARGE} // Added FanSize enum
-    public enum FanColor {WHITE, BLACK}
+    public enum FanColor {THREE_BLADE_CEILING_BLACK, THREE_BLADE_CEILING_WHITE, FOUR_BLADE_CEILING_BLACK, FOUR_BLADE_CEILING_WHITE, FOUR_BLADE_PORTABLE_BLACK, FOUR_BLADE_PORTABLE_WHITE}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE, TOGGLE_FAN}
 
     // --- NEW: Enum for the different operators ---
@@ -753,10 +753,28 @@ public class Entity implements Comparable<Entity> {
 
             // --- Generate the Fan Image part of ICON_AND_ANIMATED_FAN using standard conditional elements ---
             String fanImage;
-            if (this.fanColor == FanColor.WHITE) {
-                fanImage = "/local/floorplan/fan_blades_grey.png";
-            } else { // BLACK or default
-                fanImage = "/local/floorplan/fan_blades_black.png";
+            switch (this.fanColor) {
+                case THREE_BLADE_CEILING_BLACK:
+                    fanImage = "/local/floorplan/3_blade_black.png";
+                    break;
+                case THREE_BLADE_CEILING_WHITE:
+                    fanImage = "/local/floorplan/3_blade_grey.png";
+                    break;
+                case FOUR_BLADE_CEILING_BLACK:
+                    fanImage = "/local/floorplan/fan_blades_black.png";
+                    break;
+                case FOUR_BLADE_CEILING_WHITE:
+                    fanImage = "/local/floorplan/fan_blades_grey.png";
+                    break;
+                case FOUR_BLADE_PORTABLE_BLACK:
+                    fanImage = "/local/floorplan/mdi_fan_black.png";
+                    break;
+                case FOUR_BLADE_PORTABLE_WHITE:
+                    fanImage = "/local/floorplan/mdi_fan_grey.png";
+                    break;
+                default: // Fallback
+                    fanImage = "/local/floorplan/fan_blades_black.png";
+                    break;
             }
  
             double fanSizePercent; // Use a single variable for square aspect ratio
@@ -1225,7 +1243,7 @@ public class Entity implements Comparable<Entity> {
         scaleFactor = settings.getDouble(getSettingKey(SETTING_NAME_SCALE_FACTOR), 1.0);
         alwaysOn = settings.getBoolean(getSettingKey(SETTING_NAME_ALWAYS_ON), false);
         associatedFanEntityId = settings.get(getSettingKey(SETTING_NAME_ASSOCIATED_FAN_ENTITY_ID), "");
-        fanColor = getSavedEnumValue(FanColor.class, getSettingKey(SETTING_NAME_FAN_COLOR), FanColor.BLACK);
+        fanColor = getSavedEnumValue(FanColor.class, getSettingKey(SETTING_NAME_FAN_COLOR), FanColor.FOUR_BLADE_CEILING_BLACK); // Default to 4 Blade Ceiling Black
         showFanWhenOff = settings.getBoolean(getSettingKey(SETTING_NAME_SHOW_FAN_WHEN_OFF), true);
         fanSize = getSavedEnumValue(FanSize.class, getSettingKey(SETTING_NAME_FAN_SIZE), FanSize.MEDIUM);
         fanOpacity = settings.getInteger(getSettingKey(SETTING_NAME_FAN_OPACITY), 100);

@@ -364,13 +364,31 @@ public Controller(Home home, ResourceBundle resourceBundle) {
 
             // Load fan blade images once for efficiency
             BufferedImage blackFanBlades = null;
-            BufferedImage greyFanBlades = null;
-            try (InputStream isBlack = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/fan_blades_black.png");
+            BufferedImage greyFanBlades = null; // Renamed to fan_blades_grey.png
+            BufferedImage threeBladeBlack = null;
+            BufferedImage threeBladeGrey = null;
+            BufferedImage mdiFanBlack = null;
+            BufferedImage mdiFanGrey = null;
+            try (InputStream isBlack = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/fan_blades_black.png"); // 4 Blade Ceiling Black
                  InputStream isGrey = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/fan_blades_grey.png")) {
                 if (isBlack != null) blackFanBlades = ImageIO.read(isBlack);
                 if (isGrey != null) greyFanBlades = ImageIO.read(isGrey);
             } catch (IOException e) {
                 System.err.println("Warning: Could not load fan blade images for preview: " + e.getMessage());
+            }
+            try (InputStream is3BladeBlack = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/3_blade_black.png");
+                 InputStream is3BladeGrey = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/3_blade_grey.png")) {
+                if (is3BladeBlack != null) threeBladeBlack = ImageIO.read(is3BladeBlack);
+                if (is3BladeGrey != null) threeBladeGrey = ImageIO.read(is3BladeGrey);
+            } catch (IOException e) {
+                System.err.println("Warning: Could not load 3-blade fan images for preview: " + e.getMessage());
+            }
+            try (InputStream isMdiFanBlack = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/mdi_fan_black.png");
+                 InputStream isMdiFanGrey = getClass().getResourceAsStream("/com/shmuelzon/HomeAssistantFloorPlan/resources/mdi_fan_grey.png")) {
+                if (isMdiFanBlack != null) mdiFanBlack = ImageIO.read(isMdiFanBlack);
+                if (isMdiFanGrey != null) mdiFanGrey = ImageIO.read(isMdiFanGrey);
+            } catch (IOException e) {
+                System.err.println("Warning: Could not load MDI fan images for preview: " + e.getMessage());
             }
 
             List<Entity> allEntities = Stream.concat(lightEntities.stream(), otherEntities.stream())
@@ -504,10 +522,25 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                         break;
                     case ICON_AND_ANIMATED_FAN:
                         BufferedImage fanImageToDraw = null;
-                        if (entity.getFanColor() == Entity.FanColor.BLACK && blackFanBlades != null) {
-                            fanImageToDraw = blackFanBlades;
-                        } else if (entity.getFanColor() == Entity.FanColor.WHITE && greyFanBlades != null) {
-                            fanImageToDraw = greyFanBlades;
+                        switch (entity.getFanColor()) {
+                            case FOUR_BLADE_CEILING_BLACK:
+                                fanImageToDraw = blackFanBlades;
+                                break;
+                            case FOUR_BLADE_CEILING_WHITE:
+                                fanImageToDraw = greyFanBlades;
+                                break;
+                            case THREE_BLADE_CEILING_BLACK:
+                                fanImageToDraw = threeBladeBlack;
+                                break;
+                            case THREE_BLADE_CEILING_WHITE:
+                                fanImageToDraw = threeBladeGrey;
+                                break;
+                            case FOUR_BLADE_PORTABLE_BLACK:
+                                fanImageToDraw = mdiFanBlack;
+                                break;
+                            case FOUR_BLADE_PORTABLE_WHITE:
+                                fanImageToDraw = mdiFanGrey;
+                                break;
                         }
 
                         if (fanImageToDraw != null) {
@@ -938,7 +971,11 @@ public Controller(Home home, ResourceBundle resourceBundle) {
     private void copyStaticAssetsToFloorplanDirectory() {
         String[] staticAssetFiles = {
             "fan_blades_black.png",
-            "fan_blades_grey.png"
+            "fan_blades_grey.png",
+            "3_blade_black.png",
+            "3_blade_grey.png",
+            "mdi_fan_black.png",
+            "mdi_fan_grey.png"
         };
    
         Path destinationDir = Paths.get(outputFloorplanDirectoryName);
