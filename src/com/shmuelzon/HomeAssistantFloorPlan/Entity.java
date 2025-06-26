@@ -710,8 +710,8 @@ public class Entity implements Comparable<Entity> {
 
             // --- Generate the Icon part of ICON_AND_ANIMATED_FAN ---
             StringBuilder iconStyleProperties = new StringBuilder();
-            iconStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
-            iconStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
+            iconStyleProperties.append(String.format(Locale.US, "      top: %.4f%%\n", position.y));
+            iconStyleProperties.append(String.format(Locale.US, "      left: %.4f%%\n", position.x));
             iconStyleProperties.append("      position: absolute\n"); // Ensure absolute positioning
             iconStyleProperties.append("      transform: translate(-50%, -50%)\n");
 
@@ -810,14 +810,14 @@ public class Entity implements Comparable<Entity> {
                 // The transform property is handled separately for each state.
                 // Moved transform: translate(-50%, -50%) to baseStyle for consistent centering of the element's bounding box.
                 // FAN_OFFSET_X/Y removed as per user request to rely solely on aspect ratio.
-                String baseStyle = String.format(Locale.US,
-                    "          top: %.2f%%\n" +
-                    "          left: %.2f%%\n" +
-                    "          width: %.2f%%\n" + // Set width based on fanSizePercent
-                    "          aspect-ratio: 1 / 1;\n" + // Force a square aspect ratio, browser will calculate height
-                    "          transform: translate(-50%%, -50%%)\n" + // Ensure it's always centered
+                String baseStyle = String.format(Locale.US, // Increased precision to .4f, added translateZ(0) and removed trailing semicolons
+                    "          top: %.4f%%\n" +
+                    "          left: %.4f%%\n" +
+                    "          width: %.4f%%\n" + // Set width based on fanSizePercent
+                    "          aspect-ratio: 1 / 1\n" + // Force a square aspect ratio, browser will calculate height
+                    "          transform: translate(-50%%, -50%%) translateZ(0)\n" + // Ensure it's always centered and hardware accelerated
                     "          pointer-events: none\n" +
-                    "          will-change: transform;\n", // Hint to browser for smoother animation
+                    "          will-change: transform\n", // Hint to browser for smoother animation
                     position.y, position.x, fanSizePercent); // Only width is needed, height derived from aspect-ratio
 
                 // --- Element for 'on' state (spinning) ---
@@ -871,8 +871,8 @@ public class Entity implements Comparable<Entity> {
 
             // --- Generate the main visual element (Icon, Badge, or Label) ---
             StringBuilder styleProperties = new StringBuilder();
-            styleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
-            styleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
+            styleProperties.append(String.format(Locale.US, "      top: %.4f%%\n", position.y));
+            styleProperties.append(String.format(Locale.US, "      left: %.4f%%\n", position.x));
             styleProperties.append("      position: absolute\n"); // Ensure absolute positioning
             styleProperties.append("      transform: translate(-50%, -50%)\n");
             
@@ -1049,10 +1049,10 @@ public class Entity implements Comparable<Entity> {
                     String transparentImagePath = "/local/floorplan/" + fullImageName + ".png?version=" + transparentImageHash;
 
                     clickableAreaYaml = String.format(Locale.US,
-                        "  - type: image\n" +
+                        "  - type: image\n" + // Increased precision to .4f
                         "    entity: %s\n" +
                         "    image: %s\n" +
-                        "    tap_action:\n" +
+                        "    tap_action:\n" + // Increased precision to .4f
                         "      action: %s\n" +
                         "    double_tap_action:\n" +
                         "      action: %s\n" +
@@ -1060,9 +1060,9 @@ public class Entity implements Comparable<Entity> {
                         "      action: %s\n" +
                         "    style:\n" +
                         "      top: %.2f%%\n" +
-                        "      left: %.2f%%\n" +
-                        "      width: %.2f%%\n" +  // Use original percentage from roomBounds
-                        "      height: %.2f%%\n" + // Use original percentage from roomBounds
+                        "      left: %.4f%%\n" +
+                        "      width: %.4f%%\n" +  // Use original percentage from roomBounds
+                        "      height: %.4f%%\n" + // Use original percentage from roomBounds
                         "      transform: translate(0%%, 0%%)\n" +
                         "      opacity: 0%%\n",
                         this.name,
@@ -1161,10 +1161,10 @@ public class Entity implements Comparable<Entity> {
      */
     private String generateBackgroundElementYaml(Point2d position, double scaleFactor, String backgroundColor,
                                                  Action tapAction, String tapActionValue, Action doubleTapAction, String doubleTapActionValue,
-                                                 Action holdAction, String holdActionValue, String associatedFanEntityId, String entityName, String entityId, boolean blinking, int opacity) {
+                                                 Action holdAction, String holdActionValue, String associatedFanEntityId, String entityName, String entityId, boolean blinking, int opacity) { // Increased precision to .4f
         StringBuilder backgroundStyleProperties = new StringBuilder();
-        backgroundStyleProperties.append(String.format(Locale.US, "      top: %.2f%%\n", position.y));
-        backgroundStyleProperties.append(String.format(Locale.US, "      left: %.2f%%\n", position.x));
+        backgroundStyleProperties.append(String.format(Locale.US, "      top: %.4f%%\n", position.y));
+        backgroundStyleProperties.append(String.format(Locale.US, "      left: %.4f%%\n", position.x));
         backgroundStyleProperties.append("      position: absolute\n");
         backgroundStyleProperties.append("      transform: translate(-50%, -50%)\n");
 

@@ -933,9 +933,9 @@ public Controller(Home home, ResourceBundle resourceBundle) {
                 "    50% { opacity: 1; }\n" + // Assuming 100% opacity is 1
                 "    100% { opacity: 0; }\n" +
                 "  }\n" +
-                "  @keyframes spin {\n" +
-                "    from { transform: translate(-50%, -50%) rotate(0deg); }\n" + // Start at 0 degrees
-                "    to   { transform: translate(-50%, -50%) rotate(-360deg); }\n" + // Rotate to -360 degrees for counter-clockwise
+                "  @keyframes spin {\n" + // Add translateZ(0) to force hardware acceleration during animation
+                "    from { transform: translate(-50%, -50%) rotate(0deg) translateZ(0); }\n" + // Start at 0 degrees
+                "    to   { transform: translate(-50%, -50%) rotate(-360deg) translateZ(0); }\n" + // Rotate to -360 degrees for counter-clockwise
                 "  }\n";
             yaml += globalStyles;
 
