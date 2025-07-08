@@ -2,24 +2,41 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import javax.media.j3d.BoundingBox;
+import javax.media.j3d.BranchGroup;
+import javax.media.j3d.Node;
+import javax.media.j3d.Group;
+import javax.media.j3d.Transform3D;
+import javax.media.j3d.TransformGroup;
 import javax.vecmath.Point2d;
+import javax.vecmath.Point3d;
+import javax.vecmath.Point3f;
+import javax.vecmath.Matrix4f;
 import javax.vecmath.Vector2d;
+import javax.vecmath.Vector3f;
 
+import com.eteks.sweethome3d.j3d.HomePieceOfFurniture3D;
+import com.eteks.sweethome3d.j3d.ModelManager;
+import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
+import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.Transformation;
 
 
 public class Entity implements Comparable<Entity> {
-    public enum Property {ALWAYS_ON, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
+    public enum Property {ALWAYS_ON, OPEN_FURNITURE_CONDITION, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
     public enum DisplayType {BADGE, ICON, LABEL}
     public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
     public enum DisplayFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
+    public enum OpenFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
 
     private static final String SETTING_NAME_DISPLAY_TYPE = "displayType";
     private static final String SETTING_NAME_DISPLAY_CONDITION = "displayCondition";
@@ -37,6 +54,8 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION = "displayFurnitureCondition";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE = "displayFurnitureConditionValue";
+    private static final String SETTING_NAME_OPEN_FURNITURE_CONDITION = "openFurnitureCondition";
+    private static final String SETTING_NAME_OPEN_FURNITURE_CONDITION_VALUE = "openFurnitureConditionValue";
 
     private List<? extends HomePieceOfFurniture> piecesOfFurniture;
     private String id;
@@ -58,7 +77,13 @@ public class Entity implements Comparable<Entity> {
     private boolean isRgb;
     private DisplayFurnitureCondition displayFurnitureCondition;
     private String displayFurnitureConditionValue;
+    private OpenFurnitureCondition openFurnitureCondition;
+    private String openFurnitureConditionValue;
     private Map<HomeLight, Float> initialPower;
+    private boolean isDoorOrWindow;
+    private Map<HomePieceOfFurniture, Point3f> initialLocation;
+    private Map<HomePieceOfFurniture, Point3f> initialSize;
+    private Map<HomePieceOfFurniture, Transformation[] > initialTransformations;
 
     private Settings settings;
     private boolean isUserDefinedPosition;
@@ -69,6 +94,9 @@ public class Entity implements Comparable<Entity> {
         this.piecesOfFurniture = piecesOfFurniture;
         propertyChangeSupport = new PropertyChangeSupport(this);
         initialPower = new HashMap<>();
+        initialLocation = new HashMap<>();
+        initialSize = new HashMap<>();
+        initialTransformations = new HashMap<>();
 
         loadDefaultAttributes();
     }
@@ -97,6 +125,10 @@ public class Entity implements Comparable<Entity> {
 
     public boolean getIsLight() {
         return isLight;
+    }
+
+    public boolean getIsDoorOrWindow() {
+        return isDoorOrWindow;
     }
 
     public DisplayType getDisplayType() {
@@ -261,6 +293,34 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE) != null;
     }
 
+    public OpenFurnitureCondition getOpenFurnitureCondition() {
+        return openFurnitureCondition;
+    }
+
+    public void setOpenFurnitureCondition(OpenFurnitureCondition openFurnitureCondition) {
+        OpenFurnitureCondition oldOpenFurnitureCondition = this.openFurnitureCondition;
+        this.openFurnitureCondition = openFurnitureCondition;
+        settings.set(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION, openFurnitureCondition.name());
+        propertyChangeSupport.firePropertyChange(Property.OPEN_FURNITURE_CONDITION.name(), oldOpenFurnitureCondition, openFurnitureCondition);
+    }
+
+    public boolean isOpenFurnitureConditionModified() {
+        return settings.get(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION) != null;
+    }
+
+    public String getOpenFurnitureConditionValue() {
+        return openFurnitureConditionValue;
+    }
+
+    public void setOpenFurnitureConditionValue(String openFurnitureConditionValue) {
+        this.openFurnitureConditionValue = openFurnitureConditionValue;
+        settings.set(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION_VALUE, openFurnitureConditionValue);
+    }
+
+    public boolean isOpenFurnitureConditionValueModified() {
+        return settings.get(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION_VALUE) != null;
+    }
+
     public Point2d getPosition() {
         return new Point2d(position);
     }
@@ -332,6 +392,8 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, null);
+        settings.set(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION, null);
+        settings.set(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION_VALUE, null);
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
@@ -347,14 +409,37 @@ public class Entity implements Comparable<Entity> {
             entry.getKey().setPower(on ? entry.getValue() : 0);
     }
 
+    public void setDoorOrWindowState(boolean open) {
+        if (!isDoorOrWindow)
+            return;
+
+        if (!open) {
+            for (HomePieceOfFurniture piece : initialTransformations.keySet())
+                closeDoorOrWindow(piece);
+            return;
+        }
+
+        for (HomePieceOfFurniture piece : initialTransformations.keySet()) {
+            piece.setX(initialLocation.get(piece).getX());
+            piece.setY(initialLocation.get(piece).getY());
+            piece.setElevation(initialLocation.get(piece).getZ());
+
+            piece.setWidth(initialSize.get(piece).getX());
+            piece.setDepth(initialSize.get(piece).getY());
+            piece.setHeight(initialSize.get(piece).getZ());
+
+            piece.setModelTransformations(initialTransformations.get(piece));
+        }
+    }
+
     public void restoreConfiguration() {
         setVisible(true);
 
-        if (!isLight)
-            return;
+        if (isLight)
+            setLightPower(true);
 
-        for (Map.Entry<HomeLight, Float> entry : initialPower.entrySet())
-            entry.getKey().setPower(entry.getValue());
+        if (isDoorOrWindow)
+            setDoorOrWindowState(true);
     }
 
     public void setVisible(boolean visible) {
@@ -435,6 +520,17 @@ public class Entity implements Comparable<Entity> {
         }
     }
 
+    private void saveInitialDoorOrWindowState() {
+        if (!isDoorOrWindow)
+            return;
+
+        for (HomePieceOfFurniture piece : piecesOfFurniture) {
+            initialLocation.put(piece, new Point3f(piece.getX(), piece.getY(), piece.getElevation()));
+            initialSize.put(piece, new Point3f(piece.getWidth(), piece.getDepth(), piece.getHeight()));
+            initialTransformations.put(piece, piece.getModelTransformations());
+        }
+    }
+
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.addPropertyChangeListener(property.name(), listener);
     }
@@ -476,9 +572,13 @@ public class Entity implements Comparable<Entity> {
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
         displayFurnitureCondition = getSavedEnumValue(DisplayFurnitureCondition.class, name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, DisplayFurnitureCondition.ALWAYS);
         displayFurnitureConditionValue = settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, "");
+        openFurnitureCondition = getSavedEnumValue(OpenFurnitureCondition.class, name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION, OpenFurnitureCondition.ALWAYS);
+        openFurnitureConditionValue = settings.get(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION_VALUE, "");
 
         isLight = firstPiece instanceof HomeLight;
+        isDoorOrWindow = firstPiece instanceof HomeDoorOrWindow;
         saveInitialLightPowerValues();
+        saveInitialDoorOrWindowState();
     }
 
     private DisplayType defaultDisplayType() {
@@ -525,4 +625,105 @@ public class Entity implements Comparable<Entity> {
         isUserDefinedPosition = false;
         return new Point2d(0, 0);
     }
+
+    private void closeDoorOrWindow(HomePieceOfFurniture piece) {
+        if (piece.getModelTransformations() == null) {
+            return;
+        }
+
+        /* Build 3D scene with floor plan piece */
+        ModelManager modelManager = ModelManager.getInstance();
+        BranchGroup sceneTree = new BranchGroup();
+        TransformGroup modelTransformGroup = new TransformGroup();
+        BranchGroup modelRoot;
+
+        sceneTree.addChild(modelTransformGroup);
+        try {
+            modelRoot = modelManager.loadModel(piece.getModel());
+        } catch (Exception ex) {
+            return;
+        }
+
+        if (modelRoot.numChildren() == 0)
+            return;
+
+        Vector3f size = piece.getWidth() < 0 ? modelManager.getSize(modelRoot) : new Vector3f(piece.getWidth(), piece.getHeight(), piece.getDepth());
+        HomePieceOfFurniture modelPiece = new HomePieceOfFurniture(new CatalogPieceOfFurniture(null, null, piece.getModel(), size.x, size.z, size.y, 0, false, null, null, piece.getModelRotation(), piece.getModelFlags(), null, null, 0, 0, 1, false));
+        modelPiece.setX(0);
+        modelPiece.setY(0);
+        modelPiece.setElevation(-modelPiece.getHeight() / 2);
+
+        HomePieceOfFurniture3D piece3D = new HomePieceOfFurniture3D(modelPiece, null);
+        modelTransformGroup.addChild(piece3D);
+
+        modelPiece.setModelTransformations(piece.getModelTransformations());
+        piece3D.update();
+
+        /* Remove transformations from 3D model and update modelPiece's size and location */
+        BoundingBox oldBounds = modelManager.getBounds(piece3D);
+        Point3d oldLower = new Point3d();
+        oldBounds.getLower(oldLower);
+        Point3d oldUpper = new Point3d();
+        oldBounds.getUpper(oldUpper);
+
+        setNodeTransformations(piece3D, null);
+
+        BoundingBox newBounds = modelManager.getBounds(piece3D);
+        Point3d newLower = new Point3d();
+        newBounds.getLower(newLower);
+        Point3d newUpper = new Point3d();
+        newBounds.getUpper(newUpper);
+        modelPiece.setX(modelPiece.getX() + (float)(newUpper.x + newLower.x) / 2 - (float)(oldUpper.x + oldLower.x) / 2);
+        modelPiece.setY(modelPiece.getY() + (float)(newUpper.z + newLower.z) / 2 - (float)(oldUpper.z + oldLower.z) / 2);
+        modelPiece.setElevation(modelPiece.getElevation() + (float)(newLower.y - oldLower.y));
+        modelPiece.setWidth((float)(newUpper.x - newLower.x));
+        modelPiece.setDepth((float)(newUpper.z - newLower.z));
+        modelPiece.setHeight((float)(newUpper.y - newLower.y));
+        modelPiece.setModelTransformations(null);
+
+        /* Update location and size of the floor plan piece */
+        float modelX = piece.isModelMirrored() ? -modelPiece.getX() : modelPiece.getX();
+        float modelY = modelPiece.getY();
+        float pieceX = (float)(piece.getX() + modelX * Math.cos(piece.getAngle()) - modelY * Math.sin(piece.getAngle()));
+        float pieceY = (float)(piece.getY() + modelX * Math.sin(piece.getAngle()) + modelY * Math.cos(piece.getAngle()));
+        float pieceElevation = piece.getElevation() + modelPiece.getElevation() + piece.getHeight() / 2;
+        piece.setModelTransformations(new Transformation [0]);
+        piece.setX(pieceX);
+        piece.setY(pieceY);
+        piece.setElevation(pieceElevation);
+        piece.setWidth(modelPiece.getWidth());
+        piece.setDepth(modelPiece.getDepth());
+        piece.setHeight(modelPiece.getHeight());
+    }
+
+    private void setNodeTransformations(Node node, Transformation [] transformations) {
+        if (node instanceof Group) {
+            if (node instanceof TransformGroup
+                    && node.getUserData() instanceof String
+                    && ((String)node.getUserData()).endsWith(ModelManager.DEFORMABLE_TRANSFORM_GROUP_SUFFIX)) {
+                TransformGroup transformGroup = (TransformGroup)node;
+                transformGroup.setTransform(new Transform3D());
+                if (transformations != null) {
+                    String transformationName = (String)node.getUserData();
+                    transformationName = transformationName.substring(0, transformationName.length() - ModelManager.DEFORMABLE_TRANSFORM_GROUP_SUFFIX.length());
+                    for (Transformation transformation : transformations) {
+                        if (transformationName.equals(transformation.getName())) {
+                            float [][] matrix = transformation.getMatrix();
+                            Matrix4f transformMatrix = new Matrix4f();
+                            transformMatrix.setRow(0, matrix[0]);
+                            transformMatrix.setRow(1, matrix[1]);
+                            transformMatrix.setRow(2, matrix[2]);
+                            transformMatrix.setRow(3, new float [] {0, 0, 0, 1});
+                            transformGroup.setTransform(new Transform3D(transformMatrix));
+                        }
+                    }
+                }
+            }
+            Enumeration<?> enumeration = ((Group)node).getAllChildren();
+            while (enumeration.hasMoreElements()) {
+                setNodeTransformations((Node)enumeration.nextElement(), transformations);
+            }
+        }
+    }
+
 }

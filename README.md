@@ -106,7 +106,8 @@ for the complete floor plan and will progress as they are ready.
 You can also click on any entity from the list to reveal additional settings
 that allow you to customize the entity according to your needs.
 
-<img src="doc/entityOptionsLights.png" /> <img src="doc/entityOptionsFurniture.png" />
+| <img src="doc/entityOptionsLights.png" /> | <img src="doc/entityOptionsFurniture.png" /> | <img src="doc/entityOptionsDoorOrWindow.png.png" /> |
+| - | - | - |
 
 > [!NOTE]
 > Settings that were modified from their default values are displayed in red
@@ -125,16 +126,22 @@ that allow you to customize the entity according to your needs.
 * Background color - Define the background color of the entity's icon/label
 * Display furniture - Only for furniture, set the entity state conditions for
   which the piece of furniture is either visible or hidden in the floor plan
+* Open door/window - Only for door and windows, set the entity state conditions
+  for which the door or window is rendered open or closed in the floor plan
+
+  :clipboard: **Note:** For doors and windows to work, the default state of the
+  model, as it comes when adding it to the floor plan, should be closed. Then,
+  in your design, modify the openings to how you want them to look when opened
 * Always on - Only for lights, set light as always on removing its icon and it
   won't be affected by the matching Home Assistant state
 * Is RGB(W)/dimmable light - Only for lights, set light as an RGB or dimmable
   light that will change its color and brightness in the floorplan according to
   the color set in Home Assistant. This requires installing the
   [config-template-card](https://github.com/iantrich/config-template-card)
-  custom Lovelace card.
+  custom Lovelace card
 
   :warning: **Note:** RGB/dimmable lights are only supported in the CSS
-  rendering mode.
+  rendering mode
 
 ## Preparation
 
@@ -172,6 +179,7 @@ that allow you to customize the entity according to your needs.
   * `sensor.xxx`
   * `siren.xxx`
   * `switch.xxx`
+  * `sun.xxx`
   * `todo.xxx`
   * `update.xxx`
   * `vacuum.xxx`

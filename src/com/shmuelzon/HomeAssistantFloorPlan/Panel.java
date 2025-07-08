@@ -141,6 +141,8 @@ public class Panel extends JPanel implements DialogView {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.isRgb.text"));
             if (entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS)
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.displayByState.text"));
+            if (entity.getOpenFurnitureCondition() != Entity.OpenFurnitureCondition.ALWAYS)
+                attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.openByState.text"));
 
             return attributes;
         }

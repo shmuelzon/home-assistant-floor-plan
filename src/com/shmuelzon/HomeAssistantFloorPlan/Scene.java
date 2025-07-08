@@ -20,13 +20,17 @@ public class Scene {
     private long renderingTime;
     private List<Entity> entitiesToShowHide;
     private List<Entity> entitiesToShow;
+    private List<Entity> entitiesToOpenClose;
+    private List<Entity> entitiesToOpen;
 
-    public Scene(Camera camera, List<Long> renderingTimes, long renderingTime, List<Entity> entitiesToShowHide, List<Entity> entitiesToShow) {
+    public Scene(Camera camera, List<Long> renderingTimes, long renderingTime, List<Entity> entitiesToShowHide, List<Entity> entitiesToShow, List<Entity> entitiesToOpenClose, List<Entity> entitiesToOpen) {
         this.camera = camera;
         this.renderingTimes = renderingTimes;
         this.renderingTime = renderingTime;
         this.entitiesToShowHide = entitiesToShowHide;
         this.entitiesToShow = entitiesToShow;
+        this.entitiesToOpenClose = entitiesToOpenClose;
+        this.entitiesToOpen = entitiesToOpen;
 
         generateNameAndTitle();
     }
@@ -43,6 +47,8 @@ public class Scene {
         camera.setTime(renderingTime);
         for (Entity entity : entitiesToShowHide)
             entity.setVisible(entitiesToShow.contains(entity));
+        for (Entity entity : entitiesToOpenClose)
+            entity.setDoorOrWindowState(entitiesToOpen.contains(entity));
     }
 
     public String getConditions() {
@@ -85,6 +91,15 @@ public class Scene {
                 displayConditionYaml.get(Arrays.asList(entitiesToShow.contains(entity), entity.getDisplayFurnitureCondition() == Entity.DisplayFurnitureCondition.STATE_EQUALS)),
                 entity.getDisplayFurnitureConditionValue());
         }
+        for (Entity entity : entitiesToOpenClose) {
+            condition += String.format(
+                "      - condition: state\n" +
+                "        entity: %s\n" +
+                "        state%s: '%s'\n",
+                entity.getName(),
+                displayConditionYaml.get(Arrays.asList(entitiesToOpen.contains(entity), entity.getOpenFurnitureCondition() == Entity.OpenFurnitureCondition.STATE_EQUALS)),
+                entity.getOpenFurnitureConditionValue());
+        }
 
         return condition;
     }
@@ -109,8 +124,12 @@ public class Scene {
             nameParts.add(entity.getName() + "-" + (entitiesToShow.contains(entity) ? "visible" : "hidden"));
             titleParts.add((entitiesToShow.contains(entity) ? "With" : "Without") + " " + entity.getName());
         }
+        for (Entity entity : entitiesToOpenClose) {
+            nameParts.add(entity.getName() + "-" + (entitiesToOpen.contains(entity) ? "open" : "closed"));
+            titleParts.add(entity.getName() + " " + (entitiesToOpen.contains(entity) ? "open" : "closed"));
+        }
 
         name = String.join("_", nameParts);
-        title = String.join(",", titleParts);
+        title = String.join(", ", titleParts);
     }
 };

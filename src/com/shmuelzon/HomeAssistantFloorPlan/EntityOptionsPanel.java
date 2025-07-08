@@ -70,6 +70,9 @@ public class EntityOptionsPanel extends JPanel {
     private JLabel displayFurnitureConditionLabel;
     private JComboBox<Entity.DisplayFurnitureCondition> displayFurnitureConditionComboBox;
     private JTextField displayFurnitureConditionValueTextField;
+    private JLabel openFurnitureConditionLabel;
+    private JComboBox<Entity.OpenFurnitureCondition> openFurnitureConditionComboBox;
+    private JTextField openFurnitureConditionValueTextField;
     private JButton closeButton;
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
@@ -366,6 +369,41 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        openFurnitureConditionLabel = new JLabel();
+        openFurnitureConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.openFurnitureConditionLabel.text"));
+        openFurnitureConditionComboBox = new JComboBox<Entity.OpenFurnitureCondition>(Entity.OpenFurnitureCondition.values());
+        openFurnitureConditionComboBox.setSelectedItem(entity.getOpenFurnitureCondition());
+        openFurnitureConditionComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.openFurnitureConditionComboBox.%s.text", ((Entity.OpenFurnitureCondition)o).name())));
+                return rendererComponent;
+            }
+        });
+        openFurnitureConditionComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                Entity.OpenFurnitureCondition condition = (Entity.OpenFurnitureCondition)openFurnitureConditionComboBox.getSelectedItem();
+                showHideComponents();
+                if (openFurnitureConditionValueTextField.getText().isEmpty() && condition != Entity.OpenFurnitureCondition.ALWAYS)
+                    return;
+                entity.setOpenFurnitureCondition(condition);
+                markModified();
+            }
+        });
+        openFurnitureConditionValueTextField = new JTextField(10);
+        openFurnitureConditionValueTextField.setText(entity.getOpenFurnitureConditionValue());
+        openFurnitureConditionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String conditionValue = openFurnitureConditionValueTextField.getText();
+                if (conditionValue.isEmpty())
+                    return;
+                entity.setOpenFurnitureConditionValue(conditionValue);
+                entity.setOpenFurnitureCondition((Entity.OpenFurnitureCondition)openFurnitureConditionComboBox.getSelectedItem());
+                markModified();
+            }
+        });
+
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
 
@@ -479,6 +517,8 @@ public class EntityOptionsPanel extends JPanel {
 
         if (entity.getIsLight())
             layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
+        if (entity.getIsDoorOrWindow())
+            layoutDoorOrWindowSpecificComponents(labelAlignment, insets, currentGridYIndex);
         else
             layoutNonLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
     }
@@ -501,6 +541,20 @@ public class EntityOptionsPanel extends JPanel {
         isRgbLabel.setHorizontalAlignment(labelAlignment);
         add(isRgbCheckbox, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+    }
+
+    private void layoutDoorOrWindowSpecificComponents(int labelAlignment, Insets insets, int currentGridYIndex) {
+        add(openFurnitureConditionLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        openFurnitureConditionLabel.setHorizontalAlignment(labelAlignment);
+        add(openFurnitureConditionComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(openFurnitureConditionValueTextField, new GridBagConstraints(
+            3, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
     }
@@ -533,6 +587,7 @@ public class EntityOptionsPanel extends JPanel {
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
+        openFurnitureConditionLabel.setForeground(entity.isOpenFurnitureConditionModified() ? modifiedColor : Color.BLACK);
     }
 
     private void showHideComponents() {
@@ -540,6 +595,7 @@ public class EntityOptionsPanel extends JPanel {
         doubleTapActionValueTextField.setVisible((Entity.Action)doubleTapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         holdActionValueTextField.setVisible((Entity.Action)holdActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         displayFurnitureConditionValueTextField.setVisible((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem() != Entity.DisplayFurnitureCondition.ALWAYS);
+        openFurnitureConditionValueTextField.setVisible((Entity.OpenFurnitureCondition)openFurnitureConditionComboBox.getSelectedItem() != Entity.OpenFurnitureCondition.ALWAYS);
     }
 
     public void displayView(Component parentComponent) {

@@ -13,6 +13,8 @@ public class Scenes implements Iterable<Scene> {
     private List<Long> renderingTimes = new ArrayList<>();
     private List<Entity> entitiesToShowOrHide = new ArrayList<>();
     private List<List<Entity>> entitiesToShowOrHideCombinations = new ArrayList<>();
+    private List<Entity> entitiesToOpenOrClose = new ArrayList<>();
+    private List<List<Entity>> entitiesToOpenOrCloseCombinations = new ArrayList<>();
     private List<Scene> scenes = new ArrayList<>();
 
     public Scenes(Camera camera) {
@@ -36,7 +38,14 @@ public class Scenes implements Iterable<Scene> {
     public void setEntitiesToShowOrHide(List<Entity> entitiesToShowOrHide) {
         this.entitiesToShowOrHide = new ArrayList<>(entitiesToShowOrHide);
         Collections.sort(this.entitiesToShowOrHide);
-        entitiesToShowOrHideCombinations = getEntitiesCombinations();
+        entitiesToShowOrHideCombinations = getEntitiesCombinations(this.entitiesToShowOrHide);
+        buildScenes();
+    }
+
+    public void setEntitiesToOpenOrClose(List<Entity> entitiesToOpenOrClose) {
+        this.entitiesToOpenOrClose = new ArrayList<>(entitiesToOpenOrClose);
+        Collections.sort(this.entitiesToOpenOrClose);
+        entitiesToOpenOrCloseCombinations = getEntitiesCombinations(this.entitiesToOpenOrClose);
         buildScenes();
     }
 
@@ -45,14 +54,16 @@ public class Scenes implements Iterable<Scene> {
 
         for (long renderingTime : renderingTimes) {
             for (List<Entity> entitiesToShow : entitiesToShowOrHideCombinations) {
-                scenes.add(new Scene(camera, renderingTimes, renderingTime, entitiesToShowOrHide, entitiesToShow));
+                for (List<Entity> entitiesToOpen : entitiesToOpenOrCloseCombinations) {
+                    scenes.add(new Scene(camera, renderingTimes, renderingTime, entitiesToShowOrHide, entitiesToShow, entitiesToOpenOrClose, entitiesToOpen));
+                }
             }
         }
     }
 
-    public List<List<Entity>> getEntitiesCombinations() {
+    public List<List<Entity>> getEntitiesCombinations(List<Entity> entities) {
         List<List<Entity>> combinations = new ArrayList<>();
-        List<Entity> inputList = new ArrayList<>(entitiesToShowOrHide);
+        List<Entity> inputList = new ArrayList<>(entities);
 
         combinations.add(new ArrayList<>());
         _getCombinations(inputList, 0, new ArrayList<Entity>(), combinations);
