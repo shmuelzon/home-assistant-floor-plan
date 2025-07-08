@@ -106,7 +106,7 @@ for the complete floor plan and will progress as they are ready.
 You can also click on any entity from the list to reveal additional settings
 that allow you to customize the entity according to your needs.
 
-| <img src="doc/entityOptionsLights.png" /> | <img src="doc/entityOptionsFurniture.png" /> | <img src="doc/entityOptionsDoorOrWindow.png.png" /> |
+| <img src="doc/entityOptionsLights.png" /> | <img src="doc/entityOptionsFurniture.png" /> | <img src="doc/entityOptionsDoorOrWindow.png" /> |
 | - | - | - |
 
 > [!NOTE]
