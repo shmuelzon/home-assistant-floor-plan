@@ -708,7 +708,7 @@ public class Controller {
             "              '/local/floorplan/%s.png?version=%s' :\n" +
             "              '/local/floorplan/%s.png?version=%s' }\n" +
             "        style:\n" +
-            "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg)\"}'\n" +
+            "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg) saturate(\" + (LIGHT_COLOR ? LIGHT_COLOR[1] / 100 : 1) + \")\"}'\n" +
             "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
             "          mix-blend-mode: lighten\n" +
             "          pointer-events: none\n" +
