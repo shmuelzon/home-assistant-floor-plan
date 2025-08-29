@@ -39,6 +39,7 @@ public class Entity implements Comparable<Entity> {
     public enum OpenFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
 
     private static final String SETTING_NAME_DISPLAY_TYPE = "displayType";
+    private static final String SETTING_NAME_ICON_OVERRIDE = "iconOverride";
     private static final String SETTING_NAME_DISPLAY_CONDITION = "displayCondition";
     private static final String SETTING_NAME_TAP_ACTION = "tapAction";
     private static final String SETTING_NAME_TAP_ACTION_VALUE = "tapActionValue";
@@ -64,6 +65,7 @@ public class Entity implements Comparable<Entity> {
     private int opacity;
     private String backgroundColor;
     private DisplayType displayType;
+    private String iconOverride;
     private DisplayCondition displayCondition;
     private Action tapAction;
     private String tapActionValue;
@@ -142,6 +144,19 @@ public class Entity implements Comparable<Entity> {
 
     public boolean isDisplayTypeModified() {
         return settings.get(name + "." + SETTING_NAME_DISPLAY_TYPE) != null;
+    }
+
+    public String getIconOverride() {
+        return iconOverride;
+    }
+
+    public void setIconOverride(String iconOverride) {
+        this.iconOverride = iconOverride;
+        settings.set(name + "." + SETTING_NAME_ICON_OVERRIDE, iconOverride.isEmpty() ? null : iconOverride);
+    }
+
+    public boolean isIconOverrideModified() {
+        return settings.get(name + "." + SETTING_NAME_ICON_OVERRIDE) != null;
     }
 
     public DisplayCondition getDisplayCondition() {
@@ -377,6 +392,7 @@ public class Entity implements Comparable<Entity> {
         Point2d oldPosition = getPosition();
 
         settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
+        settings.set(name + "." + SETTING_NAME_ICON_OVERRIDE, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_CONDITION, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, null);
@@ -474,10 +490,15 @@ public class Entity implements Comparable<Entity> {
         if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
             return "";
 
+        String iconYaml = "";
+        if (displayType == DisplayType.ICON && ! iconOverride.isEmpty())
+            iconYaml = String.format("    icon: %s\n", iconOverride);
+
         String yaml = String.format(Locale.US,
             "  - type: %s\n" +
             "    entity: %s\n" +
             "    title: %s\n" +
+            "%s" +
             "    style:\n" +
             "      top: %.2f%%\n" +
             "      left: %.2f%%\n" +
@@ -491,7 +512,7 @@ public class Entity implements Comparable<Entity> {
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, position.y, position.x, backgroundColor, opacity,
+            displayTypeToYamlString.get(displayType), name, title, iconYaml, position.y, position.x, backgroundColor, opacity,
             actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
 
         if (displayCondition == DisplayCondition.ALWAYS)
@@ -558,6 +579,7 @@ public class Entity implements Comparable<Entity> {
         name = firstPiece.getName();
         position = loadPosition();
         displayType = getSavedEnumValue(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
+        iconOverride = settings.get(name + "." + SETTING_NAME_DISPLAY_TYPE, "");
         displayCondition = getSavedEnumValue(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
         tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
         tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");

@@ -114,12 +114,13 @@ that allow you to customize the entity according to your needs.
 
 * Display type - Configure how the entity is displayed on the floorplan, see
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
-* Display Condition - Configure when the entity should be displayed
+* Icon override - Allow overriding the default entity icon
+* Display condition - Configure when the entity should be displayed
 * Tap action - Define what to do when the entity is tapped/clicked on, see
   [Tap action](https://www.home-assistant.io/dashboards/actions/#tap-action)
 * Double tap action - Define what to do when the entity is double-tapped/clicked
   on, see [Double tap Action](https://www.home-assistant.io/dashboards/actions/#double-tap-action)
-* Hold Action - Define what to do when the entity is held/long-pressed, see
+* Hold action - Define what to do when the entity is held/long-pressed, see
   [Hold action](https://www.home-assistant.io/dashboards/actions/#hold-action)
 * Position - Override the entity's icon/label position
 * Opacity - Define the opacity of the entity's icon/label

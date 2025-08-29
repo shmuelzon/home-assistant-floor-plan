@@ -43,6 +43,8 @@ public class EntityOptionsPanel extends JPanel {
     private Entity entity;
     private JLabel displayTypeLabel;
     private JComboBox<Entity.DisplayType> displayTypeComboBox;
+    private JLabel iconOverrideLabel;
+    private JTextField iconOverrideTextField;
     private JLabel displayConditionLabel;
     private JComboBox<Entity.DisplayCondition> displayConditionComboBox;
     private JLabel tapActionLabel;
@@ -121,7 +123,21 @@ public class EntityOptionsPanel extends JPanel {
         });
         displayTypeComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
+                showHideComponents();
                 entity.setDisplayType((Entity.DisplayType)displayTypeComboBox.getSelectedItem());
+                markModified();
+            }
+        });
+
+        iconOverrideLabel = new JLabel();
+        iconOverrideLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.iconOverrideLabel.text"));
+        iconOverrideTextField = new JTextField(10);
+        iconOverrideTextField.setText(entity.getIconOverride());
+        iconOverrideTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String iconOverride = iconOverrideTextField.getText();
+                entity.setIconOverride(iconOverride);
                 markModified();
             }
         });
@@ -427,6 +443,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Icon override */
+        add(iconOverrideLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        iconOverrideLabel.setHorizontalAlignment(labelAlignment);
+        add(iconOverrideTextField, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Display Condition */
         add(displayConditionLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -577,6 +603,7 @@ public class EntityOptionsPanel extends JPanel {
         Color modifiedColor = new Color(200, 0, 0);
 
         displayTypeLabel.setForeground(entity.isDisplayTypeModified() ? modifiedColor : Color.BLACK);
+        iconOverrideLabel.setForeground(entity.isIconOverrideModified() ? modifiedColor : Color.BLACK);
         displayConditionLabel.setForeground(entity.isDisplayConditionModified() ? modifiedColor : Color.BLACK);
         tapActionLabel.setForeground(entity.isTapActionModified() ? modifiedColor : Color.BLACK);
         doubleTapActionLabel.setForeground(entity.isDoubleTapActionModified() ? modifiedColor : Color.BLACK);
@@ -591,11 +618,15 @@ public class EntityOptionsPanel extends JPanel {
     }
 
     private void showHideComponents() {
+        iconOverrideLabel.setVisible((Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.ICON);
+        iconOverrideTextField.setVisible((Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.ICON);
         tapActionValueTextField.setVisible((Entity.Action)tapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         doubleTapActionValueTextField.setVisible((Entity.Action)doubleTapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         holdActionValueTextField.setVisible((Entity.Action)holdActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         displayFurnitureConditionValueTextField.setVisible((Entity.DisplayFurnitureCondition)displayFurnitureConditionComboBox.getSelectedItem() != Entity.DisplayFurnitureCondition.ALWAYS);
         openFurnitureConditionValueTextField.setVisible((Entity.OpenFurnitureCondition)openFurnitureConditionComboBox.getSelectedItem() != Entity.OpenFurnitureCondition.ALWAYS);
+
+        SwingUtilities.getWindowAncestor(this).pack();
     }
 
     public void displayView(Component parentComponent) {
