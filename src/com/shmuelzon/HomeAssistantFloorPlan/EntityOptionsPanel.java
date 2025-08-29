@@ -517,7 +517,7 @@ public class EntityOptionsPanel extends JPanel {
 
         if (entity.getIsLight())
             layoutLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
-        if (entity.getIsDoorOrWindow())
+        else if (entity.getIsDoorOrWindow())
             layoutDoorOrWindowSpecificComponents(labelAlignment, insets, currentGridYIndex);
         else
             layoutNonLightSpecificComponents(labelAlignment, insets, currentGridYIndex);
