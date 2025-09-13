@@ -285,8 +285,13 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
         cropArea = null;
+        int originalSkyColor = home.getEnvironment().getSkyColor();
+        int originalGroundColor = home.getEnvironment().getGroundColor();
 
         try {
+            home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
+            home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
@@ -358,6 +363,8 @@ public class Controller {
         } catch (IOException e) {
             throw e;
         } finally {
+            home.getEnvironment().setSkyColor(originalSkyColor);
+            home.getEnvironment().setGroundColor(originalGroundColor);
             restoreEntityConfiguration();
         }
     }

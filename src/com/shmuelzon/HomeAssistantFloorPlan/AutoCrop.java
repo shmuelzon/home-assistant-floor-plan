@@ -1,9 +1,11 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 
 public class AutoCrop {
+    public static final Color CROP_COLOR = new Color(0, 255, 0);
     private static final int CROP_TOLERANCE = 10;
 
     private boolean isBackgroundColor(int color1, int background, int tolerance) {
@@ -21,7 +23,7 @@ public class AutoCrop {
     public Rectangle findCropArea(BufferedImage image) {
         int width = image.getWidth();
         int height = image.getHeight();
-        int background = image.getRGB(0, 0);
+        int background = CROP_COLOR.getRGB();
 
         int minX = width;
         int minY = height;
