@@ -40,6 +40,7 @@ import com.eteks.sweethome3d.tools.OperatingSystem;
 public class EntityOptionsPanel extends JPanel {
     private enum ActionType {CLOSE, RESET_TO_DEFAULTS}
 
+    private Controller controller;
     private Entity entity;
     private JLabel displayTypeLabel;
     private JComboBox<Entity.DisplayType> displayTypeComboBox;
@@ -67,6 +68,8 @@ public class EntityOptionsPanel extends JPanel {
     private JTextField backgroundColorTextField;
     private JLabel alwaysOnLabel;
     private JCheckBox alwaysOnCheckbox;
+    private JLabel autoCropLabel;
+    private JCheckBox autoCropCheckbox;
     private JLabel isRgbLabel;
     private JCheckBox isRgbCheckbox;
     private JLabel displayFurnitureConditionLabel;
@@ -79,9 +82,10 @@ public class EntityOptionsPanel extends JPanel {
     private JButton resetToDefaultsButton;
     private ResourceBundle resource;
 
-    public EntityOptionsPanel(UserPreferences preferences, Entity entity) {
+    public EntityOptionsPanel(UserPreferences preferences, Entity entity, Controller controller) {
         super(new GridBagLayout());
         this.entity = entity;
+        this.controller = controller;
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault());
         createActions(preferences);
@@ -339,6 +343,16 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        autoCropLabel = new JLabel();
+        autoCropLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.autoCropLabel.text"));
+        autoCropCheckbox = new JCheckBox();
+        autoCropCheckbox.setSelected(controller.getAutoCrop());
+        autoCropCheckbox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setAutoCrop(autoCropCheckbox.isSelected());
+            }
+        });
+
         isRgbLabel = new JLabel();
         isRgbLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.isRgbLabel.text"));
         isRgbCheckbox = new JCheckBox();
@@ -538,6 +552,16 @@ public class EntityOptionsPanel extends JPanel {
         backgroundColorLabel.setHorizontalAlignment(labelAlignment);
         add(backgroundColorTextField, new GridBagConstraints(
             1, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Auto crop */
+        add(autoCropLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        autoCropLabel.setHorizontalAlignment(labelAlignment);
+        add(autoCropCheckbox, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 

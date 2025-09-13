@@ -224,6 +224,15 @@ public class Controller {
         settings.setBoolean(CONTROLLER_USE_EXISTING_RENDERS, useExistingRenders);
     }
 
+    public boolean getAutoCrop() {
+        return autoCrop;
+    }
+
+    public void setAutoCrop(boolean autoCrop) {
+        this.autoCrop = autoCrop;
+        settings.setBoolean(CONTROLLER_AUTO_CROP, autoCrop);
+    }
+
     public Renderer getRenderer() {
         return renderer;
     }
