@@ -723,7 +723,7 @@ public class Panel extends JPanel implements DialogView {
     }
 
     private void openEntityOptionsPanel(Entity entity) {
-        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity);
+        EntityOptionsPanel entityOptionsPanel = new EntityOptionsPanel(preferences, entity, controller);
         entityOptionsPanel.displayView(this);
     }
 

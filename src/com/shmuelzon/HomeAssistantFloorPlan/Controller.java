@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -62,6 +63,7 @@ public class Controller {
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
+    private static final String CONTROLLER_AUTO_CROP = "autoCrop";
 
     private Home home;
     private Settings settings;
@@ -87,6 +89,8 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private boolean autoCrop;
+    private Rectangle cropArea = null;
     private Scenes scenes;
 
     public Controller(Home home) {
@@ -115,6 +119,7 @@ public class Controller {
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
+        autoCrop = settings.getBoolean(CONTROLLER_AUTO_CROP, true);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -219,6 +224,15 @@ public class Controller {
         settings.setBoolean(CONTROLLER_USE_EXISTING_RENDERS, useExistingRenders);
     }
 
+    public boolean getAutoCrop() {
+        return autoCrop;
+    }
+
+    public void setAutoCrop(boolean autoCrop) {
+        this.autoCrop = autoCrop;
+        settings.setBoolean(CONTROLLER_AUTO_CROP, autoCrop);
+    }
+
     public Renderer getRenderer() {
         return renderer;
     }
@@ -270,8 +284,14 @@ public class Controller {
     public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
+        cropArea = null;
+        int originalSkyColor = home.getEnvironment().getSkyColor();
+        int originalGroundColor = home.getEnvironment().getGroundColor();
 
         try {
+            home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
+            home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
@@ -280,8 +300,11 @@ public class Controller {
                 "type: picture-elements\n" +
                 "image: /local/floorplan/%s.png?version=%s\n" +
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
-            
+
             turnOffLightsFromOtherLevels();
+            int originalRenderWidth = renderWidth;
+            int originalRenderHeight = renderHeight;
+
             for (Scene scene : scenes) {
                 Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
                 Files.createDirectories(Paths.get(outputFloorplanDirectoryName + File.separator + scene.getName()));
@@ -291,7 +314,39 @@ public class Controller {
                 String baseImageName = "base";
                 if (!scene.getName().isEmpty())
                     baseImageName = scene.getName() + File.separator + baseImageName;
-                BufferedImage baseImage = generateBaseRender(scene, baseImageName);
+
+                BufferedImage baseImage = generateImage(new ArrayList<>(), baseImageName);
+
+                if (autoCrop && cropArea == null) {
+                    AutoCrop cropper = new AutoCrop();
+                    cropArea = cropper.findCropArea(baseImage);
+
+                    for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
+                        Point2d oldPos = entity.getPosition();
+                        double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
+                        double oldYPixels = oldPos.y / 100.0 * originalRenderHeight;
+                        double newXPixels = oldXPixels - cropArea.x;
+                        double newYPixels = oldYPixels - cropArea.y;
+                        double newXPercent = newXPixels / cropArea.width * 100.0;
+                        double newYPercent = newYPixels / cropArea.height * 100.0;
+                        entity.setPosition(new Point2d(newXPercent, newYPercent), false);
+                    }
+
+                    this.renderWidth = cropArea.width;
+                    this.renderHeight = cropArea.height;
+
+                    moveEntityIconsToAvoidIntersection();
+                }
+
+                if (cropArea != null) {
+                    baseImage = new AutoCrop().crop(baseImage, cropArea);
+                }
+
+                saveRawRender(baseImage, baseImageName);
+
+                BufferedImage baseFloorplanImage = generateFloorPlanImage(baseImage, baseImage, false);
+                saveFloorPlanImage(baseFloorplanImage, baseImageName, getFloorplanImageExtention());
+
                 yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
 
                 for (String group : lightsGroups.keySet())
@@ -308,6 +363,8 @@ public class Controller {
         } catch (IOException e) {
             throw e;
         } finally {
+            home.getEnvironment().setSkyColor(originalSkyColor);
+            home.getEnvironment().setGroundColor(originalGroundColor);
             restoreEntityConfiguration();
         }
     }
@@ -479,11 +536,6 @@ public class Controller {
         perspectiveTransform.mul(yawRotation);
     }
 
-    private BufferedImage generateBaseRender(Scene scene, String imageName) throws IOException, InterruptedException {
-        BufferedImage image = generateImage(new ArrayList<>(), imageName);
-        return generateFloorPlanImage(image, image, imageName, false);
-    }
-
     private String getFloorplanImageExtention() {
         if (this.lightMixingMode == LightMixingMode.OVERLAY)
             return "png";
@@ -499,10 +551,20 @@ public class Controller {
             String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
             if (!scene.getName().isEmpty())
                 imageName = scene.getName() + File.separator + imageName;
+
             BufferedImage image = generateImage(onLights, imageName);
+            if (cropArea != null) {
+                image = new AutoCrop().crop(image, cropArea);
+            }
+            saveRawRender(image, imageName);
+
             Entity firstLight = onLights.get(0);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
-            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, imageName, createOverlayImage);
+            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
+
+            String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
+            saveFloorPlanImage(floorPlanImage, imageName, imageExtension);
+
             if (firstLight.getIsRgb()) {
                 generateRedTintedImage(floorPlanImage, imageName);
                 yaml += generateRgbLightYaml(scene, firstLight, imageName);
@@ -529,10 +591,14 @@ public class Controller {
         }
         prepareScene(onLights);
         BufferedImage image = renderScene();
-        File imageFile = new File(fileName);
-        ImageIO.write(image, "png", imageFile);
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
         return image;
+    }
+
+    private void saveRawRender(BufferedImage image, String name) throws IOException {
+        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
+        File imageFile = new File(fileName);
+        ImageIO.write(image, "png", imageFile);
     }
 
     private void prepareScene(List<Entity> onLights) {
@@ -560,12 +626,8 @@ public class Controller {
         return image;
     }
 
-    private BufferedImage generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String name, boolean createOverlayImage) throws IOException {
-        String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
-        File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + name + "." + imageExtension);
-
+    private BufferedImage generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, boolean createOverlayImage) throws IOException {
         if (!createOverlayImage) {
-            ImageIO.write(image, imageExtension, floorPlanFile);
             return image;
         }
 
@@ -577,9 +639,12 @@ public class Controller {
                 overlay.setRGB(x, y, diff > sensitivity ? image.getRGB(x, y) : 0);
             }
         }
-
-        ImageIO.write(overlay, "png", floorPlanFile);
         return overlay;
+    }
+
+    private void saveFloorPlanImage(BufferedImage image, String name, String extension) throws IOException {
+        File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + name + "." + extension);
+        ImageIO.write(image, extension, floorPlanFile);
     }
 
     private int pixelDifference(int first, int second) {
