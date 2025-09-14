@@ -6,7 +6,6 @@ import java.awt.image.BufferedImage;
 
 public class AutoCrop {
     public static final Color CROP_COLOR = new Color(0, 255, 0);
-    private static final int CROP_TOLERANCE = 10;
 
     private boolean isBackgroundColor(int color1, int background, int tolerance) {
         int r1 = (color1 >> 16) & 0xFF;
@@ -20,7 +19,7 @@ public class AutoCrop {
         return Math.abs(r1 - r2) <= tolerance && Math.abs(g1 - g2) <= tolerance && Math.abs(b1 - b2) <= tolerance;
     }
 
-    public Rectangle findCropArea(BufferedImage image) {
+    public Rectangle findCropArea(BufferedImage image, int tolerance) {
         int width = image.getWidth();
         int height = image.getHeight();
         int background = CROP_COLOR.getRGB();
@@ -32,7 +31,7 @@ public class AutoCrop {
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                if (!isBackgroundColor(image.getRGB(x, y), background, CROP_TOLERANCE)) {
+                if (!isBackgroundColor(image.getRGB(x, y), background, tolerance)) {
                     if (x < minX) minX = x;
                     if (y < minY) minY = y;
                     if (x > maxX) maxX = x;
@@ -54,20 +53,5 @@ public class AutoCrop {
             return image;
         }
         return image.getSubimage(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
-    }
-
-    public BufferedImage makeTransparent(BufferedImage image, int tolerance) {
-        BufferedImage dest = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        int background = CROP_COLOR.getRGB();
-
-        for (int y = 0; y < image.getHeight(); y++) {
-            for (int x = 0; x < image.getWidth(); x++) {
-                int pixel = image.getRGB(x, y);
-                if (!isBackgroundColor(pixel, background, tolerance)) {
-                    dest.setRGB(x, y, pixel | 0xFF000000);
-                }
-            }
-        }
-        return dest;
     }
 }

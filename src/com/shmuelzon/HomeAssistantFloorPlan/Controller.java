@@ -299,10 +299,35 @@ public class Controller {
         cropArea = null;
         int originalSkyColor = home.getEnvironment().getSkyColor();
         int originalGroundColor = home.getEnvironment().getGroundColor();
+    BufferedImage stencilMask = null;
 
         try {
+        if (enableFloorPlanPostProcessing) {
             home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
             home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+
+            BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
+            numberOfCompletedRenders--; // Don't count the temp image
+
+            stencilMask = createStencilMask(tempBaseImage);
+
+            int originalRenderWidth = renderWidth;
+            int originalRenderHeight = renderHeight;
+            for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
+                Point2d oldPos = entity.getPosition();
+                double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
+                double oldYPixels = oldPos.y / 100.0 * originalRenderHeight;
+                double newXPixels = oldXPixels - cropArea.x;
+                double newYPixels = oldYPixels - cropArea.y;
+                double newXPercent = newXPixels / cropArea.width * 100.0;
+                double newYPercent = newYPixels / cropArea.height * 100.0;
+                entity.setPosition(new Point2d(newXPercent, newYPercent), false);
+            }
+            moveEntityIconsToAvoidIntersection();
+        }
+
+        home.getEnvironment().setSkyColor(originalSkyColor);
+        home.getEnvironment().setGroundColor(originalGroundColor);
 
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
@@ -314,8 +339,6 @@ public class Controller {
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
 
             turnOffLightsFromOtherLevels();
-            int originalRenderWidth = renderWidth;
-            int originalRenderHeight = renderHeight;
 
             for (Scene scene : scenes) {
                 Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
@@ -329,43 +352,18 @@ public class Controller {
 
                 BufferedImage baseImage = generateImage(new ArrayList<>(), baseImageName);
 
-                if (enableFloorPlanPostProcessing && cropArea == null) {
-                    AutoCrop cropper = new AutoCrop();
-                    cropArea = cropper.findCropArea(baseImage);
-
-                    for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
-                        Point2d oldPos = entity.getPosition();
-                        double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
-                        double oldYPixels = oldPos.y / 100.0 * originalRenderHeight;
-                        double newXPixels = oldXPixels - cropArea.x;
-                        double newYPixels = oldYPixels - cropArea.y;
-                        double newXPercent = newXPixels / cropArea.width * 100.0;
-                        double newYPercent = newYPixels / cropArea.height * 100.0;
-                        entity.setPosition(new Point2d(newXPercent, newYPercent), false);
-                    }
-                    moveEntityIconsToAvoidIntersection();
+            if (stencilMask != null) {
+                baseImage = applyStencilMask(baseImage, stencilMask);
                 }
-
-                if (cropArea != null) {
-                    baseImage = new AutoCrop().crop(baseImage, cropArea);
-                }
-
                 saveRawRender(baseImage, baseImageName);
 
                 BufferedImage baseFloorplanImage = generateFloorPlanImage(baseImage, baseImage, false);
-                String baseImageExtension = enableFloorPlanPostProcessing ? "png" : getFloorplanImageExtention();
-                if (enableFloorPlanPostProcessing) {
-                    baseFloorplanImage = new AutoCrop().makeTransparent(baseFloorplanImage, transparencyThreshold);
-                }
-                saveFloorPlanImage(baseFloorplanImage, baseImageName, baseImageExtension);
+            saveFloorPlanImage(baseFloorplanImage, baseImageName, "png");
 
                 yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
 
-                home.getEnvironment().setSkyColor(originalSkyColor);
-                home.getEnvironment().setGroundColor(originalGroundColor);
-
                 for (String group : lightsGroups.keySet())
-                    yaml += generateGroupRenders(scene, group, baseImage);
+                yaml += generateGroupRenders(scene, group, baseImage, stencilMask);
             }
 
             yaml += generateEntitiesYaml();
@@ -383,6 +381,30 @@ public class Controller {
             restoreEntityConfiguration();
         }
     }
+
+private BufferedImage createStencilMask(BufferedImage image) {
+    AutoCrop cropper = new AutoCrop();
+    this.cropArea = cropper.findCropArea(image, this.transparencyThreshold);
+
+    BufferedImage mask = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+    java.awt.Graphics2D g = mask.createGraphics();
+    g.setColor(java.awt.Color.WHITE);
+    g.fillRect(this.cropArea.x, this.cropArea.y, this.cropArea.width, this.cropArea.height);
+    g.dispose();
+    return mask;
+}
+
+private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) {
+    BufferedImage maskedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+    for (int y = 0; y < image.getHeight(); y++) {
+        for (int x = 0; x < image.getWidth(); x++) {
+            if (((mask.getRGB(x, y) >> 24) & 0xff) != 0) {
+                maskedImage.setRGB(x, y, image.getRGB(x, y) | 0xFF000000);
+            }
+        }
+    }
+    return maskedImage;
+}
 
     private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
         for (HomePieceOfFurniture piece : furnitureList) {
@@ -557,7 +579,7 @@ public class Controller {
         return this.imageFormat.name().toLowerCase();
     }
 
-    private String generateGroupRenders(Scene scene, String group, BufferedImage baseImage) throws IOException, InterruptedException {
+    private String generateGroupRenders(Scene scene, String group, BufferedImage baseImage, BufferedImage stencilMask) throws IOException, InterruptedException {
         List<Entity> groupLights = lightsGroups.get(group);
 
         List<List<Entity>> lightCombinations = getCombinations(groupLights);
@@ -568,16 +590,17 @@ public class Controller {
                 imageName = scene.getName() + File.separator + imageName;
 
             BufferedImage image = generateImage(onLights, imageName);
-            if (cropArea != null) {
-                image = new AutoCrop().crop(image, cropArea);
-            }
             saveRawRender(image, imageName);
 
             Entity firstLight = onLights.get(0);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
 
-            String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
+            if (stencilMask != null) {
+                floorPlanImage = applyStencilMask(floorPlanImage, stencilMask);
+            }
+
+            String imageExtension = "png";
             saveFloorPlanImage(floorPlanImage, imageName, imageExtension);
 
             if (firstLight.getIsRgb()) {
