@@ -65,6 +65,7 @@ public class Controller {
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
     private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
     private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
+    private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
 
     private Home home;
     private Settings settings;
@@ -92,6 +93,7 @@ public class Controller {
     private boolean useExistingRenders;
     private boolean enableFloorPlanPostProcessing;
     private int transparencyThreshold;
+    private boolean maintainAspectRatio;
     private Rectangle cropArea = null;
     private Scenes scenes;
 
@@ -123,6 +125,7 @@ public class Controller {
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
         enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
         transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 100);
+        maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -245,6 +248,15 @@ public class Controller {
         settings.setInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, transparencyThreshold);
     }
 
+    public boolean getMaintainAspectRatio() {
+        return maintainAspectRatio;
+    }
+
+    public void setMaintainAspectRatio(boolean maintainAspectRatio) {
+        this.maintainAspectRatio = maintainAspectRatio;
+        settings.setBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, maintainAspectRatio);
+    }
+
     public Renderer getRenderer() {
         return renderer;
     }
@@ -311,8 +323,14 @@ public class Controller {
 
             stencilMask = createStencilMask(tempBaseImage);
 
+            // Store original dimensions for consistent output
             int originalRenderWidth = renderWidth;
             int originalRenderHeight = renderHeight;
+            
+            // Update render dimensions to match crop area
+            renderWidth = cropArea.width;
+            renderHeight = cropArea.height;
+            
             for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
                 Point2d oldPos = entity.getPosition();
                 double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
