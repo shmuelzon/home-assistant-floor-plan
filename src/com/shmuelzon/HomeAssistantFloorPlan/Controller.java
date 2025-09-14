@@ -66,7 +66,6 @@ public class Controller {
     private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
     private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
     private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
-    private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
 
     private Home home;
     private Settings settings;
@@ -94,7 +93,6 @@ public class Controller {
     private boolean useExistingRenders;
     private boolean enableFloorPlanPostProcessing;
     private int transparencyThreshold;
-    private boolean maintainAspectRatio;
     private boolean maintainAspectRatio;
     private Rectangle cropArea = null;
     private Scenes scenes;
@@ -249,15 +247,6 @@ public class Controller {
     public void setTransparencyThreshold(int transparencyThreshold) {
         this.transparencyThreshold = transparencyThreshold;
         settings.setInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, transparencyThreshold);
-    }
-
-    public boolean getMaintainAspectRatio() {
-        return maintainAspectRatio;
-    }
-
-    public void setMaintainAspectRatio(boolean maintainAspectRatio) {
-        this.maintainAspectRatio = maintainAspectRatio;
-        settings.setBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, maintainAspectRatio);
     }
 
     public boolean getMaintainAspectRatio() {
