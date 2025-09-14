@@ -343,10 +343,6 @@ public class Controller {
                         double newYPercent = newYPixels / cropArea.height * 100.0;
                         entity.setPosition(new Point2d(newXPercent, newYPercent), false);
                     }
-
-                    this.renderWidth = cropArea.width;
-                    this.renderHeight = cropArea.height;
-
                     moveEntityIconsToAvoidIntersection();
                 }
 
@@ -364,6 +360,9 @@ public class Controller {
                 saveFloorPlanImage(baseFloorplanImage, baseImageName, baseImageExtension);
 
                 yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
+
+                home.getEnvironment().setSkyColor(originalSkyColor);
+                home.getEnvironment().setGroundColor(originalGroundColor);
 
                 for (String group : lightsGroups.keySet())
                     yaml += generateGroupRenders(scene, group, baseImage);
@@ -569,17 +568,16 @@ public class Controller {
                 imageName = scene.getName() + File.separator + imageName;
 
             BufferedImage image = generateImage(onLights, imageName);
+            if (cropArea != null) {
+                image = new AutoCrop().crop(image, cropArea);
+            }
             saveRawRender(image, imageName);
 
             Entity firstLight = onLights.get(0);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
 
-            String imageExtension = (createOverlayImage || enableFloorPlanPostProcessing) ? "png" : getFloorplanImageExtention();
-
-            if (enableFloorPlanPostProcessing) {
-                floorPlanImage = new AutoCrop().makeTransparent(floorPlanImage, transparencyThreshold);
-            }
+            String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
             saveFloorPlanImage(floorPlanImage, imageName, imageExtension);
 
             if (firstLight.getIsRgb()) {
