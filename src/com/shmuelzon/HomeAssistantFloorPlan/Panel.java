@@ -112,6 +112,9 @@ public class Panel extends JPanel implements DialogView {
     private JButton outputDirectoryBrowseButton;
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
+    private JCheckBox enableFloorPlanPostProcessingCheckbox;
+    private JLabel transparencyThresholdLabel;
+    private JSpinner transparencyThresholdSpinner;
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
@@ -469,6 +472,27 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        enableFloorPlanPostProcessingCheckbox = new JCheckBox();
+        enableFloorPlanPostProcessingCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.enableFloorPlanPostProcessing.text"));
+        enableFloorPlanPostProcessingCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.enableFloorPlanPostProcessing.tooltip"));
+        enableFloorPlanPostProcessingCheckbox.setSelected(controller.getEnableFloorPlanPostProcessing());
+        enableFloorPlanPostProcessingCheckbox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+                controller.setEnableFloorPlanPostProcessing(enableFloorPlanPostProcessingCheckbox.isSelected());
+            }
+        });
+
+        transparencyThresholdLabel = new JLabel();
+        transparencyThresholdLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.transparencyThresholdLabel.text"));
+        final SpinnerNumberModel transparencyThresholdSpinnerModel = new SpinnerNumberModel(100, 0, 255, 1);
+        transparencyThresholdSpinner = new AutoCommitSpinner(transparencyThresholdSpinnerModel);
+        transparencyThresholdSpinnerModel.setValue(controller.getTransparencyThreshold());
+        transparencyThresholdSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              controller.setTransparencyThreshold(((Number)transparencyThresholdSpinner.getValue()).intValue());
+            }
+        });
+
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField(20);
@@ -529,6 +553,8 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         useExistingRendersCheckbox.setEnabled(enabled);
+        enableFloorPlanPostProcessingCheckbox.setEnabled(enabled);
+        transparencyThresholdSpinner.setEnabled(enabled);
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
@@ -635,6 +661,12 @@ public class Panel extends JPanel implements DialogView {
         add(sensitivitySpinner, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(transparencyThresholdLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(transparencyThresholdSpinner, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Output directory */
@@ -652,6 +684,9 @@ public class Panel extends JPanel implements DialogView {
         /* Options */
         add(useExistingRendersCheckbox, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(enableFloorPlanPostProcessingCheckbox, new GridBagConstraints(
+            2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 

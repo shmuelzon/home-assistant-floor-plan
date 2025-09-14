@@ -63,7 +63,8 @@ public class Controller {
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
-    private static final String CONTROLLER_AUTO_CROP = "autoCrop";
+    private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
+    private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
 
     private Home home;
     private Settings settings;
@@ -89,7 +90,8 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
-    private boolean autoCrop;
+    private boolean enableFloorPlanPostProcessing;
+    private int transparencyThreshold;
     private Rectangle cropArea = null;
     private Scenes scenes;
 
@@ -119,7 +121,8 @@ public class Controller {
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
-        autoCrop = settings.getBoolean(CONTROLLER_AUTO_CROP, true);
+        enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
+        transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 100);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -224,13 +227,22 @@ public class Controller {
         settings.setBoolean(CONTROLLER_USE_EXISTING_RENDERS, useExistingRenders);
     }
 
-    public boolean getAutoCrop() {
-        return autoCrop;
+    public boolean getEnableFloorPlanPostProcessing() {
+        return enableFloorPlanPostProcessing;
     }
 
-    public void setAutoCrop(boolean autoCrop) {
-        this.autoCrop = autoCrop;
-        settings.setBoolean(CONTROLLER_AUTO_CROP, autoCrop);
+    public void setEnableFloorPlanPostProcessing(boolean enableFloorPlanPostProcessing) {
+        this.enableFloorPlanPostProcessing = enableFloorPlanPostProcessing;
+        settings.setBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, enableFloorPlanPostProcessing);
+    }
+
+    public int getTransparencyThreshold() {
+        return transparencyThreshold;
+    }
+
+    public void setTransparencyThreshold(int transparencyThreshold) {
+        this.transparencyThreshold = transparencyThreshold;
+        settings.setInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, transparencyThreshold);
     }
 
     public Renderer getRenderer() {
@@ -317,7 +329,7 @@ public class Controller {
 
                 BufferedImage baseImage = generateImage(new ArrayList<>(), baseImageName);
 
-                if (autoCrop && cropArea == null) {
+                if (enableFloorPlanPostProcessing && cropArea == null) {
                     AutoCrop cropper = new AutoCrop();
                     cropArea = cropper.findCropArea(baseImage);
 
@@ -345,7 +357,11 @@ public class Controller {
                 saveRawRender(baseImage, baseImageName);
 
                 BufferedImage baseFloorplanImage = generateFloorPlanImage(baseImage, baseImage, false);
-                saveFloorPlanImage(baseFloorplanImage, baseImageName, getFloorplanImageExtention());
+                String baseImageExtension = enableFloorPlanPostProcessing ? "png" : getFloorplanImageExtention();
+                if (enableFloorPlanPostProcessing) {
+                    baseFloorplanImage = new AutoCrop().makeTransparent(baseFloorplanImage, transparencyThreshold);
+                }
+                saveFloorPlanImage(baseFloorplanImage, baseImageName, baseImageExtension);
 
                 yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
 
@@ -553,16 +569,17 @@ public class Controller {
                 imageName = scene.getName() + File.separator + imageName;
 
             BufferedImage image = generateImage(onLights, imageName);
-            if (cropArea != null) {
-                image = new AutoCrop().crop(image, cropArea);
-            }
             saveRawRender(image, imageName);
 
             Entity firstLight = onLights.get(0);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
 
-            String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
+            String imageExtension = (createOverlayImage || enableFloorPlanPostProcessing) ? "png" : getFloorplanImageExtention();
+
+            if (enableFloorPlanPostProcessing) {
+                floorPlanImage = new AutoCrop().makeTransparent(floorPlanImage, transparencyThreshold);
+            }
             saveFloorPlanImage(floorPlanImage, imageName, imageExtension);
 
             if (firstLight.getIsRgb()) {

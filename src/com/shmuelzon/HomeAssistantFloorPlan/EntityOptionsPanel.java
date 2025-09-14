@@ -343,16 +343,6 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
-        autoCropLabel = new JLabel();
-        autoCropLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.autoCropLabel.text"));
-        autoCropCheckbox = new JCheckBox();
-        autoCropCheckbox.setSelected(controller.getAutoCrop());
-        autoCropCheckbox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ev) {
-                controller.setAutoCrop(autoCropCheckbox.isSelected());
-            }
-        });
-
         isRgbLabel = new JLabel();
         isRgbLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.isRgbLabel.text"));
         isRgbCheckbox = new JCheckBox();
@@ -552,16 +542,6 @@ public class EntityOptionsPanel extends JPanel {
         backgroundColorLabel.setHorizontalAlignment(labelAlignment);
         add(backgroundColorTextField, new GridBagConstraints(
             1, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.LINE_START,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        /* Auto crop */
-        add(autoCropLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        autoCropLabel.setHorizontalAlignment(labelAlignment);
-        add(autoCropCheckbox, new GridBagConstraints(
-            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 

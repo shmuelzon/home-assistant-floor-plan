@@ -55,4 +55,19 @@ public class AutoCrop {
         }
         return image.getSubimage(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
     }
+
+    public BufferedImage makeTransparent(BufferedImage image, int tolerance) {
+        BufferedImage dest = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        int background = CROP_COLOR.getRGB();
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int pixel = image.getRGB(x, y);
+                if (!isBackgroundColor(pixel, background, tolerance)) {
+                    dest.setRGB(x, y, pixel | 0xFF000000);
+                }
+            }
+        }
+        return dest;
+    }
 }
