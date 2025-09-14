@@ -650,8 +650,15 @@ public class Controller {
 
         for(int x = 0; x < baseImage.getWidth(); x++) {
             for(int y = 0; y < baseImage.getHeight(); y++) {
-                int diff = pixelDifference(baseImage.getRGB(x, y), image.getRGB(x, y));
-                overlay.setRGB(x, y, diff > sensitivity ? image.getRGB(x, y) : 0);
+                int basePixel = baseImage.getRGB(x, y);
+                if (((basePixel >> 24) & 0xff) == 0) {
+                    continue;
+                }
+
+                int diff = pixelDifference(basePixel, image.getRGB(x, y));
+                if (diff > sensitivity) {
+                    overlay.setRGB(x, y, image.getRGB(x, y) | 0xFF000000);
+                }
             }
         }
         return overlay;
