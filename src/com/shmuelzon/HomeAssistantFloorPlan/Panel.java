@@ -113,6 +113,7 @@ public class Panel extends JPanel implements DialogView {
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
     private JCheckBox enableFloorPlanPostProcessingCheckbox;
+    private JCheckBox maintainAspectRatioCheckbox;
     private JLabel transparencyThresholdLabel;
     private JSpinner transparencyThresholdSpinner;
     private JProgressBar progressBar;
@@ -479,6 +480,17 @@ public class Panel extends JPanel implements DialogView {
         enableFloorPlanPostProcessingCheckbox.addItemListener(new ItemListener() {
             public void itemStateChanged(ItemEvent ev) {
                 controller.setEnableFloorPlanPostProcessing(enableFloorPlanPostProcessingCheckbox.isSelected());
+                showHidePostProcessingOptions();
+            }
+        });
+
+        maintainAspectRatioCheckbox = new JCheckBox();
+        maintainAspectRatioCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.maintainAspectRatio.text"));
+        maintainAspectRatioCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.maintainAspectRatio.tooltip"));
+        maintainAspectRatioCheckbox.setSelected(controller.getMaintainAspectRatio());
+        maintainAspectRatioCheckbox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+                controller.setMaintainAspectRatio(maintainAspectRatioCheckbox.isSelected());
             }
         });
 
@@ -555,6 +567,7 @@ public class Panel extends JPanel implements DialogView {
         useExistingRendersCheckbox.setEnabled(enabled);
         enableFloorPlanPostProcessingCheckbox.setEnabled(enabled);
         transparencyThresholdSpinner.setEnabled(enabled);
+        maintainAspectRatioCheckbox.setEnabled(enabled);
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
@@ -562,6 +575,14 @@ public class Panel extends JPanel implements DialogView {
             startButton.setAction(getActionMap().get(ActionType.STOP));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.stopButton.text"));
         }
+        showHidePostProcessingOptions();
+    }
+
+    private void showHidePostProcessingOptions() {
+        boolean postProcessingEnabled = enableFloorPlanPostProcessingCheckbox.isSelected();
+        maintainAspectRatioCheckbox.setVisible(postProcessingEnabled);
+        transparencyThresholdLabel.setVisible(postProcessingEnabled);
+        transparencyThresholdSpinner.setVisible(postProcessingEnabled);
     }
 
     private void layoutComponents() {
@@ -687,6 +708,12 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(enableFloorPlanPostProcessingCheckbox, new GridBagConstraints(
             2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Post-processing options */
+        add(maintainAspectRatioCheckbox, new GridBagConstraints(
+            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 

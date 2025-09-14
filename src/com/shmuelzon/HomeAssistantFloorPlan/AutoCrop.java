@@ -52,7 +52,40 @@ public class AutoCrop {
         maxX = Math.min(width - 1, maxX + padding);
         maxY = Math.min(height - 1, maxY + padding);
 
+        // Add padding to ensure we don't crop too aggressively
+        int padding = Math.min(width, height) / 50; // 2% padding
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(width - 1, maxX + padding);
+        maxY = Math.min(height - 1, maxY + padding);
+
         return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    public BufferedImage crop(BufferedImage image, Rectangle cropArea, boolean maintainAspectRatio, int targetWidth, int targetHeight) {
+        if (cropArea == null || (cropArea.x == 0 && cropArea.y == 0 && cropArea.width == image.getWidth() && cropArea.height == image.getHeight())) {
+            if (maintainAspectRatio && (image.getWidth() != targetWidth || image.getHeight() != targetHeight)) {
+                return resizeImage(image, targetWidth, targetHeight);
+            }
+            return image;
+        }
+        
+        BufferedImage croppedImage = image.getSubimage(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+        
+        if (maintainAspectRatio) {
+            return resizeImage(croppedImage, targetWidth, targetHeight);
+        }
+        
+        return croppedImage;
+    }
+    
+    private BufferedImage resizeImage(BufferedImage originalImage, int targetWidth, int targetHeight) {
+        BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, originalImage.getType());
+        java.awt.Graphics2D g = resizedImage.createGraphics();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(originalImage, 0, 0, targetWidth, targetHeight, null);
+        g.dispose();
+        return resizedImage;
     }
 
     public BufferedImage crop(BufferedImage image, Rectangle cropArea, boolean maintainAspectRatio, int targetWidth, int targetHeight) {

@@ -66,6 +66,7 @@ public class Controller {
     private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
     private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
     private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
+    private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
 
     private Home home;
     private Settings settings;
@@ -93,6 +94,7 @@ public class Controller {
     private boolean useExistingRenders;
     private boolean enableFloorPlanPostProcessing;
     private int transparencyThreshold;
+    private boolean maintainAspectRatio;
     private boolean maintainAspectRatio;
     private Rectangle cropArea = null;
     private Scenes scenes;
@@ -125,6 +127,7 @@ public class Controller {
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
         enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
         transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 100);
+        maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
         maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
     }
 
@@ -257,6 +260,15 @@ public class Controller {
         settings.setBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, maintainAspectRatio);
     }
 
+    public boolean getMaintainAspectRatio() {
+        return maintainAspectRatio;
+    }
+
+    public void setMaintainAspectRatio(boolean maintainAspectRatio) {
+        this.maintainAspectRatio = maintainAspectRatio;
+        settings.setBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, maintainAspectRatio);
+    }
+
     public Renderer getRenderer() {
         return renderer;
     }
@@ -321,24 +333,44 @@ public class Controller {
             BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
             numberOfCompletedRenders--; // Don't count the temp image
 
+            AutoCrop cropper = new AutoCrop();
+            this.cropArea = cropper.findCropArea(tempBaseImage, this.transparencyThreshold);
             stencilMask = createStencilMask(tempBaseImage);
 
             // Store original dimensions for consistent output
             int originalRenderWidth = renderWidth;
             int originalRenderHeight = renderHeight;
             
-            // Update render dimensions to match crop area
-            renderWidth = cropArea.width;
-            renderHeight = cropArea.height;
+            // Update render dimensions to match crop area or maintain aspect ratio
+            if (maintainAspectRatio) {
+                // Keep original dimensions for rendering, crop will be applied during post-processing
+                renderWidth = originalRenderWidth;
+                renderHeight = originalRenderHeight;
+            } else {
+                // Update render dimensions to match crop area
+                renderWidth = cropArea.width;
+                renderHeight = cropArea.height;
+            }
             
             for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
                 Point2d oldPos = entity.getPosition();
                 double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
                 double oldYPixels = oldPos.y / 100.0 * originalRenderHeight;
-                double newXPixels = oldXPixels - cropArea.x;
-                double newYPixels = oldYPixels - cropArea.y;
-                double newXPercent = newXPixels / cropArea.width * 100.0;
-                double newYPercent = newYPixels / cropArea.height * 100.0;
+                
+                double newXPixels, newYPixels, newXPercent, newYPercent;
+                
+                if (maintainAspectRatio) {
+                    // Adjust positions relative to original dimensions
+                    newXPercent = oldPos.x;
+                    newYPercent = oldPos.y;
+                } else {
+                    // Adjust positions relative to crop area
+                    newXPixels = oldXPixels - cropArea.x;
+                    newYPixels = oldYPixels - cropArea.y;
+                    newXPercent = newXPixels / cropArea.width * 100.0;
+                    newYPercent = newYPixels / cropArea.height * 100.0;
+                }
+                
                 entity.setPosition(new Point2d(newXPercent, newYPercent), false);
             }
             moveEntityIconsToAvoidIntersection();
@@ -371,7 +403,12 @@ public class Controller {
                 BufferedImage baseImage = generateImage(new ArrayList<>(), baseImageName);
 
             if (stencilMask != null) {
-                baseImage = applyStencilMask(baseImage, stencilMask);
+                if (maintainAspectRatio) {
+                    AutoCrop cropper = new AutoCrop();
+                    baseImage = cropper.crop(baseImage, cropArea, true, renderWidth, renderHeight);
+                } else {
+                    baseImage = applyStencilMask(baseImage, stencilMask);
+                }
                 }
                 saveRawRender(baseImage, baseImageName);
 
@@ -401,9 +438,6 @@ public class Controller {
     }
 
 private BufferedImage createStencilMask(BufferedImage image) {
-    AutoCrop cropper = new AutoCrop();
-    this.cropArea = cropper.findCropArea(image, this.transparencyThreshold);
-
     BufferedImage mask = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
     java.awt.Graphics2D g = mask.createGraphics();
     g.setColor(java.awt.Color.WHITE);
@@ -615,7 +649,12 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
 
             if (stencilMask != null) {
-                floorPlanImage = applyStencilMask(floorPlanImage, stencilMask);
+                if (maintainAspectRatio) {
+                    AutoCrop cropper = new AutoCrop();
+                    floorPlanImage = cropper.crop(floorPlanImage, cropArea, true, renderWidth, renderHeight);
+                } else {
+                    floorPlanImage = applyStencilMask(floorPlanImage, stencilMask);
+                }
             }
 
             String imageExtension = "png";
