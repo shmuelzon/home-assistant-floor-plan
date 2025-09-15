@@ -330,9 +330,6 @@ public class Controller {
                 updateEntityPositionsForCrop();
             }
 
-            home.getEnvironment().setSkyColor(originalSkyColor);
-            home.getEnvironment().setGroundColor(originalGroundColor);
-
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
@@ -344,6 +341,11 @@ public class Controller {
 
             turnOffLightsFromOtherLevels();
 
+            if (enableFloorPlanPostProcessing) {
+                home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
+                home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+            }
+
             camera.setTime(43200000L);
             BufferedImage dayBaseImage = generateImage(new ArrayList<>(), "base_day");
             dayBaseImage = processImageWithStamp(dayBaseImage, stencilMask, "base_day");
@@ -353,6 +355,9 @@ public class Controller {
             BufferedImage nightBaseImage = generateNightBaseImageWith5PercentLights("base_night");
             nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
             yaml += generateLightYaml(new Scene(camera, renderDateTimes, 86400000L, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
+
+            home.getEnvironment().setSkyColor(originalSkyColor);
+            home.getEnvironment().setGroundColor(originalGroundColor);
 
             for (String group : lightsGroups.keySet()) {
                 yaml += generateGroupRenders(group, dayBaseImage, stencilMask);
@@ -367,8 +372,6 @@ public class Controller {
         } catch (IOException e) {
             throw e;
         } finally {
-            home.getEnvironment().setSkyColor(originalSkyColor);
-            home.getEnvironment().setGroundColor(originalGroundColor);
             restoreEntityConfiguration();
         }
     }
@@ -570,6 +573,11 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
     private String generateGroupRenders(String group, BufferedImage baseImage, BufferedImage stencilMask) throws IOException, InterruptedException {
         List<Entity> groupLights = lightsGroups.get(group);
 
+        if (enableFloorPlanPostProcessing) {
+            home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
+            home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+        }
+
         camera.setTime(86400000L);
 
         List<List<Entity>> lightCombinations = getCombinations(groupLights);
@@ -628,11 +636,13 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
         }
 
+        Map<HomeLight, Float> originalPowers = new HashMap<>();
         for (Entity light : lightEntities) {
             if (!light.getAlwaysOn()) {
                 for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
                     if (piece instanceof HomeLight) {
                         HomeLight homeLight = (HomeLight) piece;
+                        originalPowers.put(homeLight, homeLight.getPower());
                         homeLight.setPower(homeLight.getPower() * 0.05f);
                     }
                 }
@@ -641,26 +651,29 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
 
         BufferedImage image = renderScene();
         
-        restoreEntityConfiguration();
+        for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
+            entry.getKey().setPower(entry.getValue());
+        }
         
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
         return image;
     }
 
     private BufferedImage processImageWithStamp(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
-        if (stencilMask == null) {
-            return image;
-        }
-
-        BufferedImage processedImage;
-        if (maintainAspectRatio) {
+        BufferedImage processedImage = image;
+        
+        if (enableFloorPlanPostProcessing && cropArea != null) {
             AutoCrop cropper = new AutoCrop();
-            processedImage = cropper.crop(image, cropArea, true, renderWidth, renderHeight);
-        } else {
-            processedImage = applyStencilMask(image, stencilMask);
+            processedImage = cropper.crop(image, cropArea, maintainAspectRatio, renderWidth, renderHeight);
+            
+            if (stencilMask != null && !maintainAspectRatio) {
+                processedImage = applyStencilMask(processedImage, stencilMask);
+            }
         }
-
-        processedImage = removeGreenBackground(processedImage);
+        
+        if (enableFloorPlanPostProcessing) {
+            processedImage = removeGreenBackground(processedImage);
+        }
         
         saveFloorPlanImage(processedImage, imageName, "png");
         return processedImage;
