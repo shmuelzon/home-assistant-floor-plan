@@ -124,7 +124,7 @@ public class Controller {
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
         enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
-        transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 100);
+        transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 30);
         maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
         maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
     }
@@ -319,7 +319,7 @@ public class Controller {
                 home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                 home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
 
-                camera.setTime(43200000L);
+                camera.setTime(renderDateTimes.get(0));
                 BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
                 numberOfCompletedRenders--;
 
@@ -346,15 +346,17 @@ public class Controller {
                 home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
             }
 
-            camera.setTime(43200000L);
+            camera.setTime(renderDateTimes.get(0));
             BufferedImage dayBaseImage = generateImage(new ArrayList<>(), "base_day");
             dayBaseImage = processImageWithStamp(dayBaseImage, stencilMask, "base_day");
-            yaml += generateLightYaml(new Scene(camera, renderDateTimes, 43200000L, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
+            yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
 
-            camera.setTime(86400000L);
-            BufferedImage nightBaseImage = generateNightBaseImageWith5PercentLights("base_night");
-            nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
-            yaml += generateLightYaml(new Scene(camera, renderDateTimes, 86400000L, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
+            if (renderDateTimes.size() > 1) {
+                camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
+                BufferedImage nightBaseImage = generateNightBaseImageWith5PercentLights("base_night");
+                nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
+                yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
+            }
 
             home.getEnvironment().setSkyColor(originalSkyColor);
             home.getEnvironment().setGroundColor(originalGroundColor);
@@ -578,7 +580,8 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
             home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
         }
 
-        camera.setTime(86400000L);
+        long renderTime = renderDateTimes.size() > 1 ? renderDateTimes.get(renderDateTimes.size() - 1) : renderDateTimes.get(0);
+        camera.setTime(renderTime);
 
         List<List<Entity>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
@@ -597,11 +600,11 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
 
             if (firstLight.getIsRgb()) {
                 generateRedTintedImage(floorPlanImage, imageName);
-                Scene nightScene = new Scene(camera, renderDateTimes, 86400000L, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                 yaml += generateRgbLightYaml(nightScene, firstLight, imageName);
             }
             else {
-                Scene nightScene = new Scene(camera, renderDateTimes, 86400000L, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                 yaml += generateLightYaml(nightScene, groupLights, onLights, imageName);
             }
         }

@@ -496,7 +496,7 @@ public class Panel extends JPanel implements DialogView {
 
         transparencyThresholdLabel = new JLabel();
         transparencyThresholdLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.transparencyThresholdLabel.text"));
-        final SpinnerNumberModel transparencyThresholdSpinnerModel = new SpinnerNumberModel(100, 0, 255, 1);
+        final SpinnerNumberModel transparencyThresholdSpinnerModel = new SpinnerNumberModel(30, 0, 255, 1);
         transparencyThresholdSpinner = new AutoCommitSpinner(transparencyThresholdSpinnerModel);
         transparencyThresholdSpinnerModel.setValue(controller.getTransparencyThreshold());
         transparencyThresholdSpinner.addChangeListener(new ChangeListener() {
