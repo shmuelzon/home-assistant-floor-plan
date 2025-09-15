@@ -351,18 +351,19 @@ public class Controller {
             dayBaseImage = processImageWithStamp(dayBaseImage, stencilMask, "base_day");
             yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
 
-            if (renderDateTimes.size() > 1) {
-                camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
-                BufferedImage nightBaseImage = generateNightBaseImageWith5PercentLights("base_night");
-                nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
-                yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
-            }
 
             home.getEnvironment().setSkyColor(originalSkyColor);
             home.getEnvironment().setGroundColor(originalGroundColor);
 
             for (String group : lightsGroups.keySet()) {
                 yaml += generateGroupRenders(group, dayBaseImage, stencilMask);
+            }
+
+            if (renderDateTimes.size() > 1) {
+                camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
+                BufferedImage nightBaseImage = generateNightBaseImageWith5PercentLights("base_night");
+                nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
+                yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
             }
 
             yaml += generateEntitiesYaml();
@@ -640,17 +641,19 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
         }
 
         Map<HomeLight, Float> originalPowers = new HashMap<>();
-        for (Entity light : lightEntities) {
-            if (!light.getAlwaysOn()) {
-                for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
-                    if (piece instanceof HomeLight) {
-                        HomeLight homeLight = (HomeLight) piece;
-                        originalPowers.put(homeLight, homeLight.getPower());
-                        homeLight.setPower(homeLight.getPower() * 0.05f);
+        Stream.concat(lightEntities.stream(), otherEntities.stream())
+            .filter(entity -> entity.getName().startsWith("light."))
+            .forEach(light -> {
+                if (!light.getAlwaysOn()) {
+                    for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
+                        if (piece instanceof HomeLight) {
+                            HomeLight homeLight = (HomeLight) piece;
+                            originalPowers.put(homeLight, homeLight.getPower());
+                            homeLight.setPower(homeLight.getPower() * 0.05f);
+                        }
                     }
                 }
-            }
-        }
+            });
 
         BufferedImage image = renderScene();
         
