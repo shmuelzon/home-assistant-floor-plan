@@ -641,13 +641,13 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
         }
 
         Map<HomeLight, Float> originalPowers = new HashMap<>();
-        List<Entity> lightEntitiesToTurnOn = new ArrayList<>();
         
         Stream.concat(lightEntities.stream(), otherEntities.stream())
             .filter(entity -> entity.getName().startsWith("light."))
             .forEach(light -> {
                 if (!light.getAlwaysOn()) {
-                    lightEntitiesToTurnOn.add(light);
+                    light.setLightPower(true);
+                    
                     for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
                         if (piece instanceof HomeLight) {
                             HomeLight homeLight = (HomeLight) piece;
@@ -658,7 +658,6 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
                 }
             });
 
-        prepareScene(lightEntitiesToTurnOn);
         BufferedImage image = renderScene();
         
         for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
