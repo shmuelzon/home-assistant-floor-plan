@@ -581,7 +581,7 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
             home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
         }
 
-        long renderTime = renderDateTimes.size() > 1 ? renderDateTimes.get(renderDateTimes.size() - 1) : renderDateTimes.get(0);
+        long renderTime = renderDateTimes.get(renderDateTimes.size() - 1);
         camera.setTime(renderTime);
 
         List<List<Entity>> lightCombinations = getCombinations(groupLights);
