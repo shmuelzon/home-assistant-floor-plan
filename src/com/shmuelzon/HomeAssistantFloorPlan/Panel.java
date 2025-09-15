@@ -106,6 +106,8 @@ public class Panel extends JPanel implements DialogView {
     private JCheckBox nightRenderCheckbox;
     private SpinnerDateModel nightRenderTimeModel;
     private JSpinner nightRenderTimeSpinner;
+    private JLabel nightLightIntensityLabel;
+    private JSpinner nightLightIntensitySpinner;
 
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
@@ -429,6 +431,7 @@ public class Panel extends JPanel implements DialogView {
         nightRenderCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 nightRenderTimeSpinner.setVisible(nightRenderCheckbox.isSelected());
+                nightLightIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
                 renderTimeChangeListener.stateChanged(null);
             }
         });
@@ -445,6 +448,21 @@ public class Panel extends JPanel implements DialogView {
         nightRenderTimeModel.setValue(new Date(renderingTimes.get(renderingTimes.size() - 1)));
         nightRenderTimeSpinner.setVisible(nightRenderCheckbox.isSelected());
         nightRenderTimeSpinner.addChangeListener(renderTimeChangeListener);
+
+        nightLightIntensityLabel = new JLabel();
+        nightLightIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightLightIntensityLabel.text"));
+        final SpinnerNumberModel nightLightIntensitySpinnerModel = new SpinnerNumberModel(5, 0, 100, 1);
+        nightLightIntensitySpinner = new AutoCommitSpinner(nightLightIntensitySpinnerModel);
+        JSpinner.NumberEditor nightLightIntensityEditor = new JSpinner.NumberEditor(nightLightIntensitySpinner, "0 %");
+        ((JSpinner.DefaultEditor)nightLightIntensityEditor).getTextField().setColumns(4);
+        nightLightIntensitySpinner.setEditor(nightLightIntensityEditor);
+        nightLightIntensitySpinnerModel.setValue(controller.getNightLightIntensity());
+        nightLightIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+        nightLightIntensitySpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                controller.setNightLightIntensity(((Number)nightLightIntensitySpinnerModel.getValue()).intValue());
+            }
+        });
 
         imageFormatLabel = new JLabel();
         imageFormatLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.text"));
@@ -656,6 +674,15 @@ public class Panel extends JPanel implements DialogView {
             2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(nightRenderTimeSpinner, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Night light intensity */
+        add(nightLightIntensityLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(nightLightIntensitySpinner, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
