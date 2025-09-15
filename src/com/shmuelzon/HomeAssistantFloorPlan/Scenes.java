@@ -52,11 +52,10 @@ public class Scenes implements Iterable<Scene> {
     private void buildScenes() {
         scenes.clear();
 
-        for (long renderingTime : renderingTimes) {
-            for (List<Entity> entitiesToShow : entitiesToShowOrHideCombinations) {
-                for (List<Entity> entitiesToOpen : entitiesToOpenOrCloseCombinations) {
-                    scenes.add(new Scene(camera, renderingTimes, renderingTime, entitiesToShowOrHide, entitiesToShow, entitiesToOpenOrClose, entitiesToOpen));
-                }
+        long nightRenderTime = renderingTimes.get(renderingTimes.size() - 1);
+        for (List<Entity> entitiesToShow : entitiesToShowOrHideCombinations) {
+            for (List<Entity> entitiesToOpen : entitiesToOpenOrCloseCombinations) {
+                scenes.add(new Scene(camera, renderingTimes, nightRenderTime, entitiesToShowOrHide, entitiesToShow, entitiesToOpenOrClose, entitiesToOpen));
             }
         }
     }
