@@ -63,7 +63,22 @@ public class AutoCrop {
             return image;
         }
         
-        BufferedImage croppedImage = image.getSubimage(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+        int imageWidth = image.getWidth();
+        int imageHeight = image.getHeight();
+        
+        int x = Math.max(0, Math.min(cropArea.x, imageWidth - 1));
+        int y = Math.max(0, Math.min(cropArea.y, imageHeight - 1));
+        int width = Math.max(1, Math.min(cropArea.width, imageWidth - x));
+        int height = Math.max(1, Math.min(cropArea.height, imageHeight - y));
+        
+        if (x + width > imageWidth || y + height > imageHeight || width <= 0 || height <= 0) {
+            if (maintainAspectRatio && (image.getWidth() != targetWidth || image.getHeight() != targetHeight)) {
+                return resizeImage(image, targetWidth, targetHeight);
+            }
+            return image;
+        }
+        
+        BufferedImage croppedImage = image.getSubimage(x, y, width, height);
         
         if (maintainAspectRatio) {
             return resizeImage(croppedImage, targetWidth, targetHeight);
