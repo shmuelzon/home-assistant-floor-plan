@@ -66,6 +66,7 @@ public class Controller {
     private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
     private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
     private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
+    private static final String CONTROLLER_NIGHT_LIGHT_INTENSITY = "nightLightIntensity";
 
     private Home home;
     private Settings settings;
@@ -94,6 +95,7 @@ public class Controller {
     private boolean enableFloorPlanPostProcessing;
     private int transparencyThreshold;
     private boolean maintainAspectRatio;
+    private int nightLightIntensity;
     private Rectangle cropArea = null;
     private Scenes scenes;
 
@@ -127,6 +129,7 @@ public class Controller {
         transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 30);
         maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
         maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
+        nightLightIntensity = settings.getInteger(CONTROLLER_NIGHT_LIGHT_INTENSITY, 5);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -295,6 +298,15 @@ public class Controller {
         buildScenes();
     }
 
+    public int getNightLightIntensity() {
+        return nightLightIntensity;
+    }
+
+    public void setNightLightIntensity(int nightLightIntensity) {
+        this.nightLightIntensity = nightLightIntensity;
+        settings.setInteger(CONTROLLER_NIGHT_LIGHT_INTENSITY, nightLightIntensity);
+    }
+
     public void stop() {
         if (photoRenderer != null) {
             photoRenderer.stop();
@@ -361,7 +373,7 @@ public class Controller {
 
             if (renderDateTimes.size() > 1) {
                 camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
-                BufferedImage nightBaseImage = generateNightBaseImageWith5PercentLights("base_night");
+                BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
                 nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
                 yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
             }
@@ -632,7 +644,7 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
         return image;
     }
 
-    private BufferedImage generateNightBaseImageWith5PercentLights(String name) throws IOException, InterruptedException {
+    private BufferedImage generateNightBaseImageWithConfigurableLights(String name) throws IOException, InterruptedException {
         String fileName = outputRendersDirectoryName + File.separator + name + ".png";
 
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
@@ -652,7 +664,7 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
                         if (piece instanceof HomeLight) {
                             HomeLight homeLight = (HomeLight) piece;
                             originalPowers.put(homeLight, homeLight.getPower());
-                            homeLight.setPower(homeLight.getPower() * 0.05f);
+                            homeLight.setPower(homeLight.getPower() * (nightLightIntensity / 100.0f));
                         }
                     }
                 }
