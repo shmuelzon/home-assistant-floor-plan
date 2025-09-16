@@ -327,6 +327,9 @@ public class Controller {
         BufferedImage stencilMask = null;
 
         try {
+            Files.createDirectories(Paths.get(outputRendersDirectoryName));
+            Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
+
             if (enableFloorPlanPostProcessing) {
                 home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                 home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
@@ -335,15 +338,11 @@ public class Controller {
                 BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
                 numberOfCompletedRenders--;
 
-                AutoCrop cropper = new AutoCrop();
-                this.cropArea = cropper.findCropArea(tempBaseImage, this.transparencyThreshold);
-                stencilMask = createStencilMask(tempBaseImage);
+                stencilMask = createFloorplanStamp(tempBaseImage);
+                this.cropArea = findCropAreaFromStamp(stencilMask);
 
                 updateEntityPositionsForCrop();
             }
-
-            Files.createDirectories(Paths.get(outputRendersDirectoryName));
-            Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             String yaml = String.format(
@@ -359,8 +358,8 @@ public class Controller {
             }
 
             camera.setTime(renderDateTimes.get(0));
-            BufferedImage dayBaseImage = generateImage(new ArrayList<>(), "base_day");
-            dayBaseImage = processImageWithStamp(dayBaseImage, stencilMask, "base_day");
+            BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
+            processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
             yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
 
 
@@ -368,13 +367,13 @@ public class Controller {
             home.getEnvironment().setGroundColor(originalGroundColor);
 
             for (String group : lightsGroups.keySet()) {
-                yaml += generateGroupRenders(group, dayBaseImage, stencilMask);
+                yaml += generateGroupRenders(group, rawDayBaseImage, stencilMask);
             }
 
             if (renderDateTimes.size() > 1) {
                 camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
                 BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
-                nightBaseImage = processImageWithStamp(nightBaseImage, stencilMask, "base_night");
+                nightBaseImage = processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
                 yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
             }
 
@@ -391,25 +390,66 @@ public class Controller {
         }
     }
 
-private BufferedImage createStencilMask(BufferedImage image) {
-    BufferedImage mask = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
-    java.awt.Graphics2D g = mask.createGraphics();
-    g.setColor(java.awt.Color.WHITE);
-    g.fillRect(this.cropArea.x, this.cropArea.y, this.cropArea.width, this.cropArea.height);
-    g.dispose();
-    return mask;
-}
-
-private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) {
-    BufferedImage maskedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+private BufferedImage createFloorplanStamp(BufferedImage image) throws IOException {
+    BufferedImage stamp = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
     for (int y = 0; y < image.getHeight(); y++) {
         for (int x = 0; x < image.getWidth(); x++) {
-            if (((mask.getRGB(x, y) >> 24) & 0xff) != 0) {
-                maskedImage.setRGB(x, y, image.getRGB(x, y) | 0xFF000000);
+            if (isBackgroundColor(image.getRGB(x, y), AutoCrop.CROP_COLOR.getRGB(), transparencyThreshold)) {
+                stamp.setRGB(x, y, Color.BLACK.getRGB());
+            } else {
+                stamp.setRGB(x, y, Color.WHITE.getRGB());
             }
         }
     }
-    return maskedImage;
+
+    File stampFile = new File(outputFloorplanDirectoryName + File.separator + "stamp.png");
+    ImageIO.write(stamp, "png", stampFile);
+
+    return stamp;
+}
+
+private BufferedImage applyFloorplanStamp(BufferedImage image, BufferedImage stamp) {
+    AutoCrop cropper = new AutoCrop();
+    BufferedImage croppedStamp = cropper.crop(stamp, cropArea, maintainAspectRatio, renderWidth, renderHeight);
+
+    BufferedImage finalImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+    for (int y = 0; y < image.getHeight(); y++) {
+        for (int x = 0; x < image.getWidth(); x++) {
+            if ((croppedStamp.getRGB(x, y) & 0x00FFFFFF) == 0) {
+                finalImage.setRGB(x, y, 0x00000000);
+            } else {
+                finalImage.setRGB(x, y, image.getRGB(x, y));
+            }
+        }
+    }
+    return finalImage;
+}
+
+private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
+    int width = stamp.getWidth();
+    int height = stamp.getHeight();
+    int minX = width;
+    int minY = height;
+    int maxX = -1;
+    int maxY = -1;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            // Check for non-black pixels
+            if ((stamp.getRGB(x, y) & 0x00FFFFFF) != 0) {
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+
+    if (maxX == -1) { // Stamp is all black
+        return new Rectangle(0, 0, width, height);
+    }
+
+    return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
 }
 
     private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
@@ -609,7 +649,7 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
 
             // Apply stamp and transparency processing
-            floorPlanImage = processImageWithStamp(floorPlanImage, stencilMask, imageName);
+            floorPlanImage = processAndSaveFinalImage(floorPlanImage, stencilMask, imageName);
 
             if (firstLight.getIsRgb()) {
                 generateRedTintedImage(floorPlanImage, imageName);
@@ -680,19 +720,21 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
         return image;
     }
 
-    private BufferedImage processImageWithStamp(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
+    private BufferedImage processAndSaveFinalImage(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
         BufferedImage processedImage = image;
         
-        if (enableFloorPlanPostProcessing && cropArea != null) {
-            AutoCrop cropper = new AutoCrop();
-            processedImage = cropper.crop(image, cropArea, maintainAspectRatio, renderWidth, renderHeight);
-            
-            if (stencilMask != null && !maintainAspectRatio) {
-                processedImage = applyStencilMask(processedImage, stencilMask);
-            }
-        }
-        
         if (enableFloorPlanPostProcessing) {
+            if (cropArea != null) {
+                AutoCrop cropper = new AutoCrop();
+                processedImage = cropper.crop(image, cropArea, maintainAspectRatio, renderWidth, renderHeight);
+            }
+
+            // Apply stamp before green removal, as stamp provides the definitive outer boundary.
+        if (cropArea != null && stencilMask != null) {
+                processedImage = applyFloorplanStamp(processedImage, stencilMask);
+            }
+
+            // Now, remove any green from the interior.
             processedImage = removeGreenBackground(processedImage);
         }
         
@@ -734,37 +776,32 @@ private BufferedImage applyStencilMask(BufferedImage image, BufferedImage mask) 
     private void updateEntityPositionsForCrop() {
         if (cropArea == null) return;
         
-        int originalRenderWidth = renderWidth;
-        int originalRenderHeight = renderHeight;
+        int originalRenderWidth = this.renderWidth;
+        int originalRenderHeight = this.renderHeight;
         
-        if (maintainAspectRatio) {
-            renderWidth = originalRenderWidth;
-            renderHeight = originalRenderHeight;
-        } else {
-            renderWidth = cropArea.width;
-            renderHeight = cropArea.height;
-        }
-        
-        for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
-            Point2d oldPos = entity.getPosition();
-            double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
-            double oldYPixels = oldPos.y / 100.0 * originalRenderHeight;
-            
-            double newXPercent, newYPercent;
-            
-            if (maintainAspectRatio) {
-                newXPercent = oldPos.x;
-                newYPercent = oldPos.y;
-            } else {
-                double newXPixels = oldXPixels - cropArea.x;
-                double newYPixels = oldYPixels - cropArea.y;
-                newXPercent = newXPixels / cropArea.width * 100.0;
-                newYPercent = newYPixels / cropArea.height * 100.0;
+        try {
+            if (!maintainAspectRatio) {
+                this.renderWidth = cropArea.width;
+                this.renderHeight = cropArea.height;
             }
             
-            entity.setPosition(new Point2d(newXPercent, newYPercent), false);
+            // Recalculate 3D projection and entity positions based on the new, cropped dimensions
+            // This is necessary so the UI icons in the YAML file have the correct coordinates.
+            repositionEntities();
+
+            // The original entity positions are still needed for the actual crop calculation.
+            // This part of the original logic seems to have been flawed, as it was recalculating
+            // positions based on already calculated positions. The call to repositionEntities
+            // handles the projection correctly. The entity.setPosition calls are now redundant
+            // as repositionEntities will handle it. We will rely on the repositionEntities method
+            // to correctly calculate the new icon positions based on the temporary cropped dimensions.
+
+        } finally {
+            // Restore the original render dimensions immediately so that all subsequent
+            // image generation (`generateImage`, etc.) uses the full, uncropped size.
+            this.renderWidth = originalRenderWidth;
+            this.renderHeight = originalRenderHeight;
         }
-        moveEntityIconsToAvoidIntersection();
     }
 
     private void saveRawRender(BufferedImage image, String name) throws IOException {

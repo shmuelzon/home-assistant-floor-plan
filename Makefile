@@ -15,7 +15,7 @@ PLUGIN=HomeAssistantFloorPlanPlugin-$(VERSION).sh3p
 DOCKER_CMD :=
 ifeq ($(wildcard /.dockerenv),)
 ifneq ($(shell which docker),)
-  DOCKER_CMD := docker run --rm --user $(shell id -u):$(shell id -g) --volume $(shell pwd):$(shell pwd) --workdir $(shell pwd) eclipse-temurin:8-noble
+  DOCKER_CMD := sudo docker run --rm --user $(shell id -u):$(shell id -g) --volume $(shell pwd):$(shell pwd) --workdir $(shell pwd) eclipse-temurin:8-noble
 endif
 endif
 

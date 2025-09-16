@@ -19,42 +19,6 @@ public class AutoCrop {
         return Math.abs(r1 - r2) <= tolerance && Math.abs(g1 - g2) <= tolerance && Math.abs(b1 - b2) <= tolerance;
     }
 
-    public Rectangle findCropArea(BufferedImage image, int tolerance) {
-        int width = image.getWidth();
-        int height = image.getHeight();
-        int background = CROP_COLOR.getRGB();
-
-        int minX = width;
-        int minY = height;
-        int maxX = -1;
-        int maxY = -1;
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (!isBackgroundColor(image.getRGB(x, y), background, tolerance)) {
-                    if (x < minX) minX = x;
-                    if (y < minY) minY = y;
-                    if (x > maxX) maxX = x;
-                    if (y > maxY) maxY = y;
-                }
-            }
-        }
-
-        if (maxX == -1) {
-            // Image is all background
-            return new Rectangle(0, 0, width, height);
-        }
-
-        // Add padding to ensure we don't crop too aggressively
-        int padding = Math.min(width, height) / 50; // 2% padding
-        minX = Math.max(0, minX - padding);
-        minY = Math.max(0, minY - padding);
-        maxX = Math.min(width - 1, maxX + padding);
-        maxY = Math.min(height - 1, maxY + padding);
-
-        return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
-    }
-
     public BufferedImage crop(BufferedImage image, Rectangle cropArea, boolean maintainAspectRatio, int targetWidth, int targetHeight) {
         if (cropArea == null || (cropArea.x == 0 && cropArea.y == 0 && cropArea.width == image.getWidth() && cropArea.height == image.getHeight())) {
             if (maintainAspectRatio && (image.getWidth() != targetWidth || image.getHeight() != targetHeight)) {
