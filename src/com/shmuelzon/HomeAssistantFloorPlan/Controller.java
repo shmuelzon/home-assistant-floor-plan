@@ -327,6 +327,9 @@ public class Controller {
         BufferedImage stencilMask = null;
 
         try {
+            Files.createDirectories(Paths.get(outputRendersDirectoryName));
+            Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
+
             if (enableFloorPlanPostProcessing) {
                 home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                 home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
@@ -341,9 +344,6 @@ public class Controller {
 
                 updateEntityPositionsForCrop();
             }
-
-            Files.createDirectories(Paths.get(outputRendersDirectoryName));
-            Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             String yaml = String.format(
