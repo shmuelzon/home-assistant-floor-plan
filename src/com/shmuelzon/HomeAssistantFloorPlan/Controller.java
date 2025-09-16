@@ -338,9 +338,8 @@ public class Controller {
                 BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
                 numberOfCompletedRenders--;
 
-                AutoCrop cropper = new AutoCrop();
-                this.cropArea = cropper.findCropArea(tempBaseImage, this.transparencyThreshold);
                 stencilMask = createFloorplanStamp(tempBaseImage);
+                this.cropArea = findCropAreaFromStamp(stencilMask);
 
                 updateEntityPositionsForCrop();
             }
@@ -424,6 +423,40 @@ private BufferedImage applyFloorplanStamp(BufferedImage image, BufferedImage sta
         }
     }
     return finalImage;
+}
+
+private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
+    int width = stamp.getWidth();
+    int height = stamp.getHeight();
+    int minX = width;
+    int minY = height;
+    int maxX = -1;
+    int maxY = -1;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            // Check for non-black pixels
+            if ((stamp.getRGB(x, y) & 0x00FFFFFF) != 0) {
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+
+    if (maxX == -1) { // Stamp is all black
+        return new Rectangle(0, 0, width, height);
+    }
+
+    // Add 10px padding as requested by user
+    int padding = 10;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(width - 1, maxX + padding);
+    maxY = Math.min(height - 1, maxY + padding);
+
+    return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
 }
 
     private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
