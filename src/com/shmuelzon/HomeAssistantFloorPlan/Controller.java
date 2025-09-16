@@ -449,13 +449,6 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         return new Rectangle(0, 0, width, height);
     }
 
-    // Add 10px padding as requested by user
-    int padding = 10;
-    minX = Math.max(0, minX - padding);
-    minY = Math.max(0, minY - padding);
-    maxX = Math.min(width - 1, maxX + padding);
-    maxY = Math.min(height - 1, maxY + padding);
-
     return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
 }
 
@@ -783,37 +776,32 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     private void updateEntityPositionsForCrop() {
         if (cropArea == null) return;
         
-        int originalRenderWidth = renderWidth;
-        int originalRenderHeight = renderHeight;
+        int originalRenderWidth = this.renderWidth;
+        int originalRenderHeight = this.renderHeight;
         
-        if (maintainAspectRatio) {
-            renderWidth = originalRenderWidth;
-            renderHeight = originalRenderHeight;
-        } else {
-            renderWidth = cropArea.width;
-            renderHeight = cropArea.height;
-        }
-        
-        for (Entity entity : Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList())) {
-            Point2d oldPos = entity.getPosition();
-            double oldXPixels = oldPos.x / 100.0 * originalRenderWidth;
-            double oldYPixels = oldPos.y / 100.0 * originalRenderHeight;
-            
-            double newXPercent, newYPercent;
-            
-            if (maintainAspectRatio) {
-                newXPercent = oldPos.x;
-                newYPercent = oldPos.y;
-            } else {
-                double newXPixels = oldXPixels - cropArea.x;
-                double newYPixels = oldYPixels - cropArea.y;
-                newXPercent = newXPixels / cropArea.width * 100.0;
-                newYPercent = newYPixels / cropArea.height * 100.0;
+        try {
+            if (!maintainAspectRatio) {
+                this.renderWidth = cropArea.width;
+                this.renderHeight = cropArea.height;
             }
             
-            entity.setPosition(new Point2d(newXPercent, newYPercent), false);
+            // Recalculate 3D projection and entity positions based on the new, cropped dimensions
+            // This is necessary so the UI icons in the YAML file have the correct coordinates.
+            repositionEntities();
+
+            // The original entity positions are still needed for the actual crop calculation.
+            // This part of the original logic seems to have been flawed, as it was recalculating
+            // positions based on already calculated positions. The call to repositionEntities
+            // handles the projection correctly. The entity.setPosition calls are now redundant
+            // as repositionEntities will handle it. We will rely on the repositionEntities method
+            // to correctly calculate the new icon positions based on the temporary cropped dimensions.
+
+        } finally {
+            // Restore the original render dimensions immediately so that all subsequent
+            // image generation (`generateImage`, etc.) uses the full, uncropped size.
+            this.renderWidth = originalRenderWidth;
+            this.renderHeight = originalRenderHeight;
         }
-        moveEntityIconsToAvoidIntersection();
     }
 
     private void saveRawRender(BufferedImage image, String name) throws IOException {
