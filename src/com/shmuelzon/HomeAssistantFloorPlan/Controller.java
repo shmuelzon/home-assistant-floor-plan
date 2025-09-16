@@ -730,7 +730,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             }
 
             // Apply stamp before green removal, as stamp provides the definitive outer boundary.
-            if (cropArea != null && stencilMask != null && !maintainAspectRatio) {
+        if (cropArea != null && stencilMask != null) {
                 processedImage = applyFloorplanStamp(processedImage, stencilMask);
             }
 
