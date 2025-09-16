@@ -358,8 +358,8 @@ public class Controller {
             }
 
             camera.setTime(renderDateTimes.get(0));
-            BufferedImage dayBaseImage = generateImage(new ArrayList<>(), "base_day");
-            dayBaseImage = processAndSaveFinalImage(dayBaseImage, stencilMask, "base_day");
+            BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
+            processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
             yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
 
 
@@ -367,7 +367,7 @@ public class Controller {
             home.getEnvironment().setGroundColor(originalGroundColor);
 
             for (String group : lightsGroups.keySet()) {
-                yaml += generateGroupRenders(group, dayBaseImage, stencilMask);
+                yaml += generateGroupRenders(group, rawDayBaseImage, stencilMask);
             }
 
             if (renderDateTimes.size() > 1) {
