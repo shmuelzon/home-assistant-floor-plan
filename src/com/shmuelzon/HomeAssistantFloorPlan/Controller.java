@@ -391,21 +391,49 @@ public class Controller {
     }
 
 private BufferedImage createFloorplanStamp(BufferedImage image) throws IOException {
-    BufferedImage stamp = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
-    for (int y = 0; y < image.getHeight(); y++) {
-        for (int x = 0; x < image.getWidth(); x++) {
+    int width = image.getWidth();
+    int height = image.getHeight();
+    BufferedImage initialStamp = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
+    // Create initial stamp
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
             if (isBackgroundColor(image.getRGB(x, y), AutoCrop.CROP_COLOR.getRGB(), transparencyThreshold)) {
-                stamp.setRGB(x, y, Color.BLACK.getRGB());
+                initialStamp.setRGB(x, y, Color.BLACK.getRGB());
             } else {
-                stamp.setRGB(x, y, Color.WHITE.getRGB());
+                initialStamp.setRGB(x, y, Color.WHITE.getRGB());
+            }
+        }
+    }
+
+    BufferedImage paddedStamp = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    // Initialize paddedStamp to all black
+    java.awt.Graphics2D g2d = paddedStamp.createGraphics();
+    g2d.setColor(Color.BLACK);
+    g2d.fillRect(0, 0, width, height);
+    g2d.dispose();
+
+    // Dilate white pixels
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            if ((initialStamp.getRGB(x, y) & 0x00FFFFFF) != 0) { // If pixel is not black
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                            paddedStamp.setRGB(nx, ny, Color.WHITE.getRGB());
+                        }
+                    }
+                }
             }
         }
     }
 
     File stampFile = new File(outputFloorplanDirectoryName + File.separator + "stamp.png");
-    ImageIO.write(stamp, "png", stampFile);
+    ImageIO.write(paddedStamp, "png", stampFile);
 
-    return stamp;
+    return paddedStamp;
 }
 
 private BufferedImage applyFloorplanStamp(BufferedImage image, BufferedImage stamp) {
