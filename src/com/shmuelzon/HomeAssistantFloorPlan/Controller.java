@@ -417,8 +417,8 @@ private BufferedImage createFloorplanStamp(BufferedImage image) throws IOExcepti
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             if ((initialStamp.getRGB(x, y) & 0x00FFFFFF) != 0) { // If pixel is not black
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -3; dy <= 3; dy++) {
+                    for (int dx = -3; dx <= 3; dx++) {
                         int nx = x + dx;
                         int ny = y + dy;
                         if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
