@@ -5,6 +5,8 @@ import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.awt.Point;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
@@ -21,10 +23,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -170,7 +174,11 @@ public class Controller {
         for (List<Entity> groupLights : lightsGroups.values()) {
             numberOfLightRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
         }
-        return numberOfLightRenders * scenes.size();
+        int totalRenders = numberOfLightRenders * scenes.size();
+        if (enableFloorPlanPostProcessing) {
+            totalRenders++;
+        }
+        return totalRenders;
     }
 
     public int getRenderHeight() {
@@ -333,10 +341,11 @@ public class Controller {
             if (enableFloorPlanPostProcessing) {
                 home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                 home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+            }
 
+            if (enableFloorPlanPostProcessing) {
                 camera.setTime(renderDateTimes.get(0));
                 BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
-                numberOfCompletedRenders--;
 
                 stencilMask = createFloorplanStamp(tempBaseImage);
                 this.cropArea = findCropAreaFromStamp(stencilMask);
@@ -352,19 +361,10 @@ public class Controller {
 
             turnOffLightsFromOtherLevels();
 
-            if (enableFloorPlanPostProcessing) {
-                home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
-                home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
-            }
-
             camera.setTime(renderDateTimes.get(0));
             BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
             processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
             yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
-
-
-            home.getEnvironment().setSkyColor(originalSkyColor);
-            home.getEnvironment().setGroundColor(originalGroundColor);
 
             for (String group : lightsGroups.keySet()) {
                 yaml += generateGroupRenders(group, rawDayBaseImage, stencilMask);
@@ -386,6 +386,8 @@ public class Controller {
         } catch (IOException e) {
             throw e;
         } finally {
+            home.getEnvironment().setSkyColor(originalSkyColor);
+            home.getEnvironment().setGroundColor(originalGroundColor);
             restoreEntityConfiguration();
         }
     }
@@ -393,47 +395,76 @@ public class Controller {
 private BufferedImage createFloorplanStamp(BufferedImage image) throws IOException {
     int width = image.getWidth();
     int height = image.getHeight();
-    BufferedImage initialStamp = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    BufferedImage stamp = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 
-    // Create initial stamp
+    // 1. Create initial stamp
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             if (isBackgroundColor(image.getRGB(x, y), AutoCrop.CROP_COLOR.getRGB(), transparencyThreshold)) {
-                initialStamp.setRGB(x, y, Color.BLACK.getRGB());
+                stamp.setRGB(x, y, Color.BLACK.getRGB());
             } else {
-                initialStamp.setRGB(x, y, Color.WHITE.getRGB());
+                stamp.setRGB(x, y, Color.WHITE.getRGB());
             }
         }
     }
 
-    BufferedImage paddedStamp = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-    // Initialize paddedStamp to all black
-    java.awt.Graphics2D g2d = paddedStamp.createGraphics();
-    g2d.setColor(Color.BLACK);
-    g2d.fillRect(0, 0, width, height);
-    g2d.dispose();
+    // 2. Flood-fill the exterior from the borders
+    Queue<Point> queue = new LinkedList<>();
 
-    // Dilate white pixels
+    // Add all black border pixels to the queue
+    for (int x = 0; x < width; x++) {
+        if (stamp.getRGB(x, 0) == Color.BLACK.getRGB()) {
+            queue.add(new Point(x, 0));
+        }
+        if (stamp.getRGB(x, height - 1) == Color.BLACK.getRGB()) {
+            queue.add(new Point(x, height - 1));
+        }
+    }
+    for (int y = 1; y < height - 1; y++) {
+        if (stamp.getRGB(0, y) == Color.BLACK.getRGB()) {
+            queue.add(new Point(0, y));
+        }
+        if (stamp.getRGB(width - 1, y) == Color.BLACK.getRGB()) {
+            queue.add(new Point(width - 1, y));
+        }
+    }
+
+    // Temporary color for flood fill
+    int gray = Color.GRAY.getRGB();
+
+    while (!queue.isEmpty()) {
+        Point p = queue.poll();
+        int x = p.x;
+        int y = p.y;
+
+        if (x < 0 || x >= width || y < 0 || y >= height || stamp.getRGB(x, y) != Color.BLACK.getRGB()) {
+            continue;
+        }
+
+        stamp.setRGB(x, y, gray);
+
+        queue.add(new Point(x + 1, y));
+        queue.add(new Point(x - 1, y));
+        queue.add(new Point(x, y + 1));
+        queue.add(new Point(x, y - 1));
+    }
+
+    // 3. Fill holes and restore background
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            if ((initialStamp.getRGB(x, y) & 0x00FFFFFF) != 0) { // If pixel is not black
-                for (int dy = -3; dy <= 3; dy++) {
-                    for (int dx = -3; dx <= 3; dx++) {
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                            paddedStamp.setRGB(nx, ny, Color.WHITE.getRGB());
-                        }
-                    }
-                }
+            int color = stamp.getRGB(x, y);
+            if (color == Color.BLACK.getRGB()) {
+                stamp.setRGB(x, y, Color.WHITE.getRGB()); // Fill hole
+            } else if (color == gray) {
+                stamp.setRGB(x, y, Color.BLACK.getRGB()); // Restore background
             }
         }
     }
 
     File stampFile = new File(outputFloorplanDirectoryName + File.separator + "stamp.png");
-    ImageIO.write(paddedStamp, "png", stampFile);
+    ImageIO.write(stamp, "png", stampFile);
 
-    return paddedStamp;
+    return stamp;
 }
 
 private BufferedImage applyFloorplanStamp(BufferedImage image, BufferedImage stamp) {
@@ -655,11 +686,6 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
 
     private String generateGroupRenders(String group, BufferedImage baseImage, BufferedImage stencilMask) throws IOException, InterruptedException {
         List<Entity> groupLights = lightsGroups.get(group);
-
-        if (enableFloorPlanPostProcessing) {
-            home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
-            home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
-        }
 
         long renderTime = renderDateTimes.get(renderDateTimes.size() - 1);
         camera.setTime(renderTime);
