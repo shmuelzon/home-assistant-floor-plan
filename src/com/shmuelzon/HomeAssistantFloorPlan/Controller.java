@@ -339,18 +339,23 @@ public class Controller {
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
             if (enableFloorPlanPostProcessing) {
+                // Set green background to generate the stamp
                 home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                 home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
-            }
 
-            if (enableFloorPlanPostProcessing) {
+                // Generate a temporary image with the green background
                 camera.setTime(renderDateTimes.get(0));
                 BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
 
+                // Create the stamp, find crop area, and update UI positions
                 stencilMask = createFloorplanStamp(tempBaseImage);
                 this.cropArea = findCropAreaFromStamp(stencilMask);
-
                 updateEntityPositionsForCrop();
+
+                // IMPORTANT: Restore the original background colors immediately after stamp creation
+                // so that all subsequent renders have the correct lighting.
+                home.getEnvironment().setSkyColor(originalSkyColor);
+                home.getEnvironment().setGroundColor(originalGroundColor);
             }
 
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
