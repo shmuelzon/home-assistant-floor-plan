@@ -174,7 +174,7 @@ public class Controller {
         for (List<Entity> groupLights : lightsGroups.values()) {
             numberOfLightRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
         }
-        totalRenders += numberOfLightRenders * scenes.size();
+        totalRenders += numberOfLightRenders;
 
         // Count night base image
         if (renderDateTimes.size() > 1) {
@@ -321,23 +321,30 @@ public class Controller {
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
             if (enableFloorPlanPostProcessing) {
-                // Set green background to generate the stamp
-                home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
-                home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
+                File stampFile = new File(outputFloorplanDirectoryName + File.separator + "stamp.png");
+                if (useExistingRenders && stampFile.exists()) {
+                    // Load existing stamp and calculate crop area
+                    stencilMask = ImageIO.read(stampFile);
+                    this.cropArea = findCropAreaFromStamp(stencilMask);
+                    updateEntityPositionsForCrop();
+                    // Also need to increment progress bar here, since we are skipping a render
+                    propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
 
-                // Generate a temporary image with the green background
-                camera.setTime(renderDateTimes.get(0));
-                BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
+                } else {
+                    // Original logic to generate stamp
+                    home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
+                    home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
 
-                // Create the stamp, find crop area, and update UI positions
-                stencilMask = createFloorplanStamp(tempBaseImage);
-                this.cropArea = findCropAreaFromStamp(stencilMask);
-                updateEntityPositionsForCrop();
+                    camera.setTime(renderDateTimes.get(0));
+                    BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
 
-                // IMPORTANT: Restore the original background colors immediately after stamp creation
-                // so that all subsequent renders have the correct lighting.
-                home.getEnvironment().setSkyColor(originalSkyColor);
-                home.getEnvironment().setGroundColor(originalGroundColor);
+                    stencilMask = createFloorplanStamp(tempBaseImage);
+                    this.cropArea = findCropAreaFromStamp(stencilMask);
+                    updateEntityPositionsForCrop();
+
+                    home.getEnvironment().setSkyColor(originalSkyColor);
+                    home.getEnvironment().setGroundColor(originalGroundColor);
+                }
             }
 
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
