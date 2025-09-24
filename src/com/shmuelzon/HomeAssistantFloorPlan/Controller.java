@@ -60,7 +60,6 @@ public class Controller {
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
     private static final String CONTROLLER_LIGHT_MIXING_MODE = "lightMixingMode";
-    private static final String CONTROLLER_SENSITIVTY = "sensitivity";
     private static final String CONTROLLER_RENDERER = "renderer";
     private static final String CONTROLLER_QUALITY = "quality";
     private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
@@ -87,7 +86,6 @@ public class Controller {
     private int renderWidth;
     private int renderHeight;
     private LightMixingMode lightMixingMode;
-    private int sensitivity;
     private Renderer renderer;
     private Quality quality;
     private ImageFormat imageFormat;
@@ -120,7 +118,6 @@ public class Controller {
         renderWidth = settings.getInteger(CONTROLLER_RENDER_WIDTH, 1024);
         renderHeight = settings.getInteger(CONTROLLER_RENDER_HEIGHT, 576);
         lightMixingMode = LightMixingMode.valueOf(settings.get(CONTROLLER_LIGHT_MIXING_MODE, LightMixingMode.CSS.name()));
-        sensitivity = settings.getInteger(CONTROLLER_SENSITIVTY, 10);
         renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
@@ -199,15 +196,6 @@ public class Controller {
         this.renderWidth = renderWidth;
         settings.setInteger(CONTROLLER_RENDER_WIDTH, renderWidth);
         repositionEntities();
-    }
-
-    public int getSensitivity() {
-        return sensitivity;
-    }
-
-    public void setSensitivity(int sensitivity) {
-        this.sensitivity = sensitivity;
-        settings.setInteger(CONTROLLER_SENSITIVTY, sensitivity);
     }
 
     public LightMixingMode getLightMixingMode() {
@@ -907,11 +895,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
                 if (((basePixel >> 24) & 0xff) == 0) {
                     continue;
                 }
-
-                int diff = pixelDifference(basePixel, image.getRGB(x, y));
-                if (diff > sensitivity) {
-                    overlay.setRGB(x, y, image.getRGB(x, y) | 0xFF000000);
-                }
+                overlay.setRGB(x, y, image.getRGB(x, y) | 0xFF000000);
             }
         }
         return overlay;
@@ -920,14 +904,6 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     private void saveFloorPlanImage(BufferedImage image, String name, String extension) throws IOException {
         File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + name + "." + extension);
         ImageIO.write(image, extension, floorPlanFile);
-    }
-
-    private int pixelDifference(int first, int second) {
-        int diff =
-            Math.abs((first & 0xff) - (second & 0xff)) +
-            Math.abs(((first >> 8) & 0xff) - ((second >> 8) & 0xff)) +
-            Math.abs(((first >> 16) & 0xff) - ((second >> 16) & 0xff));
-        return diff / 3;
     }
 
     private BufferedImage generateRedTintedImage(BufferedImage image, String imageName) throws IOException {

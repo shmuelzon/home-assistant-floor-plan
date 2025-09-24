@@ -92,8 +92,6 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner heightSpinner;
     private JLabel lightMixingModeLabel;
     private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
-    private JLabel sensitivityLabel;
-    private JSpinner sensitivitySpinner;
     private JLabel rendererLabel;
     private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
@@ -347,17 +345,6 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        sensitivityLabel = new JLabel();
-        sensitivityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.text"));
-        final SpinnerNumberModel sensitivitySpinnerModel = new SpinnerNumberModel(15, 0, 100, 1);
-        sensitivitySpinner = new AutoCommitSpinner(sensitivitySpinnerModel);
-        sensitivitySpinnerModel.setValue(controller.getSensitivity());
-        sensitivitySpinner.addChangeListener(new ChangeListener() {
-            public void stateChanged(ChangeEvent ev) {
-              controller.setSensitivity(((Number)sensitivitySpinner.getValue()).intValue());
-            }
-        });
-
         rendererLabel = new JLabel();
         rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
         rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
@@ -573,7 +560,6 @@ public class Panel extends JPanel implements DialogView {
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
         lightMixingModeComboBox.setEnabled(enabled);
-        sensitivitySpinner.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
         renderTimeSpinner.setEnabled(enabled);
@@ -702,18 +688,11 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Sensitivity */
-        add(sensitivityLabel, new GridBagConstraints(
+        add(transparencyThresholdLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(sensitivitySpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(transparencyThresholdLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(transparencyThresholdSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 

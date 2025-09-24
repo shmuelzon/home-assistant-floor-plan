@@ -94,9 +94,6 @@ the room they're located in. Please verify the list matches your expectations.
 * Renderer - Select which rendering engine to use, YafaRay or SunFlow
 * Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Quality - Choose the rendering quality (low or high)
-* Sensitivity - [1, 100] The degree by which two pixels need to be different
-  from one another to be taken into account for the generated overlay image.
-  Only relevant for "room overlay" light mixing mode and RGB lights
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
@@ -231,7 +228,7 @@ When using the "Room overlay" light mixing mode, it's also suggested to:
   images with the transparent background.
 
   The renders directory was created (back when room overlay was the only option)
-  in case one wanted to change any parameters (like the sensitivity) to generate a
+  in case one wanted to change any parameters to generate a
   new floor plan without needing to wait for all the renders from SH3D, which
   don't change. It's basically a cache of rendered images.
 
