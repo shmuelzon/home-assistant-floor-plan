@@ -50,7 +50,6 @@ import com.eteks.sweethome3d.model.Room;
 
 public class Controller {
     public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
-    public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
@@ -59,7 +58,6 @@ public class Controller {
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
-    private static final String CONTROLLER_LIGHT_MIXING_MODE = "lightMixingMode";
     private static final String CONTROLLER_RENDERER = "renderer";
     private static final String CONTROLLER_QUALITY = "quality";
     private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
@@ -85,7 +83,6 @@ public class Controller {
     private AbstractPhotoRenderer photoRenderer;
     private int renderWidth;
     private int renderHeight;
-    private LightMixingMode lightMixingMode;
     private Renderer renderer;
     private Quality quality;
     private ImageFormat imageFormat;
@@ -117,7 +114,6 @@ public class Controller {
     public void loadDefaultSettings() {
         renderWidth = settings.getInteger(CONTROLLER_RENDER_WIDTH, 1024);
         renderHeight = settings.getInteger(CONTROLLER_RENDER_HEIGHT, 576);
-        lightMixingMode = LightMixingMode.valueOf(settings.get(CONTROLLER_LIGHT_MIXING_MODE, LightMixingMode.CSS.name()));
         renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
@@ -196,18 +192,6 @@ public class Controller {
         this.renderWidth = renderWidth;
         settings.setInteger(CONTROLLER_RENDER_WIDTH, renderWidth);
         repositionEntities();
-    }
-
-    public LightMixingMode getLightMixingMode() {
-        return lightMixingMode;
-    }
-
-    public void setLightMixingMode(LightMixingMode lightMixingMode) {
-        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
-        this.lightMixingMode = lightMixingMode;
-        buildLightsGroups();
-        settings.set(CONTROLLER_LIGHT_MIXING_MODE, lightMixingMode.name());
-        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
     public String getOutputDirectory() {
@@ -601,12 +585,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     private void buildLightsGroups() {
         lightsGroups.clear();
 
-        if (lightMixingMode == LightMixingMode.CSS)
-            buildLightsGroupsByLight();
-        else if (lightMixingMode == LightMixingMode.OVERLAY)
-            buildLightsGroupsByRoom();
-        else if (lightMixingMode == LightMixingMode.FULL)
-            buildLightsGroupsByHome();
+        buildLightsGroupsByLight();
     }
 
     private void buildScenes() {
@@ -672,8 +651,6 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     }
 
     private String getFloorplanImageExtention() {
-        if (this.lightMixingMode == LightMixingMode.OVERLAY)
-            return "png";
         return this.imageFormat.name().toLowerCase();
     }
 
@@ -692,7 +669,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             saveRawRender(image, imageName);
 
             Entity firstLight = onLights.get(0);
-            boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
+            boolean createOverlayImage = firstLight.getIsRgb();
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
 
             // Apply stamp and transparency processing

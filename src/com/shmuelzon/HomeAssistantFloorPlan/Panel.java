@@ -90,8 +90,6 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner widthSpinner;
     private JLabel heightLabel;
     private JSpinner heightSpinner;
-    private JLabel lightMixingModeLabel;
-    private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
     private JLabel rendererLabel;
     private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
@@ -327,24 +325,6 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        lightMixingModeLabel = new JLabel();
-        lightMixingModeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.text"));
-        lightMixingModeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.tooltip"));
-        lightMixingModeComboBox = new JComboBox<Controller.LightMixingMode>(Controller.LightMixingMode.values());
-        lightMixingModeComboBox.setSelectedItem(controller.getLightMixingMode());
-        lightMixingModeComboBox.setRenderer(new DefaultListCellRenderer() {
-            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
-                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.lightMixingModeComboBox.%s.text", ((Controller.LightMixingMode)o).name())));
-                return rendererComponent;
-            }
-        });
-        lightMixingModeComboBox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ev) {
-                controller.setLightMixingMode((Controller.LightMixingMode)lightMixingModeComboBox.getSelectedItem());
-            }
-        });
-
         rendererLabel = new JLabel();
         rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
         rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
@@ -440,7 +420,7 @@ public class Panel extends JPanel implements DialogView {
         nightLightIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightLightIntensityLabel.text"));
         final SpinnerNumberModel nightLightIntensitySpinnerModel = new SpinnerNumberModel(5, 0, 100, 1);
         nightLightIntensitySpinner = new AutoCommitSpinner(nightLightIntensitySpinnerModel);
-        JSpinner.NumberEditor nightLightIntensityEditor = new JSpinner.NumberEditor(nightLightIntensitySpinner, "0 %");
+        JSpinner.NumberEditor nightLightIntensityEditor = new JSpinner.NumberEditor(nightLightIntensitySpinner, "0");
         ((JSpinner.DefaultEditor)nightLightIntensityEditor).getTextField().setColumns(4);
         nightLightIntensitySpinner.setEditor(nightLightIntensityEditor);
         nightLightIntensitySpinnerModel.setValue(controller.getNightLightIntensity());
@@ -559,7 +539,6 @@ public class Panel extends JPanel implements DialogView {
         otherEntitiesTree.setEnabled(enabled);
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
-        lightMixingModeComboBox.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
         renderTimeSpinner.setEnabled(enabled);
@@ -634,26 +613,26 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Light mixing mode + render time */
-        add(lightMixingModeLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(lightMixingModeComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        /* Renderer + Night render*/
+        /* Renderer + Quality */
         add(rendererLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(rendererComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(qualityLabel, new GridBagConstraints(
+            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(qualityComboBox, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Render time + Night render */
+        add(renderTimeLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(renderTimeSpinner, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(nightRenderCheckbox, new GridBagConstraints(
@@ -664,26 +643,17 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Night light intensity */
-        add(nightLightIntensityLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightLightIntensitySpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        /* Image format + Quality */
+        /* Image format + Night light intensity */
         add(imageFormatLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(imageFormatComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityLabel, new GridBagConstraints(
+        add(nightLightIntensityLabel, new GridBagConstraints(
             2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
+        add(nightLightIntensitySpinner, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
