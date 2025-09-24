@@ -159,18 +159,28 @@ public class Controller {
     }
 
     public int getNumberOfTotalRenders() {
-        int numberOfLightRenders = 1;
-
         if (scenes == null)
             return 0;
 
-        for (List<Entity> groupLights : lightsGroups.values()) {
-            numberOfLightRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
-        }
-        int totalRenders = numberOfLightRenders * scenes.size();
+        int totalRenders = 0;
+
+        // Count stamp image
         if (enableFloorPlanPostProcessing) {
             totalRenders++;
         }
+
+        // Count light combination renders
+        int numberOfLightRenders = 1; // for base_day
+        for (List<Entity> groupLights : lightsGroups.values()) {
+            numberOfLightRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
+        }
+        totalRenders += numberOfLightRenders * scenes.size();
+
+        // Count night base image
+        if (renderDateTimes.size() > 1) {
+            totalRenders++;
+        }
+
         return totalRenders;
     }
 
@@ -971,7 +981,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             "          width: 100%%\n%s",
             generateTitle(scene, onLights), conditions, normalizePath(imageName),
             getFloorplanImageExtention(), renderHash(imageName),
-            includeMixBlend && lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
+            includeMixBlend ? "          mix-blend-mode: lighten\n" : "");
     }
 
     private String generateRgbLightYaml(Scene scene, Entity light, String imageName) throws IOException {
