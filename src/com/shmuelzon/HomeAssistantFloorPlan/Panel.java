@@ -702,6 +702,9 @@ public class Panel extends JPanel implements DialogView {
         generalSettingsPanel.add(nightRenderCheckbox, new GridBagConstraints(
             2, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(nightRenderTimeSpinner, new GridBagConstraints(
+            3, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         generalSettingsPanelGridYIndex++;
 
         generalSettingsPanel.add(imageFormatLabel, new GridBagConstraints(
@@ -747,11 +750,6 @@ public class Panel extends JPanel implements DialogView {
         currentGridYIndex++;
 
         int baseImagesPanelGridYIndex = 0;
-
-        baseImagesPanel.add(nightRenderTimeSpinner, new GridBagConstraints(
-            0, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        baseImagesPanelGridYIndex++;
 
         baseImagesPanel.add(ceilingLightsIntensityLabel, new GridBagConstraints(
             0, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
