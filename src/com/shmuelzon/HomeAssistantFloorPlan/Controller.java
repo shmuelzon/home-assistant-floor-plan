@@ -67,7 +67,8 @@ public class Controller {
     private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
     private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
     private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
-    private static final String CONTROLLER_NIGHT_LIGHT_INTENSITY = "nightLightIntensity";
+    private static final String CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY = "nightBaseCeilingLightsIntensity";
+    private static final String CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY = "nightBaseOtherLightsIntensity";
 
     private Home home;
     private Settings settings;
@@ -94,7 +95,8 @@ public class Controller {
     private boolean enableFloorPlanPostProcessing;
     private int transparencyThreshold;
     private boolean maintainAspectRatio;
-    private int nightLightIntensity;
+    private int nightBaseCeilingLightsIntensity;
+    private int nightBaseOtherLightsIntensity;
     private Rectangle cropArea = null;
     private Scenes scenes;
 
@@ -125,8 +127,8 @@ public class Controller {
         enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
         transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 30);
         maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
-        maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
-        nightLightIntensity = settings.getInteger(CONTROLLER_NIGHT_LIGHT_INTENSITY, 5);
+        nightBaseCeilingLightsIntensity = settings.getInteger(CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY, 8);
+        nightBaseOtherLightsIntensity = settings.getInteger(CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY, 3);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -288,13 +290,22 @@ public class Controller {
         buildScenes();
     }
 
-    public int getNightLightIntensity() {
-        return nightLightIntensity;
+    public int getNightBaseCeilingLightsIntensity() {
+        return nightBaseCeilingLightsIntensity;
     }
 
-    public void setNightLightIntensity(int nightLightIntensity) {
-        this.nightLightIntensity = nightLightIntensity;
-        settings.setInteger(CONTROLLER_NIGHT_LIGHT_INTENSITY, nightLightIntensity);
+    public void setNightBaseCeilingLightsIntensity(int nightBaseCeilingLightsIntensity) {
+        this.nightBaseCeilingLightsIntensity = nightBaseCeilingLightsIntensity;
+        settings.setInteger(CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY, nightBaseCeilingLightsIntensity);
+    }
+
+    public int getNightBaseOtherLightsIntensity() {
+        return nightBaseOtherLightsIntensity;
+    }
+
+    public void setNightBaseOtherLightsIntensity(int nightBaseOtherLightsIntensity) {
+        this.nightBaseOtherLightsIntensity = nightBaseOtherLightsIntensity;
+        settings.setInteger(CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY, nightBaseOtherLightsIntensity);
     }
 
     public void stop() {
@@ -734,31 +745,34 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         }
 
         Map<HomeLight, Float> originalPowers = new HashMap<>();
-        
-        Stream.concat(lightEntities.stream(), otherEntities.stream())
-            .filter(entity -> entity.getName().startsWith("light."))
-            .forEach(light -> {
-                if (!light.getAlwaysOn()) {
-                    light.setLightPower(true);
-                    
-                    for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
-                        if (piece instanceof HomeLight) {
-                            HomeLight homeLight = (HomeLight) piece;
-                            originalPowers.put(homeLight, homeLight.getPower());
-                            homeLight.setPower(homeLight.getPower() * (nightLightIntensity / 100.0f));
+        try {
+            Stream.concat(lightEntities.stream(), otherEntities.stream())
+                .filter(entity -> entity.getName().startsWith("light."))
+                .forEach(light -> {
+                    if (!light.getAlwaysOn()) {
+                        light.setLightPower(true);
+
+                        for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
+                            if (piece instanceof HomeLight) {
+                                HomeLight homeLight = (HomeLight) piece;
+                                originalPowers.put(homeLight, homeLight.getPower());
+                                float intensity = light.getName().toLowerCase().contains("deckenlampe")
+                                    ? nightBaseCeilingLightsIntensity
+                                    : nightBaseOtherLightsIntensity;
+                                homeLight.setPower(intensity / 100.0f);
+                            }
                         }
                     }
-                }
-            });
+                });
 
-        BufferedImage image = renderScene();
-        
-        for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
-            entry.getKey().setPower(entry.getValue());
+            BufferedImage image = renderScene();
+            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            return image;
+        } finally {
+            for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
+                entry.getKey().setPower(entry.getValue());
+            }
         }
-        
-        propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-        return image;
     }
 
     private BufferedImage processAndSaveFinalImage(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {

@@ -102,8 +102,10 @@ public class Panel extends JPanel implements DialogView {
     private JCheckBox nightRenderCheckbox;
     private SpinnerDateModel nightRenderTimeModel;
     private JSpinner nightRenderTimeSpinner;
-    private JLabel nightLightIntensityLabel;
-    private JSpinner nightLightIntensitySpinner;
+    private JLabel nightBaseCeilingLightsIntensityLabel;
+    private JSpinner nightBaseCeilingLightsIntensitySpinner;
+    private JLabel nightBaseOtherLightsIntensityLabel;
+    private JSpinner nightBaseOtherLightsIntensitySpinner;
 
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
@@ -398,7 +400,8 @@ public class Panel extends JPanel implements DialogView {
         nightRenderCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
                 nightRenderTimeSpinner.setVisible(nightRenderCheckbox.isSelected());
-                nightLightIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+                nightBaseCeilingLightsIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+                nightBaseOtherLightsIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
                 renderTimeChangeListener.stateChanged(null);
             }
         });
@@ -416,18 +419,35 @@ public class Panel extends JPanel implements DialogView {
         nightRenderTimeSpinner.setVisible(nightRenderCheckbox.isSelected());
         nightRenderTimeSpinner.addChangeListener(renderTimeChangeListener);
 
-        nightLightIntensityLabel = new JLabel();
-        nightLightIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightLightIntensityLabel.text"));
-        final SpinnerNumberModel nightLightIntensitySpinnerModel = new SpinnerNumberModel(5, 0, 100, 1);
-        nightLightIntensitySpinner = new AutoCommitSpinner(nightLightIntensitySpinnerModel);
-        JSpinner.NumberEditor nightLightIntensityEditor = new JSpinner.NumberEditor(nightLightIntensitySpinner, "0");
-        ((JSpinner.DefaultEditor)nightLightIntensityEditor).getTextField().setColumns(4);
-        nightLightIntensitySpinner.setEditor(nightLightIntensityEditor);
-        nightLightIntensitySpinnerModel.setValue(controller.getNightLightIntensity());
-        nightLightIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
-        nightLightIntensitySpinner.addChangeListener(new ChangeListener() {
+        nightBaseCeilingLightsIntensityLabel = new JLabel();
+        nightBaseCeilingLightsIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightBaseCeilingLightsIntensityLabel.text"));
+        nightBaseCeilingLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.nightBaseCeilingLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel nightBaseCeilingLightsIntensitySpinnerModel = new SpinnerNumberModel(8, 0, 100, 1);
+        nightBaseCeilingLightsIntensitySpinner = new AutoCommitSpinner(nightBaseCeilingLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor nightBaseCeilingLightsIntensityEditor = new JSpinner.NumberEditor(nightBaseCeilingLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)nightBaseCeilingLightsIntensityEditor).getTextField().setColumns(4);
+        nightBaseCeilingLightsIntensitySpinner.setEditor(nightBaseCeilingLightsIntensityEditor);
+        nightBaseCeilingLightsIntensitySpinnerModel.setValue(controller.getNightBaseCeilingLightsIntensity());
+        nightBaseCeilingLightsIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+        nightBaseCeilingLightsIntensitySpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
-                controller.setNightLightIntensity(((Number)nightLightIntensitySpinnerModel.getValue()).intValue());
+                controller.setNightBaseCeilingLightsIntensity(((Number)nightBaseCeilingLightsIntensitySpinnerModel.getValue()).intValue());
+            }
+        });
+
+        nightBaseOtherLightsIntensityLabel = new JLabel();
+        nightBaseOtherLightsIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightBaseOtherLightsIntensityLabel.text"));
+        nightBaseOtherLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.nightBaseOtherLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel nightBaseOtherLightsIntensitySpinnerModel = new SpinnerNumberModel(3, 0, 100, 1);
+        nightBaseOtherLightsIntensitySpinner = new AutoCommitSpinner(nightBaseOtherLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor nightBaseOtherLightsIntensityEditor = new JSpinner.NumberEditor(nightBaseOtherLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)nightBaseOtherLightsIntensityEditor).getTextField().setColumns(4);
+        nightBaseOtherLightsIntensitySpinner.setEditor(nightBaseOtherLightsIntensityEditor);
+        nightBaseOtherLightsIntensitySpinnerModel.setValue(controller.getNightBaseOtherLightsIntensity());
+        nightBaseOtherLightsIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+        nightBaseOtherLightsIntensitySpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                controller.setNightBaseOtherLightsIntensity(((Number)nightBaseOtherLightsIntensitySpinnerModel.getValue()).intValue());
             }
         });
 
@@ -544,6 +564,8 @@ public class Panel extends JPanel implements DialogView {
         renderTimeSpinner.setEnabled(enabled);
         nightRenderCheckbox.setEnabled(enabled);
         nightRenderTimeSpinner.setEnabled(enabled);
+        nightBaseCeilingLightsIntensitySpinner.setEnabled(enabled);
+        nightBaseOtherLightsIntensitySpinner.setEnabled(enabled);
         imageFormatComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
@@ -650,10 +672,18 @@ public class Panel extends JPanel implements DialogView {
         add(imageFormatComboBox, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightLightIntensityLabel, new GridBagConstraints(
+        currentGridYIndex++;
+
+        add(nightBaseCeilingLightsIntensityLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(nightBaseCeilingLightsIntensitySpinner, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(nightBaseOtherLightsIntensityLabel, new GridBagConstraints(
             2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightLightIntensitySpinner, new GridBagConstraints(
+        add(nightBaseOtherLightsIntensitySpinner, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
