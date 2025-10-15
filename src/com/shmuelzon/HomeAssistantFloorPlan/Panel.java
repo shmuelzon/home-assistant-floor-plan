@@ -524,6 +524,9 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        renderImagesPanel = new JPanel(new GridBagLayout());
+        baseImagesPanel = new JPanel(new GridBagLayout());
+
         generateFloorplanYamlCheckbox = new JCheckBox();
         generateFloorplanYamlCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.generateFloorplanYaml.text"));
         generateFloorplanYamlCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.generateFloorplanYaml.tooltip"));
@@ -718,7 +721,6 @@ public class Panel extends JPanel implements DialogView {
         generalSettingsPanelGridYIndex++;
 
 
-        JPanel renderImagesPanel = new JPanel(new GridBagLayout());
         renderImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.renderImagesSection.title")));
         add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
@@ -740,7 +742,6 @@ public class Panel extends JPanel implements DialogView {
         renderImagesPanelGridYIndex++;
 
 
-        JPanel baseImagesPanel = new JPanel(new GridBagLayout());
         baseImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.baseImagesSection.title")));
         add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
