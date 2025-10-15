@@ -106,6 +106,10 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner nightBaseCeilingLightsIntensitySpinner;
     private JLabel nightBaseOtherLightsIntensityLabel;
     private JSpinner nightBaseOtherLightsIntensitySpinner;
+    private JLabel renderCeilingLightsIntensityLabel;
+    private JSpinner renderCeilingLightsIntensitySpinner;
+    private JLabel renderOtherLightsIntensityLabel;
+    private JSpinner renderOtherLightsIntensitySpinner;
 
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
@@ -281,6 +285,26 @@ public class Panel extends JPanel implements DialogView {
 
     private void createComponents() {
         final ActionMap actionMap = getActionMap();
+
+        renderCeilingLightsIntensityLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.renderCeilingLightsIntensityLabel.text"));
+        renderCeilingLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderCeilingLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel renderCeilingLightsIntensitySpinnerModel = new SpinnerNumberModel(20, 0, 100, 1);
+        renderCeilingLightsIntensitySpinner = new AutoCommitSpinner(renderCeilingLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor renderCeilingLightsIntensityEditor = new JSpinner.NumberEditor(renderCeilingLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)renderCeilingLightsIntensityEditor).getTextField().setColumns(4);
+        renderCeilingLightsIntensitySpinner.setEditor(renderCeilingLightsIntensityEditor);
+        renderCeilingLightsIntensitySpinnerModel.setValue(controller.getRenderCeilingLightsIntensity());
+        renderCeilingLightsIntensitySpinner.addChangeListener(e -> controller.setRenderCeilingLightsIntensity((int) renderCeilingLightsIntensitySpinnerModel.getValue()));
+
+        renderOtherLightsIntensityLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.renderOtherLightsIntensityLabel.text"));
+        renderOtherLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderOtherLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel renderOtherLightsIntensitySpinnerModel = new SpinnerNumberModel(10, 0, 100, 1);
+        renderOtherLightsIntensitySpinner = new AutoCommitSpinner(renderOtherLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor renderOtherLightsIntensityEditor = new JSpinner.NumberEditor(renderOtherLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)renderOtherLightsIntensityEditor).getTextField().setColumns(4);
+        renderOtherLightsIntensitySpinner.setEditor(renderOtherLightsIntensityEditor);
+        renderOtherLightsIntensitySpinnerModel.setValue(controller.getRenderOtherLightsIntensity());
+        renderOtherLightsIntensitySpinner.addChangeListener(e -> controller.setRenderOtherLightsIntensity((int) renderOtherLightsIntensitySpinnerModel.getValue()));
 
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
         detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"));
@@ -559,6 +583,8 @@ public class Panel extends JPanel implements DialogView {
         otherEntitiesTree.setEnabled(enabled);
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
+        renderCeilingLightsIntensitySpinner.setEnabled(enabled);
+        renderOtherLightsIntensitySpinner.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
         renderTimeSpinner.setEnabled(enabled);
@@ -618,83 +644,115 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Resolution */
-        add(widthLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        JPanel generalSettingsPanel = new JPanel(new GridBagLayout());
+        generalSettingsPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.generalSettingsSection.title")));
+        add(generalSettingsPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+        int generalSettingsPanelGridYIndex = 0;
+
+        generalSettingsPanel.add(widthLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        widthLabel.setHorizontalAlignment(labelAlignment);
-        add(widthSpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        generalSettingsPanel.add(widthSpinner, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(heightLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        generalSettingsPanel.add(heightLabel, new GridBagConstraints(
+            2, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        heightLabel.setHorizontalAlignment(labelAlignment);
-        add(heightSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        generalSettingsPanel.add(heightSpinner, new GridBagConstraints(
+            3, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(rendererLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(rendererComboBox, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(qualityLabel, new GridBagConstraints(
+            2, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(qualityComboBox, new GridBagConstraints(
+            3, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(renderTimeLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(renderTimeSpinner, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(imageFormatLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(imageFormatComboBox, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(transparencyThresholdLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(transparencyThresholdSpinner, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+
+        JPanel renderImagesPanel = new JPanel(new GridBagLayout());
+        renderImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.renderImagesSection.title")));
+        add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Renderer + Quality */
-        add(rendererLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        int renderImagesPanelGridYIndex = 0;
+
+        renderImagesPanel.add(renderCeilingLightsIntensityLabel, new GridBagConstraints(
+            0, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(rendererComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        renderImagesPanel.add(renderCeilingLightsIntensitySpinner, new GridBagConstraints(
+            1, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        renderImagesPanel.add(renderOtherLightsIntensityLabel, new GridBagConstraints(
+            2, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        renderImagesPanel.add(renderOtherLightsIntensitySpinner, new GridBagConstraints(
+            3, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderImagesPanelGridYIndex++;
+
+
+        JPanel baseImagesPanel = new JPanel(new GridBagLayout());
+        baseImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.baseImagesSection.title")));
+        add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Render time + Night render */
-        add(renderTimeLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeSpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightRenderCheckbox, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightRenderTimeSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
+        int baseImagesPanelGridYIndex = 0;
 
-        /* Image format + Night light intensity */
-        add(imageFormatLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(nightRenderCheckbox, new GridBagConstraints(
+            0, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(imageFormatComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(nightRenderTimeSpinner, new GridBagConstraints(
+            1, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
+        baseImagesPanelGridYIndex++;
 
-        add(nightBaseCeilingLightsIntensityLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(nightBaseCeilingLightsIntensityLabel, new GridBagConstraints(
+            0, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightBaseCeilingLightsIntensitySpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(nightBaseCeilingLightsIntensitySpinner, new GridBagConstraints(
+            1, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightBaseOtherLightsIntensityLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(nightBaseOtherLightsIntensityLabel, new GridBagConstraints(
+            2, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightBaseOtherLightsIntensitySpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(nightBaseOtherLightsIntensitySpinner, new GridBagConstraints(
+            3, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        add(transparencyThresholdLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(transparencyThresholdSpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
+        baseImagesPanelGridYIndex++;
 
         /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(

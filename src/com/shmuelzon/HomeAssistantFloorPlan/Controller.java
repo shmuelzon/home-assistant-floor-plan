@@ -69,6 +69,8 @@ public class Controller {
     private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
     private static final String CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY = "nightBaseCeilingLightsIntensity";
     private static final String CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY = "nightBaseOtherLightsIntensity";
+    private static final String CONTROLLER_RENDER_CEILING_LIGHTS_INTENSITY = "renderCeilingLightsIntensity";
+    private static final String CONTROLLER_RENDER_OTHER_LIGHTS_INTENSITY = "renderOtherLightsIntensity";
 
     private Home home;
     private Settings settings;
@@ -97,6 +99,8 @@ public class Controller {
     private boolean maintainAspectRatio;
     private int nightBaseCeilingLightsIntensity;
     private int nightBaseOtherLightsIntensity;
+    private int renderCeilingLightsIntensity;
+    private int renderOtherLightsIntensity;
     private Rectangle cropArea = null;
     private Scenes scenes;
 
@@ -126,9 +130,10 @@ public class Controller {
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
         enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
         transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 30);
-        maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, false);
         nightBaseCeilingLightsIntensity = settings.getInteger(CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY, 8);
         nightBaseOtherLightsIntensity = settings.getInteger(CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY, 3);
+        renderCeilingLightsIntensity = settings.getInteger(CONTROLLER_RENDER_CEILING_LIGHTS_INTENSITY, 20);
+        renderOtherLightsIntensity = settings.getInteger(CONTROLLER_RENDER_OTHER_LIGHTS_INTENSITY, 10);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -306,6 +311,24 @@ public class Controller {
     public void setNightBaseOtherLightsIntensity(int nightBaseOtherLightsIntensity) {
         this.nightBaseOtherLightsIntensity = nightBaseOtherLightsIntensity;
         settings.setInteger(CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY, nightBaseOtherLightsIntensity);
+    }
+
+    public int getRenderCeilingLightsIntensity() {
+        return renderCeilingLightsIntensity;
+    }
+
+    public void setRenderCeilingLightsIntensity(int renderCeilingLightsIntensity) {
+        this.renderCeilingLightsIntensity = renderCeilingLightsIntensity;
+        settings.setInteger(CONTROLLER_RENDER_CEILING_LIGHTS_INTENSITY, renderCeilingLightsIntensity);
+    }
+
+    public int getRenderOtherLightsIntensity() {
+        return renderOtherLightsIntensity;
+    }
+
+    public void setRenderOtherLightsIntensity(int renderOtherLightsIntensity) {
+        this.renderOtherLightsIntensity = renderOtherLightsIntensity;
+        settings.setInteger(CONTROLLER_RENDER_OTHER_LIGHTS_INTENSITY, renderOtherLightsIntensity);
     }
 
     public void stop() {
@@ -731,9 +754,32 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
         }
         prepareScene(onLights);
-        BufferedImage image = renderScene();
-        propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-        return image;
+
+        Map<HomeLight, Float> originalPowers = new HashMap<>();
+        try {
+            for (Entity light : onLights) {
+                if (!light.getAlwaysOn()) {
+                    for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
+                        if (piece instanceof HomeLight) {
+                            HomeLight homeLight = (HomeLight) piece;
+                            originalPowers.put(homeLight, homeLight.getPower());
+                            float intensity = light.getName().toLowerCase().contains("deckenlampe")
+                                    ? renderCeilingLightsIntensity
+                                    : renderOtherLightsIntensity;
+                            homeLight.setPower(intensity / 100.0f);
+                        }
+                    }
+                }
+            }
+
+            BufferedImage image = renderScene();
+            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            return image;
+        } finally {
+            for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
+                entry.getKey().setPower(entry.getValue());
+            }
+        }
     }
 
     private BufferedImage generateNightBaseImageWithConfigurableLights(String name) throws IOException, InterruptedException {
