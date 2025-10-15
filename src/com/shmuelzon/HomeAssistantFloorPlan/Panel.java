@@ -43,7 +43,7 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JProgressBar;
+import com.shmuelzon.HomeAssistantFloorPlan.StatusProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
@@ -90,8 +90,6 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner widthSpinner;
     private JLabel heightLabel;
     private JSpinner heightSpinner;
-    private JLabel lightMixingModeLabel;
-    private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
     private JLabel rendererLabel;
     private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
@@ -104,8 +102,14 @@ public class Panel extends JPanel implements DialogView {
     private JCheckBox nightRenderCheckbox;
     private SpinnerDateModel nightRenderTimeModel;
     private JSpinner nightRenderTimeSpinner;
-    private JLabel nightLightIntensityLabel;
-    private JSpinner nightLightIntensitySpinner;
+    private JLabel ceilingLightsIntensityLabel;
+    private JSpinner ceilingLightsIntensitySpinner;
+    private JLabel otherLightsIntensityLabel;
+    private JSpinner otherLightsIntensitySpinner;
+    private JLabel renderCeilingLightsIntensityLabel;
+    private JSpinner renderCeilingLightsIntensitySpinner;
+    private JLabel renderOtherLightsIntensityLabel;
+    private JSpinner renderOtherLightsIntensitySpinner;
 
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
@@ -114,11 +118,14 @@ public class Panel extends JPanel implements DialogView {
     private JCheckBox useExistingRendersCheckbox;
     private JCheckBox enableFloorPlanPostProcessingCheckbox;
     private JCheckBox maintainAspectRatioCheckbox;
+    private JCheckBox generateFloorplanYamlCheckbox;
     private JLabel transparencyThresholdLabel;
     private JSpinner transparencyThresholdSpinner;
-    private JProgressBar progressBar;
+    private StatusProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
+    private JPanel renderImagesPanel;
+    private JPanel baseImagesPanel;
 
     private class EntityNode {
         public Entity entity;
@@ -282,6 +289,26 @@ public class Panel extends JPanel implements DialogView {
     private void createComponents() {
         final ActionMap actionMap = getActionMap();
 
+        renderCeilingLightsIntensityLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.renderCeilingLightsIntensityLabel.text"));
+        renderCeilingLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderCeilingLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel renderCeilingLightsIntensitySpinnerModel = new SpinnerNumberModel(20, 0, 100, 1);
+        renderCeilingLightsIntensitySpinner = new AutoCommitSpinner(renderCeilingLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor renderCeilingLightsIntensityEditor = new JSpinner.NumberEditor(renderCeilingLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)renderCeilingLightsIntensityEditor).getTextField().setColumns(4);
+        renderCeilingLightsIntensitySpinner.setEditor(renderCeilingLightsIntensityEditor);
+        renderCeilingLightsIntensitySpinnerModel.setValue(controller.getRenderCeilingLightsIntensity());
+        renderCeilingLightsIntensitySpinner.addChangeListener(e -> controller.setRenderCeilingLightsIntensity((int) renderCeilingLightsIntensitySpinnerModel.getValue()));
+
+        renderOtherLightsIntensityLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.renderOtherLightsIntensityLabel.text"));
+        renderOtherLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderOtherLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel renderOtherLightsIntensitySpinnerModel = new SpinnerNumberModel(10, 0, 100, 1);
+        renderOtherLightsIntensitySpinner = new AutoCommitSpinner(renderOtherLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor renderOtherLightsIntensityEditor = new JSpinner.NumberEditor(renderOtherLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)renderOtherLightsIntensityEditor).getTextField().setColumns(4);
+        renderOtherLightsIntensitySpinner.setEditor(renderOtherLightsIntensityEditor);
+        renderOtherLightsIntensitySpinnerModel.setValue(controller.getRenderOtherLightsIntensity());
+        renderOtherLightsIntensitySpinner.addChangeListener(e -> controller.setRenderOtherLightsIntensity((int) renderOtherLightsIntensitySpinnerModel.getValue()));
+
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
         detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"));
         buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
@@ -324,24 +351,6 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
               controller.setRenderHeight(((Number)heightSpinnerModel.getValue()).intValue());
-            }
-        });
-
-        lightMixingModeLabel = new JLabel();
-        lightMixingModeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.text"));
-        lightMixingModeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.tooltip"));
-        lightMixingModeComboBox = new JComboBox<Controller.LightMixingMode>(Controller.LightMixingMode.values());
-        lightMixingModeComboBox.setSelectedItem(controller.getLightMixingMode());
-        lightMixingModeComboBox.setRenderer(new DefaultListCellRenderer() {
-            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
-                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.lightMixingModeComboBox.%s.text", ((Controller.LightMixingMode)o).name())));
-                return rendererComponent;
-            }
-        });
-        lightMixingModeComboBox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ev) {
-                controller.setLightMixingMode((Controller.LightMixingMode)lightMixingModeComboBox.getSelectedItem());
             }
         });
 
@@ -417,8 +426,7 @@ public class Panel extends JPanel implements DialogView {
         nightRenderCheckbox.setSelected(renderingTimes.size() > 1);
         nightRenderCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                nightRenderTimeSpinner.setVisible(nightRenderCheckbox.isSelected());
-                nightLightIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+                updatePanelVisibility();
                 renderTimeChangeListener.stateChanged(null);
             }
         });
@@ -436,18 +444,35 @@ public class Panel extends JPanel implements DialogView {
         nightRenderTimeSpinner.setVisible(nightRenderCheckbox.isSelected());
         nightRenderTimeSpinner.addChangeListener(renderTimeChangeListener);
 
-        nightLightIntensityLabel = new JLabel();
-        nightLightIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightLightIntensityLabel.text"));
-        final SpinnerNumberModel nightLightIntensitySpinnerModel = new SpinnerNumberModel(5, 0, 100, 1);
-        nightLightIntensitySpinner = new AutoCommitSpinner(nightLightIntensitySpinnerModel);
-        JSpinner.NumberEditor nightLightIntensityEditor = new JSpinner.NumberEditor(nightLightIntensitySpinner, "0 %");
-        ((JSpinner.DefaultEditor)nightLightIntensityEditor).getTextField().setColumns(4);
-        nightLightIntensitySpinner.setEditor(nightLightIntensityEditor);
-        nightLightIntensitySpinnerModel.setValue(controller.getNightLightIntensity());
-        nightLightIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
-        nightLightIntensitySpinner.addChangeListener(new ChangeListener() {
+        ceilingLightsIntensityLabel = new JLabel();
+        ceilingLightsIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.ceilingLightsIntensityLabel.text"));
+        ceilingLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.ceilingLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel ceilingLightsIntensitySpinnerModel = new SpinnerNumberModel(8, 0, 100, 1);
+        ceilingLightsIntensitySpinner = new AutoCommitSpinner(ceilingLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor ceilingLightsIntensityEditor = new JSpinner.NumberEditor(ceilingLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)ceilingLightsIntensityEditor).getTextField().setColumns(4);
+        ceilingLightsIntensitySpinner.setEditor(ceilingLightsIntensityEditor);
+        ceilingLightsIntensitySpinnerModel.setValue(controller.getCeilingLightsIntensity());
+        ceilingLightsIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+        ceilingLightsIntensitySpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
-                controller.setNightLightIntensity(((Number)nightLightIntensitySpinnerModel.getValue()).intValue());
+                controller.setCeilingLightsIntensity(((Number)ceilingLightsIntensitySpinnerModel.getValue()).intValue());
+            }
+        });
+
+        otherLightsIntensityLabel = new JLabel();
+        otherLightsIntensityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.otherLightsIntensityLabel.text"));
+        otherLightsIntensityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.otherLightsIntensityLabel.tooltip"));
+        final SpinnerNumberModel otherLightsIntensitySpinnerModel = new SpinnerNumberModel(3, 0, 100, 1);
+        otherLightsIntensitySpinner = new AutoCommitSpinner(otherLightsIntensitySpinnerModel);
+        JSpinner.NumberEditor otherLightsIntensityEditor = new JSpinner.NumberEditor(otherLightsIntensitySpinner, "0");
+        ((JSpinner.DefaultEditor)otherLightsIntensityEditor).getTextField().setColumns(4);
+        otherLightsIntensitySpinner.setEditor(otherLightsIntensityEditor);
+        otherLightsIntensitySpinnerModel.setValue(controller.getOtherLightsIntensity());
+        otherLightsIntensitySpinner.setVisible(nightRenderCheckbox.isSelected());
+        otherLightsIntensitySpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+                controller.setOtherLightsIntensity(((Number)otherLightsIntensitySpinnerModel.getValue()).intValue());
             }
         });
 
@@ -499,6 +524,19 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        renderImagesPanel = new JPanel(new GridBagLayout());
+        baseImagesPanel = new JPanel(new GridBagLayout());
+
+        generateFloorplanYamlCheckbox = new JCheckBox();
+        generateFloorplanYamlCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.generateFloorplanYaml.text"));
+        generateFloorplanYamlCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.generateFloorplanYaml.tooltip"));
+        generateFloorplanYamlCheckbox.setSelected(controller.getGenerateFloorplanYaml());
+        generateFloorplanYamlCheckbox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+                controller.setGenerateFloorplanYaml(generateFloorplanYamlCheckbox.isSelected());
+            }
+        });
+
         transparencyThresholdLabel = new JLabel();
         transparencyThresholdLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.transparencyThresholdLabel.text"));
         final SpinnerNumberModel transparencyThresholdSpinnerModel = new SpinnerNumberModel(30, 0, 255, 1);
@@ -525,18 +563,18 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
         outputDirectoryChooser = new FileContentManager(preferences);
 
-        progressBar = new JProgressBar() {
-            @Override
-            public String getString() {
-                return String.format("%d/%d", getValue(), getMaximum());
-            }
-        };
+        progressBar = new StatusProgressBar();
         progressBar.setStringPainted(true);
         progressBar.setMinimum(0);
         progressBar.setMaximum(controller.getNumberOfTotalRenders());
         controller.addPropertyChangeListener(Controller.Property.COMPLETED_RENDERS, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
                 progressBar.setValue(((Number)ev.getNewValue()).intValue());
+            }
+        });
+        controller.addPropertyChangeListener(Controller.Property.STATUS_TEXT, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                progressBar.setStatusText((String)ev.getNewValue());
             }
         });
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
@@ -559,12 +597,15 @@ public class Panel extends JPanel implements DialogView {
         otherEntitiesTree.setEnabled(enabled);
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
-        lightMixingModeComboBox.setEnabled(enabled);
+        renderCeilingLightsIntensitySpinner.setEnabled(enabled);
+        renderOtherLightsIntensitySpinner.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
         renderTimeSpinner.setEnabled(enabled);
         nightRenderCheckbox.setEnabled(enabled);
         nightRenderTimeSpinner.setEnabled(enabled);
+        ceilingLightsIntensitySpinner.setEnabled(enabled);
+        otherLightsIntensitySpinner.setEnabled(enabled);
         imageFormatComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
@@ -572,6 +613,7 @@ public class Panel extends JPanel implements DialogView {
         enableFloorPlanPostProcessingCheckbox.setEnabled(enabled);
         transparencyThresholdSpinner.setEnabled(enabled);
         maintainAspectRatioCheckbox.setEnabled(enabled);
+        generateFloorplanYamlCheckbox.setEnabled(enabled);
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
@@ -617,84 +659,111 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Resolution */
-        add(widthLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        JPanel generalSettingsPanel = new JPanel(new GridBagLayout());
+        generalSettingsPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.generalSettingsSection.title")));
+        add(generalSettingsPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+        int generalSettingsPanelGridYIndex = 0;
+
+        generalSettingsPanel.add(widthLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        widthLabel.setHorizontalAlignment(labelAlignment);
-        add(widthSpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        generalSettingsPanel.add(widthSpinner, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(heightLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        generalSettingsPanel.add(heightLabel, new GridBagConstraints(
+            2, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        heightLabel.setHorizontalAlignment(labelAlignment);
-        add(heightSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+        generalSettingsPanel.add(heightSpinner, new GridBagConstraints(
+            3, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(rendererLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(rendererComboBox, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(qualityLabel, new GridBagConstraints(
+            2, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(qualityComboBox, new GridBagConstraints(
+            3, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(renderTimeLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(renderTimeSpinner, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(nightRenderCheckbox, new GridBagConstraints(
+            2, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(nightRenderTimeSpinner, new GridBagConstraints(
+            3, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(imageFormatLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(imageFormatComboBox, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+        generalSettingsPanel.add(transparencyThresholdLabel, new GridBagConstraints(
+            0, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanel.add(transparencyThresholdSpinner, new GridBagConstraints(
+            1, generalSettingsPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        generalSettingsPanelGridYIndex++;
+
+
+        renderImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.renderImagesSection.title")));
+        add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Light mixing mode + render time */
-        add(lightMixingModeLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        int renderImagesPanelGridYIndex = 0;
+
+        renderImagesPanel.add(renderCeilingLightsIntensityLabel, new GridBagConstraints(
+            0, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(lightMixingModeComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        renderImagesPanel.add(renderCeilingLightsIntensitySpinner, new GridBagConstraints(
+            1, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        renderImagesPanel.add(renderOtherLightsIntensityLabel, new GridBagConstraints(
+            2, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(renderTimeSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        renderImagesPanel.add(renderOtherLightsIntensitySpinner, new GridBagConstraints(
+            3, renderImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        renderImagesPanelGridYIndex++;
+
+
+        baseImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.baseImagesSection.title")));
+        add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Renderer + Night render*/
-        add(rendererLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(rendererComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightRenderCheckbox, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightRenderTimeSpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
+        int baseImagesPanelGridYIndex = 0;
 
-        /* Night light intensity */
-        add(nightLightIntensityLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(ceilingLightsIntensityLabel, new GridBagConstraints(
+            0, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(nightLightIntensitySpinner, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(ceilingLightsIntensitySpinner, new GridBagConstraints(
+            1, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        /* Image format + Quality */
-        add(imageFormatLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(otherLightsIntensityLabel, new GridBagConstraints(
+            2, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(imageFormatComboBox, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+        baseImagesPanel.add(otherLightsIntensitySpinner, new GridBagConstraints(
+            3, baseImagesPanelGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityLabel, new GridBagConstraints(
-            2, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(qualityComboBox, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
-        add(transparencyThresholdLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(transparencyThresholdSpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
+        baseImagesPanelGridYIndex++;
 
         /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(
@@ -721,12 +790,23 @@ public class Panel extends JPanel implements DialogView {
         add(maintainAspectRatioCheckbox, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(generateFloorplanYamlCheckbox, new GridBagConstraints(
+            2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Progress bar */
         add(progressBar, new GridBagConstraints(
             0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+
+        updatePanelVisibility();
+    }
+
+    private void updatePanelVisibility() {
+        boolean nightRenderEnabled = nightRenderCheckbox.isSelected();
+        renderImagesPanel.setVisible(nightRenderEnabled);
+        baseImagesPanel.setVisible(nightRenderEnabled);
     }
 
     public void displayView(View parentView) {
