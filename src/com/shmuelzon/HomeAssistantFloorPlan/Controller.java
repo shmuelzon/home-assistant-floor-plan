@@ -49,7 +49,7 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
+    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, STATUS_TEXT}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
@@ -67,8 +67,9 @@ public class Controller {
     private static final String CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING = "enableFloorPlanPostProcessing";
     private static final String CONTROLLER_TRANSPARENCY_THRESHOLD = "transparencyThreshold";
     private static final String CONTROLLER_MAINTAIN_ASPECT_RATIO = "maintainAspectRatio";
-    private static final String CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY = "nightBaseCeilingLightsIntensity";
-    private static final String CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY = "nightBaseOtherLightsIntensity";
+    private static final String CONTROLLER_GENERATE_FLOORPLAN_YAML = "generateFloorplanYaml";
+    private static final String CONTROLLER_CEILING_LIGHTS_INTENSITY = "ceilingLightsIntensity";
+    private static final String CONTROLLER_OTHER_LIGHTS_INTENSITY = "otherLightsIntensity";
     private static final String CONTROLLER_RENDER_CEILING_LIGHTS_INTENSITY = "renderCeilingLightsIntensity";
     private static final String CONTROLLER_RENDER_OTHER_LIGHTS_INTENSITY = "renderOtherLightsIntensity";
 
@@ -97,8 +98,9 @@ public class Controller {
     private boolean enableFloorPlanPostProcessing;
     private int transparencyThreshold;
     private boolean maintainAspectRatio;
-    private int nightBaseCeilingLightsIntensity;
-    private int nightBaseOtherLightsIntensity;
+    private boolean generateFloorplanYaml;
+    private int ceilingLightsIntensity;
+    private int otherLightsIntensity;
     private int renderCeilingLightsIntensity;
     private int renderOtherLightsIntensity;
     private Rectangle cropArea = null;
@@ -130,8 +132,10 @@ public class Controller {
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
         enableFloorPlanPostProcessing = settings.getBoolean(CONTROLLER_ENABLE_FLOOR_PLAN_POST_PROCESSING, true);
         transparencyThreshold = settings.getInteger(CONTROLLER_TRANSPARENCY_THRESHOLD, 30);
-        nightBaseCeilingLightsIntensity = settings.getInteger(CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY, 8);
-        nightBaseOtherLightsIntensity = settings.getInteger(CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY, 3);
+        maintainAspectRatio = settings.getBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, true);
+        generateFloorplanYaml = settings.getBoolean(CONTROLLER_GENERATE_FLOORPLAN_YAML, false);
+        ceilingLightsIntensity = settings.getInteger(CONTROLLER_CEILING_LIGHTS_INTENSITY, 8);
+        otherLightsIntensity = settings.getInteger(CONTROLLER_OTHER_LIGHTS_INTENSITY, 3);
         renderCeilingLightsIntensity = settings.getInteger(CONTROLLER_RENDER_CEILING_LIGHTS_INTENSITY, 20);
         renderOtherLightsIntensity = settings.getInteger(CONTROLLER_RENDER_OTHER_LIGHTS_INTENSITY, 10);
     }
@@ -185,6 +189,10 @@ public class Controller {
 
         // Count night base image
         if (renderDateTimes.size() > 1) {
+            totalRenders++;
+        }
+
+        if (generateFloorplanYaml) {
             totalRenders++;
         }
 
@@ -258,6 +266,15 @@ public class Controller {
         settings.setBoolean(CONTROLLER_MAINTAIN_ASPECT_RATIO, maintainAspectRatio);
     }
 
+    public boolean getGenerateFloorplanYaml() {
+        return generateFloorplanYaml;
+    }
+
+    public void setGenerateFloorplanYaml(boolean generateFloorplanYaml) {
+        this.generateFloorplanYaml = generateFloorplanYaml;
+        settings.setBoolean(CONTROLLER_GENERATE_FLOORPLAN_YAML, generateFloorplanYaml);
+    }
+
     public Renderer getRenderer() {
         return renderer;
     }
@@ -295,22 +312,22 @@ public class Controller {
         buildScenes();
     }
 
-    public int getNightBaseCeilingLightsIntensity() {
-        return nightBaseCeilingLightsIntensity;
+    public int getCeilingLightsIntensity() {
+        return ceilingLightsIntensity;
     }
 
-    public void setNightBaseCeilingLightsIntensity(int nightBaseCeilingLightsIntensity) {
-        this.nightBaseCeilingLightsIntensity = nightBaseCeilingLightsIntensity;
-        settings.setInteger(CONTROLLER_NIGHT_BASE_CEILING_LIGHTS_INTENSITY, nightBaseCeilingLightsIntensity);
+    public void setCeilingLightsIntensity(int ceilingLightsIntensity) {
+        this.ceilingLightsIntensity = ceilingLightsIntensity;
+        settings.setInteger(CONTROLLER_CEILING_LIGHTS_INTENSITY, ceilingLightsIntensity);
     }
 
-    public int getNightBaseOtherLightsIntensity() {
-        return nightBaseOtherLightsIntensity;
+    public int getOtherLightsIntensity() {
+        return otherLightsIntensity;
     }
 
-    public void setNightBaseOtherLightsIntensity(int nightBaseOtherLightsIntensity) {
-        this.nightBaseOtherLightsIntensity = nightBaseOtherLightsIntensity;
-        settings.setInteger(CONTROLLER_NIGHT_BASE_OTHER_LIGHTS_INTENSITY, nightBaseOtherLightsIntensity);
+    public void setOtherLightsIntensity(int otherLightsIntensity) {
+        this.otherLightsIntensity = otherLightsIntensity;
+        settings.setInteger(CONTROLLER_OTHER_LIGHTS_INTENSITY, otherLightsIntensity);
     }
 
     public int getRenderCeilingLightsIntensity() {
@@ -344,6 +361,7 @@ public class Controller {
 
     public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
+        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Starting render...");
         numberOfCompletedRenders = 0;
         cropArea = null;
         int originalSkyColor = home.getEnvironment().getSkyColor();
@@ -390,9 +408,12 @@ public class Controller {
             turnOffLightsFromOtherLevels();
 
             camera.setTime(renderDateTimes.get(0));
+            propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering base_day.png...");
             BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
             processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
-            yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
+            if (generateFloorplanYaml) {
+                yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
+            }
 
             for (String group : lightsGroups.keySet()) {
                 yaml += generateGroupRenders(group, rawDayBaseImage, stencilMask);
@@ -400,13 +421,20 @@ public class Controller {
 
             if (renderDateTimes.size() > 1) {
                 camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
+                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering base_night.png...");
                 BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
                 nightBaseImage = processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
-                yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
+                if (generateFloorplanYaml) {
+                    yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
+                }
             }
 
-            yaml += generateEntitiesYaml();
-            Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+            if (generateFloorplanYaml) {
+                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Generating floorplan.yaml...");
+                yaml += generateEntitiesYaml();
+                Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
+                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            }
         } catch (InterruptedIOException e) {
             throw new InterruptedException();
         } catch (ClosedByInterruptException e) {
@@ -716,6 +744,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         for (List<Entity> onLights : lightCombinations) {
             String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
 
+            propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + imageName + "...");
             BufferedImage image = generateImage(onLights, imageName);
             saveRawRender(image, imageName);
 
@@ -803,8 +832,8 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
                                 HomeLight homeLight = (HomeLight) piece;
                                 originalPowers.put(homeLight, homeLight.getPower());
                                 float intensity = light.getName().toLowerCase().contains("deckenlampe")
-                                    ? nightBaseCeilingLightsIntensity
-                                    : nightBaseOtherLightsIntensity;
+                                ? ceilingLightsIntensity
+                                : otherLightsIntensity;
                                 homeLight.setPower(intensity / 100.0f);
                             }
                         }
