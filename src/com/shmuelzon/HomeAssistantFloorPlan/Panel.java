@@ -126,6 +126,8 @@ public class Panel extends JPanel implements DialogView {
     private JButton closeButton;
     private JPanel renderImagesPanel;
     private JPanel baseImagesPanel;
+    private JLabel previewLabel;
+    private JScrollPane previewScrollPane;
 
     private class EntityNode {
         public Entity entity;
@@ -184,6 +186,8 @@ public class Panel extends JPanel implements DialogView {
                 renderExecutor = Executors.newSingleThreadExecutor();
                 renderExecutor.execute(new Runnable() {
                     public void run() {
+                        previewLabel.setIcon(null);
+                        previewLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.previewLabel.text"));
                         setComponentsEnabled(false);
                         try {
                             controller.render();
@@ -582,11 +586,22 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        controller.addPropertyChangeListener(Controller.Property.PREVIEW_UPDATE, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                previewLabel.setIcon(new javax.swing.ImageIcon((java.awt.image.BufferedImage)ev.getNewValue()));
+                previewLabel.setText(null);
+            }
+        });
+
         startButton = new JButton(actionMap.get(ActionType.START));
         startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
         startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
+
+        previewLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.previewLabel.text"));
+        previewScrollPane = new JScrollPane(previewLabel);
+        previewScrollPane.setPreferredSize(new Dimension(550, 350));
     }
 
     private void setComponentsEnabled(boolean enabled) {
@@ -654,11 +669,14 @@ public class Panel extends JPanel implements DialogView {
         add(otherEntitiesScrollPane, new GridBagConstraints(
             2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(previewScrollPane, new GridBagConstraints(
+            4, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         JPanel generalSettingsPanel = new JPanel(new GridBagLayout());
         generalSettingsPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.generalSettingsSection.title")));
-        add(generalSettingsPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(generalSettingsPanel, new GridBagConstraints(0, currentGridYIndex, 6, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
         int generalSettingsPanelGridYIndex = 0;
 
@@ -722,7 +740,7 @@ public class Panel extends JPanel implements DialogView {
 
 
         renderImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.renderImagesSection.title")));
-        add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 6, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         int renderImagesPanelGridYIndex = 0;
@@ -743,7 +761,7 @@ public class Panel extends JPanel implements DialogView {
 
 
         baseImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.baseImagesSection.title")));
-        add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 6, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         int baseImagesPanelGridYIndex = 0;
@@ -794,7 +812,7 @@ public class Panel extends JPanel implements DialogView {
 
         /* Progress bar */
         add(progressBar, new GridBagConstraints(
-            0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
+            0, currentGridYIndex, 6, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         updatePanelVisibility();

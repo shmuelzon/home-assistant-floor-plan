@@ -67,7 +67,7 @@ public class Controller {
         }
     }
 
-    public enum Property {PROGRESS_UPDATE, NUMBER_OF_RENDERS}
+    public enum Property {PROGRESS_UPDATE, NUMBER_OF_RENDERS, PREVIEW_UPDATE}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
@@ -864,7 +864,20 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
-        photoRenderer.render(image, camera, null);
+        photoRenderer.render(image, camera, new AbstractPhotoRenderer.Listener() {
+            @Override
+            public void photoRenderingInterrupted() {
+            }
+
+            @Override
+            public void photoRenderingFinished(BufferedImage bufferedImage) {
+            }
+
+            @Override
+            public void photoRenderingEnlarged(BufferedImage bufferedImage) {
+                propertyChangeSupport.firePropertyChange(Property.PREVIEW_UPDATE.name(), null, bufferedImage);
+            }
+        });
         if (photoRenderer != null) {
             photoRenderer.dispose();
             photoRenderer = null;
