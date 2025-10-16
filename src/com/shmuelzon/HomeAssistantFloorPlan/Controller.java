@@ -408,9 +408,19 @@ public class Controller {
             turnOffLightsFromOtherLevels();
 
             camera.setTime(renderDateTimes.get(0));
-            propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering base_day.png...");
-            BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
-            processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
+
+            File baseDayFile = new File(outputFloorplanDirectoryName + File.separator + "base_day.png");
+            File rawBaseDayFile = new File(outputRendersDirectoryName + File.separator + "base_day.png");
+            BufferedImage rawDayBaseImage;
+            if (useExistingRenders && baseDayFile.exists() && rawBaseDayFile.exists()) {
+                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Skipping existing base_day.png...");
+                rawDayBaseImage = ImageIO.read(rawBaseDayFile);
+                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            } else {
+                rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
+                processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
+            }
+
             if (generateFloorplanYaml) {
                 yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
             }
@@ -421,9 +431,16 @@ public class Controller {
 
             if (renderDateTimes.size() > 1) {
                 camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
-                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering base_night.png...");
-                BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
-                nightBaseImage = processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
+
+                File baseNightFile = new File(outputFloorplanDirectoryName + File.separator + "base_night.png");
+                if (useExistingRenders && baseNightFile.exists()) {
+                    propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Skipping existing base_night.png...");
+                    propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+                } else {
+                    BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
+                    processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
+                }
+
                 if (generateFloorplanYaml) {
                     yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
                 }
@@ -744,23 +761,31 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         for (List<Entity> onLights : lightCombinations) {
             String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
 
-            propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + imageName + "...");
-            BufferedImage image = generateImage(onLights, imageName);
-            saveRawRender(image, imageName);
+            File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + imageName + ".png");
+            if (useExistingRenders && floorPlanFile.exists()) {
+                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Skipping existing " + imageName + "...");
+                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            } else {
+                BufferedImage image = generateImage(onLights, imageName);
+                saveRawRender(image, imageName);
+
+                Entity firstLight = onLights.get(0);
+                boolean createOverlayImage = firstLight.getIsRgb();
+                BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
+
+                // Apply stamp and transparency processing
+                floorPlanImage = processAndSaveFinalImage(floorPlanImage, stencilMask, imageName);
+
+                if (firstLight.getIsRgb()) {
+                    generateRedTintedImage(floorPlanImage, imageName);
+                }
+            }
 
             Entity firstLight = onLights.get(0);
-            boolean createOverlayImage = firstLight.getIsRgb();
-            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
-
-            // Apply stamp and transparency processing
-            floorPlanImage = processAndSaveFinalImage(floorPlanImage, stencilMask, imageName);
-
             if (firstLight.getIsRgb()) {
-                generateRedTintedImage(floorPlanImage, imageName);
                 Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                 yaml += generateRgbLightYaml(nightScene, firstLight, imageName);
-            }
-            else {
+            } else {
                 Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                 yaml += generateLightYaml(nightScene, groupLights, onLights, imageName);
             }
@@ -776,12 +801,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     }
 
     private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
-        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
-
-        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
-        }
+        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + name + "...");
         prepareScene(onLights);
 
         Map<HomeLight, Float> originalPowers = new HashMap<>();
@@ -812,13 +832,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     }
 
     private BufferedImage generateNightBaseImageWithConfigurableLights(String name) throws IOException, InterruptedException {
-        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
-
-        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
-        }
-
+        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + name + "...");
         Map<HomeLight, Float> originalPowers = new HashMap<>();
         try {
             Stream.concat(lightEntities.stream(), otherEntities.stream())
