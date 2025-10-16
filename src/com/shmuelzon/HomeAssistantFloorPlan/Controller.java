@@ -49,7 +49,25 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, STATUS_TEXT}
+    public class ProgressUpdate {
+        private int completed;
+        private String statusText;
+
+        public ProgressUpdate(int completed, String statusText) {
+            this.completed = completed;
+            this.statusText = statusText;
+        }
+
+        public int getCompleted() {
+            return completed;
+        }
+
+        public String getStatusText() {
+            return statusText;
+        }
+    }
+
+    public enum Property {PROGRESS_UPDATE, NUMBER_OF_RENDERS}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
@@ -360,9 +378,8 @@ public class Controller {
     }
 
     public void render() throws IOException, InterruptedException {
-        propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
-        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Starting render...");
         numberOfCompletedRenders = 0;
+        propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Starting render..."));
         cropArea = null;
         int originalSkyColor = home.getEnvironment().getSkyColor();
         int originalGroundColor = home.getEnvironment().getGroundColor();
@@ -375,20 +392,18 @@ public class Controller {
             if (enableFloorPlanPostProcessing) {
                 File stampFile = new File(outputFloorplanDirectoryName + File.separator + "stamp.png");
                 if (useExistingRenders && stampFile.exists()) {
-                    // Load existing stamp and calculate crop area
+                    propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Skipping stamp generation..."));
                     stencilMask = ImageIO.read(stampFile);
                     this.cropArea = findCropAreaFromStamp(stencilMask);
                     updateEntityPositionsForCrop();
-                    // Also need to increment progress bar here, since we are skipping a render
-                    propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-
                 } else {
-                    // Original logic to generate stamp
+                    propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Generating stamp..."));
                     home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                     home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
 
                     camera.setTime(renderDateTimes.get(0));
-                    BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
+                    BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base", false);
+                    propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Generating stamp..."));
 
                     stencilMask = createFloorplanStamp(tempBaseImage);
                     this.cropArea = findCropAreaFromStamp(stencilMask);
@@ -408,19 +423,8 @@ public class Controller {
             turnOffLightsFromOtherLevels();
 
             camera.setTime(renderDateTimes.get(0));
-
-            File baseDayFile = new File(outputFloorplanDirectoryName + File.separator + "base_day.png");
-            File rawBaseDayFile = new File(outputRendersDirectoryName + File.separator + "base_day.png");
-            BufferedImage rawDayBaseImage;
-            if (useExistingRenders && baseDayFile.exists() && rawBaseDayFile.exists()) {
-                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Skipping existing base_day.png...");
-                rawDayBaseImage = ImageIO.read(rawBaseDayFile);
-                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            } else {
-                rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
-                processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
-            }
-
+            BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
+            processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
             if (generateFloorplanYaml) {
                 yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
             }
@@ -431,26 +435,17 @@ public class Controller {
 
             if (renderDateTimes.size() > 1) {
                 camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
-
-                File baseNightFile = new File(outputFloorplanDirectoryName + File.separator + "base_night.png");
-                if (useExistingRenders && baseNightFile.exists()) {
-                    propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Skipping existing base_night.png...");
-                    propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-                } else {
-                    BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
-                    processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
-                }
-
+                BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
+                processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
                 if (generateFloorplanYaml) {
                     yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
                 }
             }
 
             if (generateFloorplanYaml) {
-                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Generating floorplan.yaml...");
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Generating floorplan.yaml..."));
                 yaml += generateEntitiesYaml();
                 Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
-                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             }
         } catch (InterruptedIOException e) {
             throw new InterruptedException();
@@ -762,10 +757,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
 
             File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + imageName + ".png");
-            if (useExistingRenders && floorPlanFile.exists()) {
-                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Skipping existing " + imageName + "...");
-                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            } else {
+            if (!useExistingRenders || !floorPlanFile.exists()) {
                 BufferedImage image = generateImage(onLights, imageName);
                 saveRawRender(image, imageName);
 
@@ -779,13 +771,16 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
                 if (firstLight.getIsRgb()) {
                     generateRedTintedImage(floorPlanImage, imageName);
                 }
+            } else {
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Skipping " + imageName + "..."));
             }
 
             Entity firstLight = onLights.get(0);
             if (firstLight.getIsRgb()) {
                 Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                 yaml += generateRgbLightYaml(nightScene, firstLight, imageName);
-            } else {
+            }
+            else {
                 Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                 yaml += generateLightYaml(nightScene, groupLights, onLights, imageName);
             }
@@ -801,7 +796,23 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     }
 
     private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
-        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + name + "...");
+        return generateImage(onLights, name, true);
+    }
+
+    private BufferedImage generateImage(List<Entity> onLights, String name, boolean updateProgress) throws IOException, InterruptedException {
+        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
+
+        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
+            if (updateProgress) {
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Skipping " + name + "..."));
+            }
+            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
+        }
+
+        if (updateProgress) {
+            propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Rendering " + name + "..."));
+        }
+
         prepareScene(onLights);
 
         Map<HomeLight, Float> originalPowers = new HashMap<>();
@@ -822,7 +833,9 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             }
 
             BufferedImage image = renderScene();
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            if (updateProgress) {
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Rendering " + name + "..."));
+            }
             return image;
         } finally {
             for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
@@ -832,7 +845,15 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
     }
 
     private BufferedImage generateNightBaseImageWithConfigurableLights(String name) throws IOException, InterruptedException {
-        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + name + "...");
+        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
+
+        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
+            propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Skipping " + name + "..."));
+            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
+        }
+
+        propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Rendering " + name + "..."));
+
         Map<HomeLight, Float> originalPowers = new HashMap<>();
         try {
             Stream.concat(lightEntities.stream(), otherEntities.stream())
@@ -855,7 +876,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
                 });
 
             BufferedImage image = renderScene();
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
+            propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Rendering " + name + "..."));
             return image;
         } finally {
             for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {

@@ -567,14 +567,11 @@ public class Panel extends JPanel implements DialogView {
         progressBar.setStringPainted(true);
         progressBar.setMinimum(0);
         progressBar.setMaximum(controller.getNumberOfTotalRenders());
-        controller.addPropertyChangeListener(Controller.Property.COMPLETED_RENDERS, new PropertyChangeListener() {
+        controller.addPropertyChangeListener(Controller.Property.PROGRESS_UPDATE, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
-                progressBar.setValue(((Number)ev.getNewValue()).intValue());
-            }
-        });
-        controller.addPropertyChangeListener(Controller.Property.STATUS_TEXT, new PropertyChangeListener() {
-            public void propertyChange(PropertyChangeEvent ev) {
-                progressBar.setStatusText((String)ev.getNewValue());
+                Controller.ProgressUpdate update = (Controller.ProgressUpdate)ev.getNewValue();
+                progressBar.setValue(update.getCompleted());
+                progressBar.setStatusText(update.getStatusText());
             }
         });
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
