@@ -762,7 +762,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
 
     private BufferedImage processAndSaveFinalImage(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
         BufferedImage processedImage = image;
-        
+
         if (enableFloorPlanPostProcessing) {
             if (cropArea != null) {
                 AutoCrop cropper = new AutoCrop();
@@ -779,6 +779,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         }
         
         saveFloorPlanImage(processedImage, imageName, "png");
+        propertyChangeSupport.firePropertyChange(Property.PREVIEW_UPDATE.name(), null, processedImage);
         return processedImage;
     }
 
@@ -864,20 +865,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
-        photoRenderer.render(image, camera, new AbstractPhotoRenderer.Listener() {
-            @Override
-            public void photoRenderingInterrupted() {
-            }
-
-            @Override
-            public void photoRenderingFinished(BufferedImage bufferedImage) {
-            }
-
-            @Override
-            public void photoRenderingEnlarged(BufferedImage bufferedImage) {
-                propertyChangeSupport.firePropertyChange(Property.PREVIEW_UPDATE.name(), null, bufferedImage);
-            }
-        });
+        photoRenderer.render(image, camera, null);
         if (photoRenderer != null) {
             photoRenderer.dispose();
             photoRenderer = null;
