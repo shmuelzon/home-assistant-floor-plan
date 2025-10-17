@@ -434,7 +434,7 @@ public class Controller {
 
                     Entity firstLight = onLights.get(0);
                     if (firstLight.getIsRgb()) {
-                        generateRedTintedImage(lightImage, imageName);
+                        generateRedTintedImage(lightImage, imageName, stencilMask);
                         Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
                         yaml += generateRgbLightYaml(nightScene, firstLight, imageName);
                     } else {
@@ -760,7 +760,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         ImageIO.write(image, "png", imageFile);
     }
 
-    private BufferedImage processAndSaveFinalImage(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
+    private BufferedImage postProcessImage(BufferedImage image, BufferedImage stencilMask) {
         BufferedImage processedImage = image;
 
         if (enableFloorPlanPostProcessing) {
@@ -778,6 +778,12 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             processedImage = removeGreenBackground(processedImage);
         }
         
+        return processedImage;
+    }
+
+    private BufferedImage processAndSaveFinalImage(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
+        BufferedImage processedImage = postProcessImage(image, stencilMask);
+
         saveFloorPlanImage(processedImage, imageName, "png");
         propertyChangeSupport.firePropertyChange(Property.PREVIEW_UPDATE.name(), null, processedImage);
         return processedImage;
@@ -895,8 +901,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         ImageIO.write(image, extension, floorPlanFile);
     }
 
-    private BufferedImage generateRedTintedImage(BufferedImage image, String imageName) throws IOException {
-        File redTintedFile = new File(outputFloorplanDirectoryName + File.separator + imageName + ".red.png");
+    private BufferedImage generateRedTintedImage(BufferedImage image, String imageName, BufferedImage stencilMask) throws IOException {
         BufferedImage tintedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
         for(int x = 0; x < image.getWidth(); x++) {
@@ -911,8 +916,9 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
             }
         }
 
-        ImageIO.write(tintedImage, "png", redTintedFile);
-        return tintedImage;
+        BufferedImage processedTintedImage = postProcessImage(tintedImage, stencilMask);
+        saveFloorPlanImage(processedTintedImage, imageName + ".red", "png");
+        return processedTintedImage;
     }
 
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
