@@ -49,7 +49,25 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, STATUS_TEXT}
+    public class ProgressUpdate {
+        private int completed;
+        private String statusText;
+
+        public ProgressUpdate(int completed, String statusText) {
+            this.completed = completed;
+            this.statusText = statusText;
+        }
+
+        public int getCompleted() {
+            return completed;
+        }
+
+        public String getStatusText() {
+            return statusText;
+        }
+    }
+
+    public enum Property {PROGRESS_UPDATE, NUMBER_OF_RENDERS, PREVIEW_UPDATE}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
@@ -360,9 +378,8 @@ public class Controller {
     }
 
     public void render() throws IOException, InterruptedException {
-        propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
-        propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Starting render...");
         numberOfCompletedRenders = 0;
+        propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Starting render..."));
         cropArea = null;
         int originalSkyColor = home.getEnvironment().getSkyColor();
         int originalGroundColor = home.getEnvironment().getGroundColor();
@@ -373,30 +390,22 @@ public class Controller {
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
             if (enableFloorPlanPostProcessing) {
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Generating stamp..."));
                 File stampFile = new File(outputFloorplanDirectoryName + File.separator + "stamp.png");
                 if (useExistingRenders && stampFile.exists()) {
-                    // Load existing stamp and calculate crop area
                     stencilMask = ImageIO.read(stampFile);
-                    this.cropArea = findCropAreaFromStamp(stencilMask);
-                    updateEntityPositionsForCrop();
-                    // Also need to increment progress bar here, since we are skipping a render
-                    propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-
                 } else {
-                    // Original logic to generate stamp
                     home.getEnvironment().setSkyColor(AutoCrop.CROP_COLOR.getRGB());
                     home.getEnvironment().setGroundColor(AutoCrop.CROP_COLOR.getRGB());
-
                     camera.setTime(renderDateTimes.get(0));
-                    BufferedImage tempBaseImage = generateImage(new ArrayList<>(), "temp_base");
-
+                    BufferedImage tempBaseImage = renderScene();
                     stencilMask = createFloorplanStamp(tempBaseImage);
-                    this.cropArea = findCropAreaFromStamp(stencilMask);
-                    updateEntityPositionsForCrop();
-
                     home.getEnvironment().setSkyColor(originalSkyColor);
                     home.getEnvironment().setGroundColor(originalGroundColor);
                 }
+                this.cropArea = findCropAreaFromStamp(stencilMask);
+                updateEntityPositionsForCrop();
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Stamp processed."));
             }
 
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
@@ -408,36 +417,47 @@ public class Controller {
             turnOffLightsFromOtherLevels();
 
             camera.setTime(renderDateTimes.get(0));
-            propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering base_day.png...");
-            BufferedImage rawDayBaseImage = generateImage(new ArrayList<>(), "base_day");
-            processAndSaveFinalImage(rawDayBaseImage, stencilMask, "base_day");
+            BufferedImage rawDayBaseImage = processImage("base_day", new ArrayList<>(), null, stencilMask);
             if (generateFloorplanYaml) {
                 yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(0), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_day", false);
             }
 
             for (String group : lightsGroups.keySet()) {
-                yaml += generateGroupRenders(group, rawDayBaseImage, stencilMask);
+                List<Entity> groupLights = lightsGroups.get(group);
+                long renderTime = renderDateTimes.get(renderDateTimes.size() - 1);
+                camera.setTime(renderTime);
+
+                List<List<Entity>> lightCombinations = getCombinations(groupLights);
+                for (List<Entity> onLights : lightCombinations) {
+                    String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
+                    BufferedImage lightImage = processImage(imageName, onLights, rawDayBaseImage, stencilMask);
+
+                    Entity firstLight = onLights.get(0);
+                    if (firstLight.getIsRgb()) {
+                        generateRedTintedImage(lightImage, imageName);
+                        Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                        yaml += generateRgbLightYaml(nightScene, firstLight, imageName);
+                    } else {
+                        Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                        yaml += generateLightYaml(nightScene, groupLights, onLights, imageName);
+                    }
+                }
             }
 
             if (renderDateTimes.size() > 1) {
                 camera.setTime(renderDateTimes.get(renderDateTimes.size() - 1));
-                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering base_night.png...");
-                BufferedImage nightBaseImage = generateNightBaseImageWithConfigurableLights("base_night");
-                nightBaseImage = processAndSaveFinalImage(nightBaseImage, stencilMask, "base_night");
+                processImage("base_night", null, null, stencilMask);
                 if (generateFloorplanYaml) {
                     yaml += generateLightYaml(new Scene(camera, renderDateTimes, renderDateTimes.get(renderDateTimes.size() - 1), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>()), Collections.emptyList(), null, "base_night", false);
                 }
             }
 
             if (generateFloorplanYaml) {
-                propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Generating floorplan.yaml...");
+                propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Generating floorplan.yaml..."));
                 yaml += generateEntitiesYaml();
                 Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
-                propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             }
-        } catch (InterruptedIOException e) {
-            throw new InterruptedException();
-        } catch (ClosedByInterruptException e) {
+        } catch (InterruptedIOException | ClosedByInterruptException e) {
             throw new InterruptedException();
         } catch (IOException e) {
             throw e;
@@ -733,41 +753,6 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         return this.imageFormat.name().toLowerCase();
     }
 
-    private String generateGroupRenders(String group, BufferedImage baseImage, BufferedImage stencilMask) throws IOException, InterruptedException {
-        List<Entity> groupLights = lightsGroups.get(group);
-
-        long renderTime = renderDateTimes.get(renderDateTimes.size() - 1);
-        camera.setTime(renderTime);
-
-        List<List<Entity>> lightCombinations = getCombinations(groupLights);
-        String yaml = "";
-        for (List<Entity> onLights : lightCombinations) {
-            String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
-
-            propertyChangeSupport.firePropertyChange(Property.STATUS_TEXT.name(), null, "Rendering " + imageName + "...");
-            BufferedImage image = generateImage(onLights, imageName);
-            saveRawRender(image, imageName);
-
-            Entity firstLight = onLights.get(0);
-            boolean createOverlayImage = firstLight.getIsRgb();
-            BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, createOverlayImage);
-
-            // Apply stamp and transparency processing
-            floorPlanImage = processAndSaveFinalImage(floorPlanImage, stencilMask, imageName);
-
-            if (firstLight.getIsRgb()) {
-                generateRedTintedImage(floorPlanImage, imageName);
-                Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-                yaml += generateRgbLightYaml(nightScene, firstLight, imageName);
-            }
-            else {
-                Scene nightScene = new Scene(camera, renderDateTimes, renderTime, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-                yaml += generateLightYaml(nightScene, groupLights, onLights, imageName);
-            }
-        }
-        return yaml;
-    }
-
     private void generateTransparentImage(String fileName) throws IOException {
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, 0);
@@ -775,84 +760,9 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         ImageIO.write(image, "png", imageFile);
     }
 
-    private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
-        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
-
-        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
-        }
-        prepareScene(onLights);
-
-        Map<HomeLight, Float> originalPowers = new HashMap<>();
-        try {
-            for (Entity light : onLights) {
-                if (!light.getAlwaysOn()) {
-                    for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
-                        if (piece instanceof HomeLight) {
-                            HomeLight homeLight = (HomeLight) piece;
-                            originalPowers.put(homeLight, homeLight.getPower());
-                            float intensity = light.getName().toLowerCase().contains("deckenlampe")
-                                    ? renderCeilingLightsIntensity
-                                    : renderOtherLightsIntensity;
-                            homeLight.setPower(intensity / 100.0f);
-                        }
-                    }
-                }
-            }
-
-            BufferedImage image = renderScene();
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return image;
-        } finally {
-            for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
-                entry.getKey().setPower(entry.getValue());
-            }
-        }
-    }
-
-    private BufferedImage generateNightBaseImageWithConfigurableLights(String name) throws IOException, InterruptedException {
-        String fileName = outputRendersDirectoryName + File.separator + name + ".png";
-
-        if (useExistingRenders && Files.exists(Paths.get(fileName))) {
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
-        }
-
-        Map<HomeLight, Float> originalPowers = new HashMap<>();
-        try {
-            Stream.concat(lightEntities.stream(), otherEntities.stream())
-                .filter(entity -> entity.getName().startsWith("light."))
-                .forEach(light -> {
-                    if (!light.getAlwaysOn()) {
-                        light.setLightPower(true);
-
-                        for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
-                            if (piece instanceof HomeLight) {
-                                HomeLight homeLight = (HomeLight) piece;
-                                originalPowers.put(homeLight, homeLight.getPower());
-                                float intensity = light.getName().toLowerCase().contains("deckenlampe")
-                                ? ceilingLightsIntensity
-                                : otherLightsIntensity;
-                                homeLight.setPower(intensity / 100.0f);
-                            }
-                        }
-                    }
-                });
-
-            BufferedImage image = renderScene();
-            propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return image;
-        } finally {
-            for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
-                entry.getKey().setPower(entry.getValue());
-            }
-        }
-    }
-
     private BufferedImage processAndSaveFinalImage(BufferedImage image, BufferedImage stencilMask, String imageName) throws IOException {
         BufferedImage processedImage = image;
-        
+
         if (enableFloorPlanPostProcessing) {
             if (cropArea != null) {
                 AutoCrop cropper = new AutoCrop();
@@ -869,6 +779,7 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         }
         
         saveFloorPlanImage(processedImage, imageName, "png");
+        propertyChangeSupport.firePropertyChange(Property.PREVIEW_UPDATE.name(), null, processedImage);
         return processedImage;
     }
 
@@ -1292,6 +1203,74 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
                 break;
             for (Set<Entity> set : intersectingStateIcons)
                 separateStateIcons(set);
+        }
+    }
+
+    private BufferedImage processImage(String imageName, List<Entity> onLights, BufferedImage baseImage, BufferedImage stencilMask) throws IOException, InterruptedException {
+        File finalImageFile = new File(outputFloorplanDirectoryName + File.separator + imageName + "." + getFloorplanImageExtention());
+        File rawRenderFile = new File(outputRendersDirectoryName + File.separator + imageName + ".png");
+
+        if (useExistingRenders && finalImageFile.exists()) {
+            propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Skipping " + imageName + "..."));
+            if (rawRenderFile.exists()) {
+                return ImageIO.read(rawRenderFile);
+            }
+            return ImageIO.read(finalImageFile);
+        }
+
+        propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(numberOfCompletedRenders, "Rendering " + imageName + "..."));
+
+        BufferedImage rawImage;
+        if (onLights == null) { // Special case for base_night
+             rawImage = generateNightBaseImage();
+        } else {
+            prepareScene(onLights);
+            rawImage = renderScene();
+        }
+
+        saveRawRender(rawImage, imageName);
+
+        BufferedImage processedImage;
+        if (baseImage != null) {
+            boolean isRgb = onLights.stream().anyMatch(Entity::getIsRgb);
+            processedImage = generateFloorPlanImage(baseImage, rawImage, isRgb);
+        } else {
+            processedImage = rawImage;
+        }
+
+        processAndSaveFinalImage(processedImage, stencilMask, imageName);
+
+        propertyChangeSupport.firePropertyChange(Property.PROGRESS_UPDATE.name(), null, new ProgressUpdate(++numberOfCompletedRenders, "Finished " + imageName + "."));
+
+        return rawImage;
+    }
+
+    private BufferedImage generateNightBaseImage() throws IOException, InterruptedException {
+        Map<HomeLight, Float> originalPowers = new HashMap<>();
+        try {
+            Stream.concat(lightEntities.stream(), otherEntities.stream())
+                .filter(entity -> entity.getName().startsWith("light."))
+                .forEach(light -> {
+                    if (!light.getAlwaysOn()) {
+                        light.setLightPower(true);
+
+                        for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
+                            if (piece instanceof HomeLight) {
+                                HomeLight homeLight = (HomeLight) piece;
+                                originalPowers.put(homeLight, homeLight.getPower());
+                                float intensity = light.getName().toLowerCase().contains("deckenlampe")
+                                ? ceilingLightsIntensity
+                                : otherLightsIntensity;
+                                homeLight.setPower(intensity / 100.0f);
+                            }
+                        }
+                    }
+                });
+            return renderScene();
+        } finally {
+            for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
+                entry.getKey().setPower(entry.getValue());
+            }
         }
     }
 };

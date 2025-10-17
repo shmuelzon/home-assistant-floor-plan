@@ -126,6 +126,9 @@ public class Panel extends JPanel implements DialogView {
     private JButton closeButton;
     private JPanel renderImagesPanel;
     private JPanel baseImagesPanel;
+    private JLabel previewLabel;
+    private JScrollPane previewScrollPane;
+    private JPanel mainPanel;
 
     private class EntityNode {
         public Entity entity;
@@ -160,9 +163,10 @@ public class Panel extends JPanel implements DialogView {
     }
 
     public Panel(UserPreferences preferences, ClassLoader classLoader, Controller controller) {
-        super(new GridBagLayout());
+        super(new java.awt.BorderLayout());
         this.preferences = preferences;
         this.controller = controller;
+        mainPanel = new JPanel(new GridBagLayout());
 
         resource = ResourceBundle.getBundle("com.shmuelzon.HomeAssistantFloorPlan.ApplicationPlugin", Locale.getDefault(), classLoader);
         createActions();
@@ -184,6 +188,8 @@ public class Panel extends JPanel implements DialogView {
                 renderExecutor = Executors.newSingleThreadExecutor();
                 renderExecutor.execute(new Runnable() {
                     public void run() {
+                        previewLabel.setIcon(null);
+                        previewLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.previewLabel.text"));
                         setComponentsEnabled(false);
                         try {
                             controller.render();
@@ -194,6 +200,8 @@ public class Panel extends JPanel implements DialogView {
                         }
                         EventQueue.invokeLater(new Runnable() {
                             public void run() {
+                                previewLabel.setIcon(null);
+                                previewLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.previewLabel.text"));
                                 setComponentsEnabled(true);
                                 renderExecutor = null;
                             }
@@ -340,6 +348,7 @@ public class Panel extends JPanel implements DialogView {
         widthSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
                 controller.setRenderWidth(((Number)widthSpinnerModel.getValue()).intValue());
+                updatePreviewAspectRatio();
             }
         });
 
@@ -351,6 +360,7 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
               controller.setRenderHeight(((Number)heightSpinnerModel.getValue()).intValue());
+              updatePreviewAspectRatio();
             }
         });
 
@@ -567,14 +577,11 @@ public class Panel extends JPanel implements DialogView {
         progressBar.setStringPainted(true);
         progressBar.setMinimum(0);
         progressBar.setMaximum(controller.getNumberOfTotalRenders());
-        controller.addPropertyChangeListener(Controller.Property.COMPLETED_RENDERS, new PropertyChangeListener() {
+        controller.addPropertyChangeListener(Controller.Property.PROGRESS_UPDATE, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
-                progressBar.setValue(((Number)ev.getNewValue()).intValue());
-            }
-        });
-        controller.addPropertyChangeListener(Controller.Property.STATUS_TEXT, new PropertyChangeListener() {
-            public void propertyChange(PropertyChangeEvent ev) {
-                progressBar.setStatusText((String)ev.getNewValue());
+                Controller.ProgressUpdate update = (Controller.ProgressUpdate)ev.getNewValue();
+                progressBar.setValue(update.getCompleted());
+                progressBar.setStatusText(update.getStatusText());
             }
         });
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, new PropertyChangeListener() {
@@ -585,11 +592,44 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        controller.addPropertyChangeListener(Controller.Property.PREVIEW_UPDATE, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                java.awt.image.BufferedImage image = (java.awt.image.BufferedImage)ev.getNewValue();
+                int newWidth, newHeight;
+                if (image.getWidth() > image.getHeight()) {
+                    newWidth = previewScrollPane.getWidth();
+                    newHeight = (int)Math.round((double)newWidth / image.getWidth() * image.getHeight());
+                } else {
+                    newHeight = previewScrollPane.getHeight();
+                    newWidth = (int)Math.round((double)newHeight / image.getHeight() * image.getWidth());
+                }
+                java.awt.Image scaledImage = image.getScaledInstance(newWidth > 0 ? newWidth : 1, newHeight > 0 ? newHeight : 1, java.awt.Image.SCALE_SMOOTH);
+                previewLabel.setIcon(new javax.swing.ImageIcon(scaledImage));
+                previewLabel.setText(null);
+            }
+        });
+
         startButton = new JButton(actionMap.get(ActionType.START));
         startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
         startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
+
+        previewLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.previewLabel.text"));
+        previewScrollPane = new JScrollPane(previewLabel);
+    }
+
+    private void updatePreviewAspectRatio() {
+        int newWidth = controller.getRenderWidth();
+        int newHeight = controller.getRenderHeight();
+        int panelHeight = mainPanel.getHeight();
+        if (panelHeight == 0) {
+            return;
+        }
+        double ratio = (double)newWidth / newHeight;
+        int previewWidth = (int)(panelHeight * ratio);
+        previewScrollPane.setPreferredSize(new Dimension(previewWidth, panelHeight));
+        previewScrollPane.revalidate();
     }
 
     private void setComponentsEnabled(boolean enabled) {
@@ -638,10 +678,10 @@ public class Panel extends JPanel implements DialogView {
         int currentGridYIndex = 0;
 
         /* Detected entities captions */
-        add(detectedLightsLabel, new GridBagConstraints(
+        mainPanel.add(detectedLightsLabel, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(otherEntitiesLabel, new GridBagConstraints(
+        mainPanel.add(otherEntitiesLabel, new GridBagConstraints(
             2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
@@ -649,19 +689,19 @@ public class Panel extends JPanel implements DialogView {
         /* Detected entities trees */
         JScrollPane detectedLightsScrollPane = new JScrollPane(detectedLightsTree);
         detectedLightsScrollPane.setPreferredSize(new Dimension(275, 350));
-        add(detectedLightsScrollPane, new GridBagConstraints(
+        mainPanel.add(detectedLightsScrollPane, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         JScrollPane otherEntitiesScrollPane = new JScrollPane(otherEntitiesTree);
         otherEntitiesScrollPane.setPreferredSize(new Dimension(275, 350));
-        add(otherEntitiesScrollPane, new GridBagConstraints(
+        mainPanel.add(otherEntitiesScrollPane, new GridBagConstraints(
             2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         JPanel generalSettingsPanel = new JPanel(new GridBagLayout());
         generalSettingsPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.generalSettingsSection.title")));
-        add(generalSettingsPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        mainPanel.add(generalSettingsPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
         int generalSettingsPanelGridYIndex = 0;
 
@@ -725,7 +765,7 @@ public class Panel extends JPanel implements DialogView {
 
 
         renderImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.renderImagesSection.title")));
-        add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        mainPanel.add(renderImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         int renderImagesPanelGridYIndex = 0;
@@ -746,7 +786,7 @@ public class Panel extends JPanel implements DialogView {
 
 
         baseImagesPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(resource.getString("HomeAssistantFloorPlan.Panel.baseImagesSection.title")));
-        add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        mainPanel.add(baseImagesPanel, new GridBagConstraints(0, currentGridYIndex, 4, 1, 1.0, 0, GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         int baseImagesPanelGridYIndex = 0;
@@ -766,41 +806,44 @@ public class Panel extends JPanel implements DialogView {
         baseImagesPanelGridYIndex++;
 
         /* Output directory */
-        add(outputDirectoryLabel, new GridBagConstraints(
+        mainPanel.add(outputDirectoryLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(outputDirectoryTextField, new GridBagConstraints(
+        mainPanel.add(outputDirectoryTextField, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(outputDirectoryBrowseButton, new GridBagConstraints(
+        mainPanel.add(outputDirectoryBrowseButton, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Options */
-        add(useExistingRendersCheckbox, new GridBagConstraints(
+        mainPanel.add(useExistingRendersCheckbox, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(enableFloorPlanPostProcessingCheckbox, new GridBagConstraints(
+        mainPanel.add(enableFloorPlanPostProcessingCheckbox, new GridBagConstraints(
             2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Post-processing options */
-        add(maintainAspectRatioCheckbox, new GridBagConstraints(
+        mainPanel.add(maintainAspectRatioCheckbox, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(generateFloorplanYamlCheckbox, new GridBagConstraints(
+        mainPanel.add(generateFloorplanYamlCheckbox, new GridBagConstraints(
             2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Progress bar */
-        add(progressBar, new GridBagConstraints(
+        mainPanel.add(progressBar, new GridBagConstraints(
             0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
 
         updatePanelVisibility();
+
+        javax.swing.JSplitPane splitPane = new javax.swing.JSplitPane(javax.swing.JSplitPane.HORIZONTAL_SPLIT, mainPanel, previewScrollPane);
+        add(splitPane, java.awt.BorderLayout.CENTER);
     }
 
     private void updatePanelVisibility() {
