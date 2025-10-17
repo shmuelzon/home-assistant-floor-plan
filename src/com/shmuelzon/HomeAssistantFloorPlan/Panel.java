@@ -348,6 +348,7 @@ public class Panel extends JPanel implements DialogView {
         widthSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
                 controller.setRenderWidth(((Number)widthSpinnerModel.getValue()).intValue());
+                updatePreviewAspectRatio();
             }
         });
 
@@ -359,6 +360,7 @@ public class Panel extends JPanel implements DialogView {
         heightSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
               controller.setRenderHeight(((Number)heightSpinnerModel.getValue()).intValue());
+              updatePreviewAspectRatio();
             }
         });
 
@@ -615,6 +617,19 @@ public class Panel extends JPanel implements DialogView {
 
         previewLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.previewLabel.text"));
         previewScrollPane = new JScrollPane(previewLabel);
+    }
+
+    private void updatePreviewAspectRatio() {
+        int newWidth = controller.getRenderWidth();
+        int newHeight = controller.getRenderHeight();
+        int panelHeight = mainPanel.getHeight();
+        if (panelHeight == 0) {
+            return;
+        }
+        double ratio = (double)newWidth / newHeight;
+        int previewWidth = (int)(panelHeight * ratio);
+        previewScrollPane.setPreferredSize(new Dimension(previewWidth, panelHeight));
+        previewScrollPane.revalidate();
     }
 
     private void setComponentsEnabled(boolean enabled) {
