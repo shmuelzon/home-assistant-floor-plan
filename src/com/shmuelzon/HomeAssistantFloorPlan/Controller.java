@@ -851,11 +851,6 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         ImageIO.write(image, "png", imageFile);
     }
 
-    private void prepareScene(List<Entity> onLights) {
-        for (Entity light : lightEntities)
-            light.setLightPower(onLights.contains(light) || light.getAlwaysOn());
-    }
-
     private BufferedImage renderScene() throws IOException, InterruptedException {
         Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
             put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
@@ -1224,8 +1219,48 @@ private Rectangle findCropAreaFromStamp(BufferedImage stamp) {
         if (onLights == null) { // Special case for base_night
              rawImage = generateNightBaseImage();
         } else {
-            prepareScene(onLights);
-            rawImage = renderScene();
+            Map<HomeLight, Float> originalPowers = new HashMap<>();
+            try {
+                // Determine which lights should be on for this render pass
+                Set<Entity> lightsToTurnOn = new HashSet<>(onLights);
+                lightEntities.stream()
+                    .filter(Entity::getAlwaysOn)
+                    .forEach(lightsToTurnOn::add);
+
+                for (Entity light : lightEntities) {
+                    boolean isLightOn = lightsToTurnOn.contains(light);
+
+                    // Save original power for all underlying HomeLight objects
+                    for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
+                        if (piece instanceof HomeLight) {
+                            originalPowers.put((HomeLight)piece, ((HomeLight)piece).getPower());
+                        }
+                    }
+
+                    // Set the entity state. This likely also sets the HomeLight power to 0.0 or 1.0
+                    light.setLightPower(isLightOn);
+
+                    // If the light is on, override the power with the desired intensity
+                    if (isLightOn) {
+                        float intensity = light.getName().toLowerCase().contains("deckenlampe")
+                            ? renderCeilingLightsIntensity
+                            : renderOtherLightsIntensity;
+                        for (HomePieceOfFurniture piece : light.getPiecesOfFurniture()) {
+                            if (piece instanceof HomeLight) {
+                                ((HomeLight)piece).setPower(intensity / 100.0f);
+                            }
+                        }
+                    }
+                }
+
+                rawImage = renderScene();
+
+            } finally {
+                // Restore all original power values after rendering
+                for (Map.Entry<HomeLight, Float> entry : originalPowers.entrySet()) {
+                    entry.getKey().setPower(entry.getValue());
+                }
+            }
         }
 
         saveRawRender(rawImage, imageName);
