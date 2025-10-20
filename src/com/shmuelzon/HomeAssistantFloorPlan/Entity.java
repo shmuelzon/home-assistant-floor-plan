@@ -31,7 +31,7 @@ import com.eteks.sweethome3d.model.Transformation;
 
 
 public class Entity implements Comparable<Entity> {
-    public enum Property {ALWAYS_ON, OPEN_FURNITURE_CONDITION, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION,}
+    public enum Property {ALWAYS_ON, OPEN_FURNITURE_CONDITION, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION, SCALE}
     public enum DisplayType {BADGE, ICON, LABEL}
     public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
@@ -52,6 +52,7 @@ public class Entity implements Comparable<Entity> {
     private static final String SETTING_NAME_LEFT_POSITION = "leftPosition";
     private static final String SETTING_NAME_TOP_POSITION = "topPosition";
     private static final String SETTING_NAME_OPACITY = "opacity";
+    private static final String SETTING_NAME_SCALE = "scale";
     private static final String SETTING_NAME_BACKGROUND_COLOR = "backgroundColor";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION = "displayFurnitureCondition";
     private static final String SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE = "displayFurnitureConditionValue";
@@ -63,6 +64,7 @@ public class Entity implements Comparable<Entity> {
     private String name;
     private Point2d position;
     private int opacity;
+    private int scale;
     private String backgroundColor;
     private DisplayType displayType;
     private String iconOverride;
@@ -373,6 +375,21 @@ public class Entity implements Comparable<Entity> {
         return settings.get(name + "." + SETTING_NAME_OPACITY) != null;
     }
 
+    public int getScale() {
+        return scale;
+    }
+
+    public void setScale(int scale) {
+        int oldScale = this.scale;
+        this.scale = scale;
+        settings.setInteger(name + "." + SETTING_NAME_SCALE, scale);
+        propertyChangeSupport.firePropertyChange(Property.SCALE.name(), oldScale, scale);
+    }
+
+    public boolean isScaleModified() {
+        return settings.get(name + "." + SETTING_NAME_SCALE) != null;
+    }
+
     public String getBackgrounColor() {
         return backgroundColor;
     }
@@ -390,6 +407,7 @@ public class Entity implements Comparable<Entity> {
         boolean oldAlwaysOn = alwaysOn;
         boolean oldIsRgb = isRgb;
         Point2d oldPosition = getPosition();
+        int oldScale = scale;
 
         settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
         settings.set(name + "." + SETTING_NAME_ICON_OVERRIDE, null);
@@ -405,6 +423,7 @@ public class Entity implements Comparable<Entity> {
         settings.set(name + "." + SETTING_NAME_LEFT_POSITION, null);
         settings.set(name + "." + SETTING_NAME_TOP_POSITION, null);
         settings.set(name + "." + SETTING_NAME_OPACITY, null);
+        settings.set(name + "." + SETTING_NAME_SCALE, null);
         settings.set(name + "." + SETTING_NAME_BACKGROUND_COLOR, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, null);
@@ -415,6 +434,7 @@ public class Entity implements Comparable<Entity> {
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
         propertyChangeSupport.firePropertyChange(Property.IS_RGB.name(), oldIsRgb, isRgb);
         propertyChangeSupport.firePropertyChange(Property.POSITION.name(), oldPosition, position);
+        propertyChangeSupport.firePropertyChange(Property.SCALE.name(), oldScale, scale);
     }
 
     public void setLightPower(boolean on) {
@@ -506,13 +526,14 @@ public class Entity implements Comparable<Entity> {
             "      text-align: center\n" +
             "      background-color: %s\n" +
             "      opacity: %d%%\n" +
+            "      transform: translate(-50%%, -50%%) scale(%d%%)\n" +
             "    tap_action:\n" +
             "      action: %s\n" +
             "    double_tap_action:\n" +
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, iconYaml, position.y, position.x, backgroundColor, opacity,
+            displayTypeToYamlString.get(displayType), name, title, iconYaml, position.y, position.x, backgroundColor, opacity, scale,
             actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
 
         if (displayCondition == DisplayCondition.ALWAYS)
@@ -589,6 +610,7 @@ public class Entity implements Comparable<Entity> {
         holdActionValue = settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, "");
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
+        scale = settings.getInteger(name + "." + SETTING_NAME_SCALE, 100);
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
         alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);

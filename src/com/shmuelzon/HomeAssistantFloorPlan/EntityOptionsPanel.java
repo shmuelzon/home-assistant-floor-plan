@@ -63,6 +63,8 @@ public class EntityOptionsPanel extends JPanel {
     private JSpinner positionTopSpinner;
     private JLabel opacityLabel;
     private JSpinner opacitySpinner;
+    private JLabel scaleLabel;
+    private JSpinner scaleSpinner;
     private JLabel backgroundColorLabel;
     private JTextField backgroundColorTextField;
     private JLabel alwaysOnLabel;
@@ -316,6 +318,21 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
 
+        scaleLabel = new JLabel();
+        scaleLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.scaleLabel.text"));
+        final SpinnerNumberModel scaleSpinnerModel = new SpinnerNumberModel(0, 0, 10, 0.01);
+        scaleSpinner = new AutoCommitSpinner(scaleSpinnerModel);
+        JSpinner.NumberEditor scaleEditor = new JSpinner.NumberEditor(scaleSpinner, "0 %");
+        ((JSpinner.DefaultEditor)scaleEditor).getTextField().setColumns(5);
+        scaleSpinner.setEditor(scaleEditor);
+        scaleSpinnerModel.setValue(entity.getScale() / 100.0);
+        scaleSpinner.addChangeListener(new ChangeListener() {
+            public void stateChanged(ChangeEvent ev) {
+              entity.setScale((int)(((Number)scaleSpinnerModel.getValue()).doubleValue() * 100));
+              markModified();
+            }
+        });
+
         backgroundColorLabel = new JLabel();
         backgroundColorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.text"));
         backgroundColorTextField = new JTextField(20);
@@ -531,6 +548,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Scale */
+        add(scaleLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        scaleLabel.setHorizontalAlignment(labelAlignment);
+        add(scaleSpinner, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Background color */
         add(backgroundColorLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -612,6 +639,7 @@ public class EntityOptionsPanel extends JPanel {
         alwaysOnLabel.setForeground(entity.isAlwaysOnModified() ? modifiedColor : Color.BLACK);
         isRgbLabel.setForeground(entity.isIsRgbModified() ? modifiedColor : Color.BLACK);
         opacityLabel.setForeground(entity.isOpacityModified() ? modifiedColor : Color.BLACK);
+        scaleLabel.setForeground(entity.isScaleModified() ? modifiedColor : Color.BLACK);
         backgroundColorLabel.setForeground(entity.isBackgroundColorModified() ? modifiedColor : Color.BLACK);
         displayFurnitureConditionLabel.setForeground(entity.isDisplayFurnitureConditionModified() ? modifiedColor : Color.BLACK);
         openFurnitureConditionLabel.setForeground(entity.isOpenFurnitureConditionModified() ? modifiedColor : Color.BLACK);
