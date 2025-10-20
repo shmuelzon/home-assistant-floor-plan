@@ -346,6 +346,11 @@ public class Controller {
                     repositionEntities();
                 }
             });
+            entity.addPropertyChangeListener(Entity.Property.SCALE, new PropertyChangeListener() {
+                public void propertyChange(PropertyChangeEvent ev) {
+                    repositionEntities();
+                }
+            });
             entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
                 public void propertyChange(PropertyChangeEvent ev) {
                     buildLightsGroups();
@@ -801,14 +806,20 @@ public class Controller {
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final double STATE_ICON_RAIDUS_INCLUDING_MARGIN = 25.0;
+        final int STATE_ICON_DEFAULT_RADIUS = 20;
+        final int MARGIN_BETWEEN_ICONS = 10;
+
+        double requiredDistanceBetweenIcons = MARGIN_BETWEEN_ICONS +
+            (STATE_ICON_DEFAULT_RADIUS * first.getScale() / 100.0) +
+            (STATE_ICON_DEFAULT_RADIUS * second.getScale() / 100.0);
 
         Point2d firstPositionInPixels = new Point2d(first.getPosition().x / 100.0 * renderWidth, first.getPosition().y / 100 * renderHeight);
         Point2d secondPositionInPixels = new Point2d(second.getPosition().x / 100.0 * renderWidth, second.getPosition().y / 100 * renderHeight);
 
         double x = Math.pow(firstPositionInPixels.x - secondPositionInPixels.x, 2) + Math.pow(firstPositionInPixels.y - secondPositionInPixels.y, 2);
 
-        return x <= Math.pow(STATE_ICON_RAIDUS_INCLUDING_MARGIN * 2, 2);
+
+        return x <= Math.pow(requiredDistanceBetweenIcons, 2);
     }
 
     private boolean doesStateIconIntersectWithSet(Entity entity, Set<Entity> entities) {
