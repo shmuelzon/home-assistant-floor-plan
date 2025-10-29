@@ -98,6 +98,8 @@ public class Panel extends JPanel implements DialogView {
     private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
     private JComboBox<Controller.Quality> qualityComboBox;
+    private JLabel baseFolderLabel;
+    private JTextField baseFolderTextField;
     private JLabel outputDirectoryLabel;
     private JTextField outputDirectoryTextField;
     private JLabel renderTimeLabel;
@@ -469,6 +471,17 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        baseFolderLabel = new JLabel();
+        baseFolderLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.baseFolderLabel.text"));
+        baseFolderTextField = new JTextField(20);
+        baseFolderTextField.setText(controller.getBaseFolder());
+        baseFolderTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                controller.setBaseFolder(baseFolderTextField.getText());
+            }
+        });
+
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField(20);
@@ -526,6 +539,7 @@ public class Panel extends JPanel implements DialogView {
         nightRenderCheckbox.setEnabled(enabled);
         nightRenderTimeSpinner.setEnabled(enabled);
         imageFormatComboBox.setEnabled(enabled);
+        baseFolderTextField.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         useExistingRendersCheckbox.setEnabled(enabled);
@@ -634,6 +648,15 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         add(sensitivitySpinner, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        /* Base folder */
+        add(baseFolderLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(baseFolderTextField, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 

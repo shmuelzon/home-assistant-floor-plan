@@ -97,6 +97,8 @@ the room they're located in. Please verify the list matches your expectations.
 * Sensitivity - [1, 100] The degree by which two pixels need to be different
   from one another to be taken into account for the generated overlay image.
   Only relevant for "room overlay" light mixing mode and RGB lights
+* Base path - The path where the floorplan images will be saved in Home Assistant.
+  By default this value is `/local/floorplan`.
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
