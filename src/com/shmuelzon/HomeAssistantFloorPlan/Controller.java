@@ -60,6 +60,7 @@ public class Controller {
     private static final String CONTROLLER_QUALITY = "quality";
     private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
+    private static final String CONTROLLER_BASE_FOLDER_NAME = "baseFolderName";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
 
@@ -83,6 +84,7 @@ public class Controller {
     private Quality quality;
     private ImageFormat imageFormat;
     private List<Long> renderDateTimes;
+    private String baseFolderName;
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
@@ -111,6 +113,7 @@ public class Controller {
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
+        baseFolderName = settings.get(CONTROLLER_BASE_FOLDER_NAME, "/local/floorplan");
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
@@ -199,6 +202,15 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
+    public String getBaseFolder() {
+        return baseFolderName;
+    }
+
+    public void setBaseFolder(String baseFolderName) {
+        this.baseFolderName = baseFolderName;
+        settings.set(CONTROLLER_BASE_FOLDER_NAME, baseFolderName);
+    }
+
     public String getOutputDirectory() {
         return outputDirectoryName;
     }
@@ -278,7 +290,7 @@ public class Controller {
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             String yaml = String.format(
                 "type: picture-elements\n" +
-                "image: /local/floorplan/%s.png?version=%s\n" +
+                "image: " + this.baseFolderName + "/%s.png?version=%s\n" +
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
             
             turnOffLightsFromOtherLevels();
@@ -675,7 +687,7 @@ public class Controller {
             "          action: none\n" +
             "        hold_action:\n" +
             "          action: none\n" +
-            "        image: /local/floorplan/%s.%s?version=%s\n" +
+            "        image: " + this.baseFolderName + "/%s.%s?version=%s\n" +
             "        filter: none\n" +
             "        style:\n" +
             "          left: 50%%\n" +
@@ -710,8 +722,8 @@ public class Controller {
             "          type: image\n" +
             "          image: >-\n" +
             "              ${!isInColoredMode(COLOR_MODE) || (isInColoredMode(COLOR_MODE) && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
-            "              '/local/floorplan/%s.png?version=%s' :\n" +
-            "              '/local/floorplan/%s.png?version=%s' }\n" +
+            "              '" + this.baseFolderName + "/%s.png?version=%s' :\n" +
+            "              '" + this.baseFolderName + "/%s.png?version=%s' }\n" +
             "        style:\n" +
             "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg) saturate(\" + (LIGHT_COLOR ? LIGHT_COLOR[1] / 100 : 1) + \")\"}'\n" +
             "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
