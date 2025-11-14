@@ -45,6 +45,8 @@ public class EntityOptionsPanel extends JPanel {
     private JComboBox<Entity.DisplayType> displayTypeComboBox;
     private JLabel iconOverrideLabel;
     private JTextField iconOverrideTextField;
+    private JLabel attributeLabel;
+    private JTextField attributeTextField;
     private JLabel displayConditionLabel;
     private JComboBox<Entity.DisplayCondition> displayConditionComboBox;
     private JLabel tapActionLabel;
@@ -140,6 +142,19 @@ public class EntityOptionsPanel extends JPanel {
             public void executeUpdate(DocumentEvent e) {
                 String iconOverride = iconOverrideTextField.getText();
                 entity.setIconOverride(iconOverride);
+                markModified();
+            }
+        });
+
+        attributeLabel = new JLabel();
+        attributeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.attributeLabel.text"));
+        attributeTextField = new JTextField(10);
+        attributeTextField.setText(entity.getAttribute());
+        attributeTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override
+            public void executeUpdate(DocumentEvent e) {
+                String attribute = attributeTextField.getText();
+                entity.setAttribute(attribute);
                 markModified();
             }
         });
@@ -470,6 +485,16 @@ public class EntityOptionsPanel extends JPanel {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Attribute */
+        add(attributeLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        attributeLabel.setHorizontalAlignment(labelAlignment);
+        add(attributeTextField, new GridBagConstraints(
+            1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Display Condition */
         add(displayConditionLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -631,6 +656,7 @@ public class EntityOptionsPanel extends JPanel {
 
         displayTypeLabel.setForeground(entity.isDisplayTypeModified() ? modifiedColor : Color.BLACK);
         iconOverrideLabel.setForeground(entity.isIconOverrideModified() ? modifiedColor : Color.BLACK);
+        attributeLabel.setForeground(entity.isAttributeModified() ? modifiedColor : Color.BLACK);
         displayConditionLabel.setForeground(entity.isDisplayConditionModified() ? modifiedColor : Color.BLACK);
         tapActionLabel.setForeground(entity.isTapActionModified() ? modifiedColor : Color.BLACK);
         doubleTapActionLabel.setForeground(entity.isDoubleTapActionModified() ? modifiedColor : Color.BLACK);
@@ -648,6 +674,8 @@ public class EntityOptionsPanel extends JPanel {
     private void showHideComponents() {
         iconOverrideLabel.setVisible((Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.ICON);
         iconOverrideTextField.setVisible((Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.ICON);
+        attributeLabel.setVisible((Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.LABEL);
+        attributeTextField.setVisible((Entity.DisplayType)displayTypeComboBox.getSelectedItem() == Entity.DisplayType.LABEL);
         tapActionValueTextField.setVisible((Entity.Action)tapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         doubleTapActionValueTextField.setVisible((Entity.Action)doubleTapActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);
         holdActionValueTextField.setVisible((Entity.Action)holdActionComboBox.getSelectedItem() == Entity.Action.NAVIGATE);

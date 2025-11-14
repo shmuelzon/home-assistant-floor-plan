@@ -40,6 +40,7 @@ public class Entity implements Comparable<Entity> {
 
     private static final String SETTING_NAME_DISPLAY_TYPE = "displayType";
     private static final String SETTING_NAME_ICON_OVERRIDE = "iconOverride";
+    private static final String SETTING_NAME_ATTRIBUTE = "attribute";
     private static final String SETTING_NAME_DISPLAY_CONDITION = "displayCondition";
     private static final String SETTING_NAME_TAP_ACTION = "tapAction";
     private static final String SETTING_NAME_TAP_ACTION_VALUE = "tapActionValue";
@@ -68,6 +69,7 @@ public class Entity implements Comparable<Entity> {
     private String backgroundColor;
     private DisplayType displayType;
     private String iconOverride;
+    private String attribute;
     private DisplayCondition displayCondition;
     private Action tapAction;
     private String tapActionValue;
@@ -159,6 +161,19 @@ public class Entity implements Comparable<Entity> {
 
     public boolean isIconOverrideModified() {
         return settings.get(name + "." + SETTING_NAME_ICON_OVERRIDE) != null;
+    }
+
+    public String getAttribute() {
+        return attribute;
+    }
+
+    public void setAttribute(String attribute) {
+        this.attribute = attribute;
+        settings.set(name + "." + SETTING_NAME_ATTRIBUTE, attribute.isEmpty() ? null : attribute);
+    }
+
+    public boolean isAttributeModified() {
+        return settings.get(name + "." + SETTING_NAME_ATTRIBUTE) != null;
     }
 
     public DisplayCondition getDisplayCondition() {
@@ -411,6 +426,7 @@ public class Entity implements Comparable<Entity> {
 
         settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
         settings.set(name + "." + SETTING_NAME_ICON_OVERRIDE, null);
+        settings.set(name + "." + SETTING_NAME_ATTRIBUTE, null);
         settings.set(name + "." + SETTING_NAME_DISPLAY_CONDITION, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION, null);
         settings.set(name + "." + SETTING_NAME_TAP_ACTION_VALUE, null);
@@ -510,9 +526,11 @@ public class Entity implements Comparable<Entity> {
         if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
             return "";
 
-        String iconYaml = "";
+        String additionalYaml = "";
         if (displayType == DisplayType.ICON && ! iconOverride.isEmpty())
-            iconYaml = String.format("    icon: %s\n", iconOverride);
+            additionalYaml = String.format("    icon: %s\n", iconOverride);
+        if (displayType == DisplayType.LABEL && !attribute.isEmpty())
+            additionalYaml = String.format("    attribute: %s\n", attribute);
 
         String yaml = String.format(Locale.US,
             "  - type: %s\n" +
@@ -533,7 +551,7 @@ public class Entity implements Comparable<Entity> {
             "      action: %s\n" +
             "    hold_action:\n" +
             "      action: %s\n",
-            displayTypeToYamlString.get(displayType), name, title, iconYaml, position.y, position.x, backgroundColor, opacity, scale,
+            displayTypeToYamlString.get(displayType), name, title, additionalYaml, position.y, position.x, backgroundColor, opacity, scale,
             actionYaml(tapAction, tapActionValue), actionYaml(doubleTapAction, doubleTapActionValue), actionYaml(holdAction, holdActionValue));
 
         if (displayCondition == DisplayCondition.ALWAYS)
@@ -600,7 +618,8 @@ public class Entity implements Comparable<Entity> {
         name = firstPiece.getName();
         position = loadPosition();
         displayType = getSavedEnumValue(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
-        iconOverride = settings.get(name + "." + SETTING_NAME_DISPLAY_TYPE, "");
+        iconOverride = settings.get(name + "." + SETTING_NAME_ICON_OVERRIDE, "");
+        attribute = settings.get(name + "." + SETTING_NAME_ATTRIBUTE, "");
         displayCondition = getSavedEnumValue(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
         tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
         tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");

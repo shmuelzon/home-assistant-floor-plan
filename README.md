@@ -115,6 +115,7 @@ that allow you to customize the entity according to your needs.
 * Display type - Configure how the entity is displayed on the floorplan, see
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
 * Icon override - Allow overriding the default entity icon
+* Attribute - Allow specifying the attribute to show for entity label
 * Display condition - Configure when the entity should be displayed
 * Tap action - Define what to do when the entity is tapped/clicked on, see
   [Tap action](https://www.home-assistant.io/dashboards/actions/#tap-action)
