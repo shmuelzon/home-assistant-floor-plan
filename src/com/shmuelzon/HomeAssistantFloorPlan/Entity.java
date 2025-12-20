@@ -33,7 +33,7 @@ import com.eteks.sweethome3d.model.Transformation;
 public class Entity implements Comparable<Entity> {
     public enum Property {ALWAYS_ON, OPEN_FURNITURE_CONDITION, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION, SCALE}
     public enum DisplayType {BADGE, ICON, LABEL}
-    public enum DisplayCondition {ALWAYS, NEVER, WHEN_ON, WHEN_OFF}
+    public enum DisplayCondition {ALWAYS, NEVER, AVAILABLE, WHEN_ON, WHEN_OFF}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
     public enum DisplayFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
     public enum OpenFurnitureCondition {ALWAYS, STATE_EQUALS, STATE_NOT_EQUALS}
@@ -557,16 +557,19 @@ public class Entity implements Comparable<Entity> {
         if (displayCondition == DisplayCondition.ALWAYS)
             return yaml;
 
+        String state_condition = "state_not: unavailable";
+        if (displayCondition != DisplayCondition.AVAILABLE)
+            state_condition = "state: " + (displayCondition == DisplayCondition.WHEN_ON ? "on" : "off");
+
         return String.format(
             "  - type: conditional\n" +
             "    conditions:\n" +
             "      - condition: state\n" +
             "        entity: %s\n" +
-            "        state: '%s'\n" +
+            "        %s\n" +
             "    elements:\n" +
             "%s",
-            name, displayCondition == DisplayCondition.WHEN_ON ? "on" : "off",
-            yaml.replaceAll(".*\\R", "    $0")
+            name, state_condition, yaml.replaceAll(".*\\R", "    $0")
         );
     }
 
