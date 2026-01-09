@@ -1,5 +1,7 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -8,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import javax.xml.bind.DatatypeConverter;
 
 import com.eteks.sweethome3d.model.Camera;
 
@@ -131,5 +134,13 @@ public class Scene {
 
         name = String.join("_", nameParts);
         title = String.join(", ", titleParts);
+
+        if (name.length() > 128) {
+            try {
+                name = DatatypeConverter.printHexBinary(MessageDigest.getInstance("MD5").digest(name.getBytes()));
+            } catch (NoSuchAlgorithmException e) {
+                name = Integer.toUnsignedString(name.hashCode());
+            }
+        }
     }
 };

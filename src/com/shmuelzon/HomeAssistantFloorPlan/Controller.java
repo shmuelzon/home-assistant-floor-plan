@@ -33,6 +33,7 @@ import javax.media.j3d.Transform3D;
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
 import javax.vecmath.Vector4d;
+import javax.xml.bind.DatatypeConverter;
 
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
@@ -615,17 +616,6 @@ public class Controller {
         return tintedImage;
     }
 
-    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
-    private String bytesToHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for (int i = 0; i < bytes.length; i++) {
-            int b = bytes[i] & 0xFF;
-            hexChars[i * 2] = HEX_ARRAY[b >>> 4];
-            hexChars[i * 2 + 1] = HEX_ARRAY[b & 0x0F];
-        }
-        return new String(hexChars);
-    }
-
     private String renderHash(String imageName) throws IOException {
         return renderHash(imageName, false);
     }
@@ -634,8 +624,7 @@ public class Controller {
         String imageExtension = forcePng ? "png" : getFloorplanImageExtention();
         byte[] content = Files.readAllBytes(Paths.get(outputFloorplanDirectoryName + File.separator + imageName + "." + imageExtension));
         try {
-            byte[] hash = MessageDigest.getInstance("MD5").digest(content);
-            return bytesToHex(hash);
+            return DatatypeConverter.printHexBinary(MessageDigest.getInstance("MD5").digest(content));
         } catch (NoSuchAlgorithmException e) {
             return Long.toString(System.currentTimeMillis() / 1000L);
         }
