@@ -624,7 +624,7 @@ public class Controller {
         String imageExtension = forcePng ? "png" : getFloorplanImageExtention();
         byte[] content = Files.readAllBytes(Paths.get(outputFloorplanDirectoryName + File.separator + imageName + "." + imageExtension));
         try {
-            return DatatypeConverter.printHexBinary(MessageDigest.getInstance("MD5").digest(content));
+            return Utils.bytesToHex(MessageDigest.getInstance("MD5").digest(content));
         } catch (NoSuchAlgorithmException e) {
             return Long.toString(System.currentTimeMillis() / 1000L);
         }

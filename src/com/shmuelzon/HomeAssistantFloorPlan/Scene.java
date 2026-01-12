@@ -137,7 +137,7 @@ public class Scene {
 
         if (name.length() > 128) {
             try {
-                name = DatatypeConverter.printHexBinary(MessageDigest.getInstance("MD5").digest(name.getBytes()));
+                name = Utils.bytesToHex(MessageDigest.getInstance("MD5").digest(name.getBytes()));
             } catch (NoSuchAlgorithmException e) {
                 name = Integer.toUnsignedString(name.hashCode());
             }
