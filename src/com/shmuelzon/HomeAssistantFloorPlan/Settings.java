@@ -46,6 +46,10 @@ public class Settings {
         return Arrays.stream(values.split(",")).map(Long::valueOf).collect(Collectors.toList());
     }
 
+    public float getFloat(String name, float defaultValue) {
+        return Float.parseFloat(get(name, String.valueOf(defaultValue)));
+    }
+
     public double getDouble(String name, double defaultValue) {
         return Double.parseDouble(get(name, String.valueOf(defaultValue)));
     }

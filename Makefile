@@ -67,8 +67,11 @@ distclean: clean
 install: $(PLUGIN)
 	$(call exec,INSTALL,$(PLUGIN),install -D $(PLUGIN) -t ~/.eteks/sweethome3d/plugins/)
 
+uninstall:
+	$(call exec,UNINSTALL,$(PLUGIN),rm -f ~/.eteks/sweethome3d/plugins/$(PLUGIN))
+
 test: install
 	$(Q)java -jar $(SWEET_HOME_JAR)
 
 .DEFAULT_GOAL:=build
-.PHONY:=build clean distclean install test
+.PHONY:=build clean distclean install uninstall test

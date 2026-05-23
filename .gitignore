@@ -9,3 +9,7 @@ dl/
 *.swp
 *.swo
 tags
+
+# IDE
+.vscode/
+.claude/

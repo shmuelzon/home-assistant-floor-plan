@@ -5,8 +5,10 @@ import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
 import java.lang.InterruptedException;
 import java.nio.channels.ClosedByInterruptException;
@@ -14,6 +16,18 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.awt.Desktop;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +39,8 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -38,6 +54,7 @@ import javax.xml.bind.DatatypeConverter;
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.viewcontroller.HomeController;
 import com.eteks.sweethome3d.model.HomeFurnitureGroup;
 import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
@@ -45,7 +62,7 @@ import com.eteks.sweethome3d.model.Room;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
+    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, RENDER_PREVIEW}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
@@ -61,8 +78,19 @@ public class Controller {
     private static final String CONTROLLER_QUALITY = "quality";
     private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
+    private static final String CONTROLLER_BASE_FOLDER_NAME = "baseFolderName";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
+    private static final String CONTROLLER_HA_URL = "haUrl";
+    private static final String CONTROLLER_HA_API_TOKEN = "haApiToken";
+    private static final String CONTROLLER_CAMERA_NAME = "cameraName";
+    private static final String CONTROLLER_CAMERA_X = "cameraX";
+    private static final String CONTROLLER_CAMERA_Y = "cameraY";
+    private static final String CONTROLLER_CAMERA_Z = "cameraZ";
+    private static final String CONTROLLER_CAMERA_YAW = "cameraYaw";
+    private static final String CONTROLLER_CAMERA_PITCH = "cameraPitch";
+    private static final String CONTROLLER_CAMERA_FOV = "cameraFieldOfView";
+    private static final String CONTROLLER_CAMERA_LENS = "cameraLens";
 
     private Home home;
     private Settings settings;
@@ -76,6 +104,7 @@ public class Controller {
     private PropertyChangeSupport propertyChangeSupport;
     private int numberOfCompletedRenders;
     private AbstractPhotoRenderer photoRenderer;
+    private volatile boolean stopRequested = false;
     private int renderWidth;
     private int renderHeight;
     private LightMixingMode lightMixingMode;
@@ -84,18 +113,30 @@ public class Controller {
     private Quality quality;
     private ImageFormat imageFormat;
     private List<Long> renderDateTimes;
+    private String baseFolderName;
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
+    private String haUrl;
+    private String haApiToken;
+    private List<String> cachedHaEntityIds = new ArrayList<>();
     private Scenes scenes;
 
+    private HomeController homeController;
+
     public Controller(Home home) {
+        this(home, null);
+    }
+
+    public Controller(Home home, HomeController homeController) {
         this.home = home;
+        this.homeController = homeController;
         settings = new Settings(home);
         camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
         loadDefaultSettings();
+        loadEntityCache();
         createHomeAssistantEntities();
 
         buildLightsGroups();
@@ -112,10 +153,84 @@ public class Controller {
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
+        baseFolderName = settings.get(CONTROLLER_BASE_FOLDER_NAME, "/local/floorplan");
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
-        outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
-        outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
+        haUrl = settings.get(CONTROLLER_HA_URL, "http://homeassistant.local:8123");
+        haApiToken = settings.get(CONTROLLER_HA_API_TOKEN, "");
+        String savedCameraName = settings.get(CONTROLLER_CAMERA_NAME, null);
+        if (savedCameraName != null && !savedCameraName.isEmpty()) {
+            for (Camera c : getAvailableCameras()) {
+                if (savedCameraName.equals(c.getName())) {
+                    camera = c.clone();
+                    break;
+                }
+            }
+        }
+        // Restore exact saved camera position (overrides current position of named camera)
+        String savedLens = settings.get(CONTROLLER_CAMERA_LENS, null);
+        if (savedLens != null) {
+            try {
+                camera.setX(settings.getFloat(CONTROLLER_CAMERA_X, camera.getX()));
+                camera.setY(settings.getFloat(CONTROLLER_CAMERA_Y, camera.getY()));
+                camera.setZ(settings.getFloat(CONTROLLER_CAMERA_Z, camera.getZ()));
+                camera.setYaw(settings.getFloat(CONTROLLER_CAMERA_YAW, camera.getYaw()));
+                camera.setPitch(settings.getFloat(CONTROLLER_CAMERA_PITCH, camera.getPitch()));
+                camera.setFieldOfView(settings.getFloat(CONTROLLER_CAMERA_FOV, camera.getFieldOfView()));
+                camera.setLens(Camera.Lens.valueOf(savedLens));
+            } catch (Exception e) {
+                // keep camera as-is if saved values are corrupt
+            }
+        }
+        rebuildOutputPaths();
+    }
+
+    public List<Camera> getAvailableCameras() {
+        List<Camera> cameras = new ArrayList<>();
+        cameras.add(home.getTopCamera());
+        cameras.add(home.getObserverCamera());
+        cameras.addAll(home.getStoredCameras());
+        return cameras;
+    }
+
+    public Camera getSelectedCamera() {
+        return camera;
+    }
+
+    public void setSelectedCamera(Camera selectedCamera) {
+        camera = selectedCamera.clone();
+        String name = selectedCamera.getName();
+        settings.set(CONTROLLER_CAMERA_NAME, name != null ? name : "");
+        settings.set(CONTROLLER_CAMERA_X, String.valueOf(camera.getX()));
+        settings.set(CONTROLLER_CAMERA_Y, String.valueOf(camera.getY()));
+        settings.set(CONTROLLER_CAMERA_Z, String.valueOf(camera.getZ()));
+        settings.set(CONTROLLER_CAMERA_YAW, String.valueOf(camera.getYaw()));
+        settings.set(CONTROLLER_CAMERA_PITCH, String.valueOf(camera.getPitch()));
+        settings.set(CONTROLLER_CAMERA_FOV, String.valueOf(camera.getFieldOfView()));
+        settings.set(CONTROLLER_CAMERA_LENS, camera.getLens().name());
+        rebuildOutputPaths();
+        repositionEntities();
+        buildScenes();
+    }
+
+    private String getCameraSubfolder() {
+        String name = camera.getName();
+        if (name == null || name.isEmpty()) return "";
+        return name.replaceAll("[\\\\/:*?\"<>|]", "_");
+    }
+
+    private String getEffectiveBaseFolder() {
+        String sub = getCameraSubfolder();
+        String base = sub.isEmpty() ? baseFolderName : baseFolderName + "/" + sub;
+        return base + "/floorplan";
+    }
+
+    private void rebuildOutputPaths() {
+        String sub = getCameraSubfolder();
+        String effectiveOutputDir = sub.isEmpty() ? outputDirectoryName
+            : outputDirectoryName + File.separator + sub;
+        outputRendersDirectoryName = effectiveOutputDir + File.separator + "renders";
+        outputFloorplanDirectoryName = effectiveOutputDir + File.separator + "floorplan";
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -200,15 +315,28 @@ public class Controller {
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
+    public String getBaseFolder() {
+        return baseFolderName;
+    }
+
+    public void setBaseFolder(String baseFolderName) {
+        this.baseFolderName = baseFolderName;
+        settings.set(CONTROLLER_BASE_FOLDER_NAME, baseFolderName);
+    }
+
     public String getOutputDirectory() {
         return outputDirectoryName;
     }
 
+    public String getEffectiveOutputDirectory() {
+        String sub = getCameraSubfolder();
+        return sub.isEmpty() ? outputDirectoryName : outputDirectoryName + File.separator + sub;
+    }
+
     public void setOutputDirectory(String outputDirectoryName) {
         this.outputDirectoryName = outputDirectoryName;
-        outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
-        outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
         settings.set(CONTROLLER_OUTPUT_DIRECTORY_NAME, outputDirectoryName);
+        rebuildOutputPaths();
     }
 
     public boolean getUserExistingRenders() {
@@ -218,6 +346,198 @@ public class Controller {
     public void setUserExistingRenders(boolean useExistingRenders) {
         this.useExistingRenders = useExistingRenders;
         settings.setBoolean(CONTROLLER_USE_EXISTING_RENDERS, useExistingRenders);
+    }
+
+    public String getHaUrl() {
+        return haUrl;
+    }
+
+    public void setHaUrl(String haUrl) {
+        this.haUrl = haUrl;
+        settings.set(CONTROLLER_HA_URL, haUrl);
+    }
+
+    public String getHaApiToken() {
+        return haApiToken;
+    }
+
+    public void setHaApiToken(String haApiToken) {
+        this.haApiToken = haApiToken;
+        settings.set(CONTROLLER_HA_API_TOKEN, haApiToken);
+    }
+
+    public List<String> fetchEntitiesFromHomeAssistant() throws IOException {
+        String apiUrl = haUrl.replaceAll("/+$", "") + "/api/states";
+        HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Authorization", "Bearer " + haApiToken);
+        connection.setRequestProperty("Content-Type", "application/json");
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(10000);
+
+        int responseCode = connection.getResponseCode();
+        if (responseCode != 200)
+            throw new IOException("Home Assistant API returned HTTP " + responseCode);
+
+        StringBuilder response = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"))) {
+            String line;
+            while ((line = reader.readLine()) != null)
+                response.append(line);
+        }
+
+        List<String> entityIds = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\"entity_id\"\\s*:\\s*\"([^\"]+)\"").matcher(response.toString());
+        while (matcher.find())
+            entityIds.add(matcher.group(1));
+
+        Collections.sort(entityIds);
+        cachedHaEntityIds = entityIds;
+        saveEntityCache(entityIds);
+        return entityIds;
+    }
+
+    public List<String> getCachedHaEntityIds() {
+        return cachedHaEntityIds;
+    }
+
+    public List<String> getHaSelectedEntityIds() {
+        Set<String> sh3dDomains = new HashSet<>();
+        for (Entity e : lightEntities) {
+            String name = e.getName();
+            int dot = name.indexOf('.');
+            if (dot >= 0) sh3dDomains.add(name.substring(0, dot));
+        }
+        for (Entity e : otherEntities) {
+            String name = e.getName();
+            int dot = name.indexOf('.');
+            if (dot >= 0) sh3dDomains.add(name.substring(0, dot));
+        }
+        if (sh3dDomains.isEmpty()) return cachedHaEntityIds;
+        return cachedHaEntityIds.stream()
+            .filter(id -> {
+                int dot = id.indexOf('.');
+                String domain = dot >= 0 ? id.substring(0, dot) : id;
+                return sh3dDomains.contains(domain);
+            })
+            .collect(Collectors.toList());
+    }
+
+    private static final String CONTROLLER_HA_ENTITY_CACHE = "haEntityCache";
+    private static final String CONTROLLER_HA_ENTITY_CACHE_TIME = "haEntityCacheTime";
+    private long haEntityCacheTime = 0;
+
+    private void saveEntityCache(List<String> entityIds) {
+        settings.set(CONTROLLER_HA_ENTITY_CACHE, String.join(",", entityIds));
+        haEntityCacheTime = System.currentTimeMillis();
+        settings.setLong(CONTROLLER_HA_ENTITY_CACHE_TIME, haEntityCacheTime);
+    }
+
+    private void loadEntityCache() {
+        String cached = settings.get(CONTROLLER_HA_ENTITY_CACHE, "");
+        if (!cached.isEmpty())
+            cachedHaEntityIds = new ArrayList<>(Arrays.asList(cached.split(",")));
+        haEntityCacheTime = settings.getLong(CONTROLLER_HA_ENTITY_CACHE_TIME, 0);
+    }
+
+    public long getHaEntityCacheTime() {
+        return haEntityCacheTime;
+    }
+
+    public interface OAuthCallback {
+        void onSuccess(String accessToken);
+        void onError(String message);
+    }
+
+    public void startOAuthFlow(OAuthCallback callback) throws IOException, URISyntaxException {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE))
+            throw new IOException("Opening a browser is not supported on this system");
+
+        String baseUrl = haUrl.replaceAll("/+$", "");
+
+        // HTTPS HA instances (behind reverse proxy) block HTTP localhost redirects → use Long-Lived Token flow instead
+        if (baseUrl.startsWith("https://")) {
+            Desktop.getDesktop().browse(new URI(baseUrl + "/profile/security"));
+            throw new IOException("HTTPS_TOKEN_REQUIRED");
+        }
+
+        // Start local server on a random free port
+        ServerSocket serverSocket = new ServerSocket(0);
+        int port = serverSocket.getLocalPort();
+        String clientId = "http://127.0.0.1:" + port + "/";
+        String redirectUri = clientId;
+        String authUrl = baseUrl + "/auth/authorize?response_type=code&client_id="
+            + URLEncoder.encode(clientId, "UTF-8") + "&redirect_uri=" + URLEncoder.encode(redirectUri, "UTF-8");
+
+        // Open browser
+        Desktop.getDesktop().browse(new URI(authUrl));
+
+        // Wait for callback in background thread
+        new Thread(() -> {
+            try {
+                serverSocket.setSoTimeout(120000); // 2 minute timeout
+                try (Socket socket = serverSocket.accept()) {
+                    BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    String requestLine = reader.readLine();
+
+                    // Send success page to browser
+                    String html = "<html><body><h2>Success!</h2><p>You can close this tab and return to Sweet Home 3D.</p></body></html>";
+                    OutputStream out = socket.getOutputStream();
+                    out.write(("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+                        + html.length() + "\r\nConnection: close\r\n\r\n" + html).getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+
+                    // Extract code from request: "GET /?code=XXXX&state=... HTTP/1.1"
+                    if (requestLine == null || !requestLine.contains("code="))
+                        throw new IOException("No authorization code received");
+                    String query = requestLine.split(" ")[1];
+                    String code = null;
+                    for (String param : query.substring(query.indexOf('?') + 1).split("&")) {
+                        String[] kv = param.split("=", 2);
+                        if (kv.length == 2 && kv[0].equals("code"))
+                            code = URLDecoder.decode(kv[1], "UTF-8");
+                    }
+                    if (code == null)
+                        throw new IOException("Authorization code not found in callback");
+
+                    // Exchange code for token
+                    String tokenUrl = baseUrl + "/auth/token";
+                    String body = "grant_type=authorization_code&code=" + URLEncoder.encode(code, "UTF-8") + "&client_id=" + URLEncoder.encode(clientId, "UTF-8");
+                    HttpURLConnection conn = (HttpURLConnection) new URL(tokenUrl).openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(10000);
+                    conn.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
+
+                    if (conn.getResponseCode() != 200)
+                        throw new IOException("Token exchange failed: HTTP " + conn.getResponseCode());
+
+                    StringBuilder response = new StringBuilder();
+                    try (BufferedReader r = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = r.readLine()) != null)
+                            response.append(line);
+                    }
+
+                    Matcher m = Pattern.compile("\"access_token\"\\s*:\\s*\"([^\"]+)\"")
+                        .matcher(response.toString());
+                    if (!m.find())
+                        throw new IOException("No access_token in response");
+
+                    String accessToken = m.group(1);
+                    setHaApiToken(accessToken);
+                    callback.onSuccess(accessToken);
+                }
+            } catch (Exception e) {
+                callback.onError(e.getMessage());
+            } finally {
+                try { serverSocket.close(); } catch (IOException ignored) {}
+            }
+        }).start();
     }
 
     public Renderer getRenderer() {
@@ -257,7 +577,44 @@ public class Controller {
         buildScenes();
     }
 
+    public void renameEntity(Entity entity, String newName) {
+        for (HomePieceOfFurniture piece : entity.getPiecesOfFurniture())
+            piece.setName(newName);
+    }
+
+    public List<String> findSimilarEntities(String name, int maxResults) {
+        if (cachedHaEntityIds.isEmpty()) return new ArrayList<>();
+        String nameLower = name.toLowerCase();
+        return cachedHaEntityIds.stream()
+            .sorted((a, b) -> levenshtein(nameLower, a.toLowerCase()) - levenshtein(nameLower, b.toLowerCase()))
+            .limit(maxResults)
+            .collect(Collectors.toList());
+    }
+
+    private int levenshtein(String a, String b) {
+        int[] dp = new int[b.length() + 1];
+        for (int i = 0; i <= b.length(); i++) dp[i] = i;
+        for (int i = 1; i <= a.length(); i++) {
+            int prev = dp[0];
+            dp[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int temp = dp[j];
+                dp[j] = a.charAt(i-1) == b.charAt(j-1) ? prev :
+                    1 + Math.min(prev, Math.min(dp[j], dp[j-1]));
+                prev = temp;
+            }
+        }
+        return dp[b.length()];
+    }
+
+    public void openFurnitureProperties(Entity entity) {
+        if (homeController == null) return;
+        home.setSelectedItems(new ArrayList<>(entity.getPiecesOfFurniture()));
+        homeController.modifySelectedFurniture();
+    }
+
     public void stop() {
+        stopRequested = true;
         if (photoRenderer != null) {
             photoRenderer.stop();
             photoRenderer = null;
@@ -269,6 +626,7 @@ public class Controller {
     }
 
     public void render() throws IOException, InterruptedException {
+        stopRequested = false;
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
 
@@ -279,7 +637,7 @@ public class Controller {
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             String yaml = String.format(
                 "type: picture-elements\n" +
-                "image: /local/floorplan/%s.png?version=%s\n" +
+                "image: " + getEffectiveBaseFolder() + "/%s.png?version=%s\n" +
                 "elements:\n", TRANSPARENT_IMAGE_NAME, renderHash(TRANSPARENT_IMAGE_NAME, true));
             
             turnOffLightsFromOtherLevels();
@@ -341,6 +699,22 @@ public class Controller {
         addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, home.getFurniture());
 
         for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
+            // Rebuild entity list when furniture is renamed
+            for (HomePieceOfFurniture piece : pieces) {
+                piece.addPropertyChangeListener("name", new PropertyChangeListener() {
+                    public void propertyChange(PropertyChangeEvent ev) {
+                        lightEntities.clear();
+                        otherEntities.clear();
+                        otherLevelsEntities.clear();
+                        lightsGroups.clear();
+                        createHomeAssistantEntities();
+                        buildLightsGroups();
+                        buildScenes();
+                        repositionEntities();
+                        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+                    }
+                });
+            }
             Entity entity = new Entity(settings, pieces);
             entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
                 public void propertyChange(PropertyChangeEvent ev) {
@@ -451,6 +825,7 @@ public class Controller {
             "light.",
             "lock.",
             "media_player.",
+            "person.",
             "remote.",
             "sensor.",
             "siren.",
@@ -529,6 +904,8 @@ public class Controller {
     private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
         String fileName = outputRendersDirectoryName + File.separator + name + ".png";
 
+        if (stopRequested || Thread.interrupted())
+            throw new InterruptedException();
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
@@ -555,12 +932,17 @@ public class Controller {
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
-        photoRenderer.render(image, camera, null);
+        photoRenderer.render(image, camera, new java.awt.image.ImageObserver() {
+            public boolean imageUpdate(java.awt.Image img, int infoflags, int x, int y, int width, int height) {
+                propertyChangeSupport.firePropertyChange(Property.RENDER_PREVIEW.name(), null, image);
+                return (infoflags & java.awt.image.ImageObserver.ALLBITS) == 0;
+            }
+        });
         if (photoRenderer != null) {
             photoRenderer.dispose();
             photoRenderer = null;
         }
-        if (Thread.interrupted())
+        if (stopRequested || Thread.interrupted())
             throw new InterruptedException();
 
         return image;
@@ -569,6 +951,10 @@ public class Controller {
     private BufferedImage generateFloorPlanImage(BufferedImage baseImage, BufferedImage image, String name, boolean createOverlayImage) throws IOException {
         String imageExtension = createOverlayImage ? "png" : getFloorplanImageExtention();
         File floorPlanFile = new File(outputFloorplanDirectoryName + File.separator + name + "." + imageExtension);
+
+        if (useExistingRenders && floorPlanFile.exists()) {
+            return ImageIO.read(floorPlanFile);
+        }
 
         if (!createOverlayImage) {
             ImageIO.write(image, imageExtension, floorPlanFile);
@@ -598,6 +984,8 @@ public class Controller {
 
     private BufferedImage generateRedTintedImage(BufferedImage image, String imageName) throws IOException {
         File redTintedFile = new File(outputFloorplanDirectoryName + File.separator + imageName + ".red.png");
+        if (useExistingRenders && redTintedFile.exists())
+            return ImageIO.read(redTintedFile);
         BufferedImage tintedImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
         for(int x = 0; x < image.getWidth(); x++) {
@@ -664,7 +1052,7 @@ public class Controller {
             "          action: none\n" +
             "        hold_action:\n" +
             "          action: none\n" +
-            "        image: /local/floorplan/%s.%s?version=%s\n" +
+            "        image: " + getEffectiveBaseFolder() + "/%s.%s?version=%s\n" +
             "        filter: none\n" +
             "        style:\n" +
             "          left: 50%%\n" +
@@ -699,8 +1087,8 @@ public class Controller {
             "          type: image\n" +
             "          image: >-\n" +
             "              ${!isInColoredMode(COLOR_MODE) || (isInColoredMode(COLOR_MODE) && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
-            "              '/local/floorplan/%s.png?version=%s' :\n" +
-            "              '/local/floorplan/%s.png?version=%s' }\n" +
+            "              '" + getEffectiveBaseFolder() + "/%s.png?version=%s' :\n" +
+            "              '" + getEffectiveBaseFolder() + "/%s.png?version=%s' }\n" +
             "        style:\n" +
             "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg) saturate(\" + (LIGHT_COLOR ? LIGHT_COLOR[1] / 100 : 1) + \")\"}'\n" +
             "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +

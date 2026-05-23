@@ -19,7 +19,7 @@ public class Plugin extends com.eteks.sweethome3d.plugin.Plugin {
 
         @Override
         public void execute() {
-            controller = new Controller(getHome());
+            controller = new Controller(getHome(), getHomeController());
             panel = new Panel(getUserPreferences(), getPluginClassLoader(), controller);
             panel.displayView(getHomeController().getView());
         }
