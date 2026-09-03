@@ -112,9 +112,8 @@ public class Controller {
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
-        outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME, System.getProperty("user.home"));
-        outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
-        outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
+        outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME);
+        updateOutputSubDirectoryNames();
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
     }
 
@@ -206,9 +205,23 @@ public class Controller {
 
     public void setOutputDirectory(String outputDirectoryName) {
         this.outputDirectoryName = outputDirectoryName;
+        updateOutputSubDirectoryNames();
+        if (outputDirectoryName != null && !outputDirectoryName.isEmpty())
+            settings.set(CONTROLLER_OUTPUT_DIRECTORY_NAME, outputDirectoryName);
+    }
+
+    private void updateOutputSubDirectoryNames() {
+        if (outputDirectoryName == null || outputDirectoryName.isEmpty()) {
+            outputRendersDirectoryName = null;
+            outputFloorplanDirectoryName = null;
+            return;
+        }
         outputRendersDirectoryName = outputDirectoryName + File.separator + "renders";
         outputFloorplanDirectoryName = outputDirectoryName + File.separator + "floorplan";
-        settings.set(CONTROLLER_OUTPUT_DIRECTORY_NAME, outputDirectoryName);
+    }
+
+    public boolean isOutputDirectorySet() {
+        return outputDirectoryName != null && !outputDirectoryName.isEmpty();
     }
 
     public boolean getUserExistingRenders() {
@@ -266,6 +279,27 @@ public class Controller {
 
     public boolean isProjectEmpty() {
         return home == null || home.getFurniture().isEmpty();
+    }
+
+    /* Probing as File.canWrite() might be false on MacOS sandbox when it'll actually allow writing to */
+    public boolean isOutputDirectoryWritable() {
+        if (!isOutputDirectorySet())
+            return false;
+
+        File outputDirectory = new File(outputDirectoryName);
+        if (!outputDirectory.isDirectory() && !outputDirectory.mkdirs())
+            return false;
+
+        File probeFile = null;
+        try {
+            probeFile = File.createTempFile(".homeAssistantFloorPlan", null, outputDirectory);
+            return true;
+        } catch (IOException e) {
+            return false;
+        } finally {
+            if (probeFile != null)
+                probeFile.delete();
+        }
     }
 
     public void render() throws IOException, InterruptedException {
