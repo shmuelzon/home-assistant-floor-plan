@@ -3,10 +3,15 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 import java.awt.Component;
 import java.awt.ComponentOrientation;
 import java.awt.Cursor;
+import java.awt.Desktop;
+import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.EventQueue;
+import java.awt.FileDialog;
+import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
@@ -18,6 +23,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -74,7 +81,9 @@ import com.eteks.sweethome3d.viewcontroller.View;
 
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
-    private enum ActionType {BROWSE, START, STOP, CLOSE}
+    private enum ActionType {BROWSE, OPEN, START, STOP, CLOSE}
+
+    private static final String MAC_OS_DIRECTORY_DIALOG_PROPERTY = "apple.awt.fileDialogForDirectories";
 
     final TimeZone timeZone = TimeZone.getTimeZone("UTC");
     private static Panel currentPanel;
@@ -110,6 +119,8 @@ public class Panel extends JPanel implements DialogView {
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
     private JButton outputDirectoryBrowseButton;
+    private JButton outputDirectoryOpenButton;
+    private JPanel outputDirectoryButtonsPanel;
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
     private JProgressBar progressBar;
@@ -167,9 +178,17 @@ public class Panel extends JPanel implements DialogView {
                 showBrowseDialog();
             }
         });
+        actions.put(ActionType.OPEN, new ResourceAction(preferences, Panel.class, ActionType.OPEN.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                openOutputDirectory();
+            }
+        });
         actions.put(ActionType.START, new ResourceAction(preferences, Panel.class, ActionType.START.name(), true) {
             @Override
             public void actionPerformed(ActionEvent ev) {
+                if (!checkOutputDirectoryAccessible())
+                    return;
                 renderExecutor = Executors.newSingleThreadExecutor();
                 renderExecutor.execute(new Runnable() {
                     public void run() {
@@ -207,10 +226,64 @@ public class Panel extends JPanel implements DialogView {
     }
 
     private void showBrowseDialog() {
-        final String selectedDirectory =
-        outputDirectoryChooser.showSaveDialog(this, resource.getString("HomeAssistantFloorPlan.Panel.outputDirectory.title"), ContentManager.ContentType.PHOTOS_DIRECTORY, outputDirectoryTextField.getText());
+        final String title = resource.getString("HomeAssistantFloorPlan.Panel.outputDirectory.title");
+        final String selectedDirectory = OperatingSystem.isMacOSX()
+            ? showNativeDirectoryDialog(title, outputDirectoryTextField.getText())
+            : outputDirectoryChooser.showSaveDialog(this, title, ContentManager.ContentType.PHOTOS_DIRECTORY, outputDirectoryTextField.getText());
         if (selectedDirectory != null)
             outputDirectoryTextField.setText(selectedDirectory);
+    }
+
+    /* MacOS needs the native dialog box to allow access outside of the sandbox */
+    private String showNativeDirectoryDialog(String title, String currentDirectory) {
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        FileDialog fileDialog = owner instanceof Frame ? new FileDialog((Frame)owner)
+                              : owner instanceof Dialog ? new FileDialog((Dialog)owner)
+                              : new FileDialog((Frame)null);
+        fileDialog.setTitle(title);
+        fileDialog.setMode(FileDialog.LOAD);
+        if (currentDirectory != null && !currentDirectory.isEmpty())
+            fileDialog.setDirectory(currentDirectory);
+
+        String previousProperty = System.getProperty(MAC_OS_DIRECTORY_DIALOG_PROPERTY);
+        System.setProperty(MAC_OS_DIRECTORY_DIALOG_PROPERTY, "true");
+        try {
+            fileDialog.setVisible(true);
+        } finally {
+            if (previousProperty != null)
+                System.setProperty(MAC_OS_DIRECTORY_DIALOG_PROPERTY, previousProperty);
+            else
+                System.clearProperty(MAC_OS_DIRECTORY_DIALOG_PROPERTY);
+        }
+
+        if (fileDialog.getDirectory() == null || fileDialog.getFile() == null)
+            return null;
+        return new File(fileDialog.getDirectory(), fileDialog.getFile()).getAbsolutePath();
+    }
+
+    private boolean checkOutputDirectoryAccessible() {
+        if (controller.isOutputDirectoryWritable())
+            return true;
+
+        JOptionPane.showMessageDialog(null, resource.getString("HomeAssistantFloorPlan.Panel.error.outputDirectoryNotAccessible.text"),
+            resource.getString("HomeAssistantFloorPlan.Panel.error.title"), JOptionPane.ERROR_MESSAGE);
+        return false;
+    }
+
+    private void openOutputDirectory() {
+        if (!controller.isOutputDirectorySet() || !checkOutputDirectoryAccessible())
+            return;
+
+        File outputDirectory = new File(controller.getOutputDirectory());
+        try {
+            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN))
+                throw new IOException(outputDirectory.toString());
+            Desktop.getDesktop().open(outputDirectory);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null,
+                resource.getString("HomeAssistantFloorPlan.Panel.error.failedOpeningOutputDirectory.text") + " " + e,
+                resource.getString("HomeAssistantFloorPlan.Panel.error.title"), JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private JTree createTree(String rootName) {
@@ -472,16 +545,22 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField(20);
+        outputDirectoryTextField.setEditable(false);
         outputDirectoryTextField.setText(controller.getOutputDirectory());
         outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
             public void executeUpdate(DocumentEvent e) {
-                startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
                 controller.setOutputDirectory(outputDirectoryTextField.getText());
+                updateOutputDirectoryDependentButtons();
             }
         });
         outputDirectoryBrowseButton = new JButton(actionMap.get(ActionType.BROWSE));
         outputDirectoryBrowseButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.browseButton.text"));
+        outputDirectoryOpenButton = new JButton(actionMap.get(ActionType.OPEN));
+        outputDirectoryOpenButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.openButton.text"));
+        outputDirectoryButtonsPanel = new JPanel(new GridLayout(1, 2, 3, 0));
+        outputDirectoryButtonsPanel.add(outputDirectoryBrowseButton);
+        outputDirectoryButtonsPanel.add(outputDirectoryOpenButton);
         outputDirectoryChooser = new FileContentManager(preferences);
 
         progressBar = new JProgressBar() {
@@ -508,9 +587,14 @@ public class Panel extends JPanel implements DialogView {
 
         startButton = new JButton(actionMap.get(ActionType.START));
         startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
-        startButton.setEnabled(!outputDirectoryTextField.getText().isEmpty());
+        updateOutputDirectoryDependentButtons();
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
+    }
+
+    private void updateOutputDirectoryDependentButtons() {
+        startButton.setEnabled(controller.isOutputDirectorySet());
+        outputDirectoryOpenButton.setEnabled(controller.isOutputDirectorySet());
     }
 
     private void setComponentsEnabled(boolean enabled) {
@@ -532,6 +616,7 @@ public class Panel extends JPanel implements DialogView {
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
+            updateOutputDirectoryDependentButtons();
         } else {
             startButton.setAction(getActionMap().get(ActionType.STOP));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.stopButton.text"));
@@ -644,7 +729,7 @@ public class Panel extends JPanel implements DialogView {
         add(outputDirectoryTextField, new GridBagConstraints(
             1, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(outputDirectoryBrowseButton, new GridBagConstraints(
+        add(outputDirectoryButtonsPanel, new GridBagConstraints(
             3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
