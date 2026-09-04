@@ -81,7 +81,7 @@ import com.eteks.sweethome3d.viewcontroller.View;
 
 @SuppressWarnings("serial")
 public class Panel extends JPanel implements DialogView {
-    private enum ActionType {BROWSE, OPEN, START, STOP, CLOSE}
+    private enum ActionType {BROWSE, OPEN, ADVANCED_OPTIONS, START, STOP, CLOSE}
 
     private static final String MAC_OS_DIRECTORY_DIALOG_PROPERTY = "apple.awt.fileDialogForDirectories";
 
@@ -101,8 +101,6 @@ public class Panel extends JPanel implements DialogView {
     private JSpinner heightSpinner;
     private JLabel lightMixingModeLabel;
     private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
-    private JLabel sensitivityLabel;
-    private JSpinner sensitivitySpinner;
     private JLabel rendererLabel;
     private JComboBox<Controller.Renderer> rendererComboBox;
     private JLabel qualityLabel;
@@ -123,6 +121,7 @@ public class Panel extends JPanel implements DialogView {
     private JPanel outputDirectoryButtonsPanel;
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
+    private JButton advancedOptionsButton;
     private JProgressBar progressBar;
     private JButton startButton;
     private JButton closeButton;
@@ -182,6 +181,12 @@ public class Panel extends JPanel implements DialogView {
             @Override
             public void actionPerformed(ActionEvent ev) {
                 openOutputDirectory();
+            }
+        });
+        actions.put(ActionType.ADVANCED_OPTIONS, new ResourceAction(preferences, Panel.class, ActionType.ADVANCED_OPTIONS.name(), true) {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                new AdvancedOptionsPanel(preferences, controller).displayView(Panel.this);
             }
         });
         actions.put(ActionType.START, new ResourceAction(preferences, Panel.class, ActionType.START.name(), true) {
@@ -414,17 +419,6 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
-        sensitivityLabel = new JLabel();
-        sensitivityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.text"));
-        final SpinnerNumberModel sensitivitySpinnerModel = new SpinnerNumberModel(15, 0, 100, 1);
-        sensitivitySpinner = new AutoCommitSpinner(sensitivitySpinnerModel);
-        sensitivitySpinnerModel.setValue(controller.getSensitivity());
-        sensitivitySpinner.addChangeListener(new ChangeListener() {
-            public void stateChanged(ChangeEvent ev) {
-              controller.setSensitivity(((Number)sensitivitySpinner.getValue()).intValue());
-            }
-        });
-
         rendererLabel = new JLabel();
         rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
         rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
@@ -542,6 +536,11 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        advancedOptionsButton = new JButton(actionMap.get(ActionType.ADVANCED_OPTIONS));
+        advancedOptionsButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.advancedOptionsButton.text"));
+        advancedOptionsButton.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.advancedOptionsButton.tooltip"));
+        advancedOptionsButton.setMargin(new Insets(0, 4, 0, 4));
+
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
         outputDirectoryTextField = new JTextField(20);
@@ -603,7 +602,6 @@ public class Panel extends JPanel implements DialogView {
         widthSpinner.setEnabled(enabled);
         heightSpinner.setEnabled(enabled);
         lightMixingModeComboBox.setEnabled(enabled);
-        sensitivitySpinner.setEnabled(enabled);
         rendererComboBox.setEnabled(enabled);
         qualityComboBox.setEnabled(enabled);
         renderTimeSpinner.setEnabled(enabled);
@@ -613,6 +611,7 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         useExistingRendersCheckbox.setEnabled(enabled);
+        advancedOptionsButton.setEnabled(enabled);
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
             startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
@@ -713,15 +712,6 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
-        /* Sensitivity */
-        add(sensitivityLabel, new GridBagConstraints(
-            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(sensitivitySpinner, new GridBagConstraints(
-            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
-            GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        currentGridYIndex++;
-
         /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -738,6 +728,9 @@ public class Panel extends JPanel implements DialogView {
         add(useExistingRendersCheckbox, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(advancedOptionsButton, new GridBagConstraints(
+            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_END,
+            GridBagConstraints.NONE, insets, 0, 0));
         currentGridYIndex++;
 
         /* Progress bar */
