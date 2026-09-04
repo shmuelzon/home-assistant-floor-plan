@@ -13,13 +13,13 @@ JAVA_DEPENDENCIES=$(SWEET_HOME_JAR) $(J3D_CORE_JAR) $(J3D_VECMATH_JAR)
 PLUGIN=HomeAssistantFloorPlanPlugin-$(VERSION).sh3p
 
 DOCKER_CMD :=
-ifeq ($(wildcard /.dockerenv),)
+ifeq ($(wildcard /.dockerenv)$(GITHUB_ACTIONS),)
 ifneq ($(shell which docker),)
   DOCKER_CMD := docker run $(if $(TERM),-it )--rm --user $(shell id -u):$(shell id -g) --volume $(PWD):$(PWD) --workdir $(PWD) eclipse-temurin:8-noble
 endif
 endif
 
-ifneq ($(V),)
+ifneq ($(V)$(RUNNER_DEBUG),)
   Q :=
 define exec
 	$3
@@ -47,6 +47,7 @@ $(J3D_VECMATH_JAR):
 	$(call download,$@,https://jogamp.org/deployment/java3d/1.6.0-final/vecmath.jar)
 
 build/%.class: src/%.java $(JAVA_DEPENDENCIES)
+	$(Q)mkdir -p $(dir $@)
 	$(call exec,JAVA,$@,$(DOCKER_CMD) javac -classpath "dl/*:src" -target 1.8 -source 1.8 -Xlint:-options -d build $<)
 
 build/%.properties: src/%.properties
