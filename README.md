@@ -157,8 +157,12 @@ advanced options, which hold low-level settings most users don't need to change.
   generated images are stored. It is used as the prefix of every image
   referenced by the generated YAML. The default is `/local/floorplan`, which
   matches copying the `floorplan` folder into Home Assistant's `www` folder
+* Add image version tags? - When enabled (the default), every image referenced
+  by the generated YAML gets a `?version=<hash>` query string, derived from the
+  image's content, so Home Assistant reloads an image whenever it changes.
+  Disable it to reference the images by their plain path
 
-The "Reset to defaults" button restores both settings to their original values.
+The "Reset to defaults" button restores all settings to their original values.
 
 ## Preparation
 
