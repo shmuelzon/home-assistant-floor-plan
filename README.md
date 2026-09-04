@@ -94,9 +94,6 @@ the room they're located in. Please verify the list matches your expectations.
 * Renderer - Select which rendering engine to use, YafaRay or SunFlow
 * Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Quality - Choose the rendering quality (low or high)
-* Sensitivity - [1, 100] The degree by which two pixels need to be different
-  from one another to be taken into account for the generated overlay image.
-  Only relevant for "room overlay" light mixing mode and RGB lights
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 
@@ -145,6 +142,23 @@ that allow you to customize the entity according to your needs.
 
   :warning: **Note:** RGB/dimmable lights are only supported in the CSS
   rendering mode
+
+### Advanced Options
+
+Clicking the cogwheel button at the bottom of the configuration window opens the
+advanced options, which hold low-level settings most users don't need to change.
+
+<img src="doc/advancedOptions.png" />
+
+* Sensitivity - [1, 100] The degree by which two pixels need to be different
+  from one another to be taken into account for the generated overlay image.
+  Only relevant for "room overlay" light mixing mode and RGB lights
+* Home Assistant path - The path, as seen by Home Assistant, under which the
+  generated images are stored. It is used as the prefix of every image
+  referenced by the generated YAML. The default is `/local/floorplan`, which
+  matches copying the `floorplan` folder into Home Assistant's `www` folder
+
+The "Reset to defaults" button restores both settings to their original values.
 
 ## Preparation
 
