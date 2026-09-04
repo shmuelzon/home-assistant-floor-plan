@@ -13,13 +13,13 @@ JAVA_DEPENDENCIES=$(SWEET_HOME_JAR) $(J3D_CORE_JAR) $(J3D_VECMATH_JAR)
 PLUGIN=HomeAssistantFloorPlanPlugin-$(VERSION).sh3p
 
 DOCKER_CMD :=
-ifeq ($(wildcard /.dockerenv),)
+ifeq ($(wildcard /.dockerenv)$(GITHUB_ACTIONS),)
 ifneq ($(shell which docker),)
   DOCKER_CMD := docker run $(if $(TERM),-it )--rm --user $(shell id -u):$(shell id -g) --volume $(PWD):$(PWD) --workdir $(PWD) eclipse-temurin:8-noble
 endif
 endif
 
-ifneq ($(V),)
+ifneq ($(V)$(RUNNER_DEBUG),)
   Q :=
 define exec
 	$3
