@@ -62,6 +62,7 @@ public class Controller {
     private static final String CONTROLLER_IMAGE_FORMAT = "imageFormat";
     private static final String CONTROLLER_RENDER_TIME = "renderTime";
     private static final String CONTROLLER_HOME_ASSISTANT_PATH = "homeAssistantPath";
+    private static final String CONTROLLER_ADD_IMAGE_VERSION_TAGS = "addImageVersionTags";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
 
@@ -86,6 +87,7 @@ public class Controller {
     private ImageFormat imageFormat;
     private List<Long> renderDateTimes;
     private String homeAssistantPath;
+    private boolean addImageVersionTags;
     private String outputDirectoryName;
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
@@ -115,6 +117,7 @@ public class Controller {
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
         homeAssistantPath = settings.get(CONTROLLER_HOME_ASSISTANT_PATH, "/local/floorplan");
+        addImageVersionTags = settings.getBoolean(CONTROLLER_ADD_IMAGE_VERSION_TAGS, true);
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME);
         updateOutputSubDirectoryNames();
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
@@ -199,6 +202,15 @@ public class Controller {
         settings.set(CONTROLLER_HOME_ASSISTANT_PATH, homeAssistantPath);
     }
 
+    public boolean getAddImageVersionTags() {
+        return addImageVersionTags;
+    }
+
+    public void setAddImageVersionTags(boolean addImageVersionTags) {
+        this.addImageVersionTags = addImageVersionTags;
+        settings.setBoolean(CONTROLLER_ADD_IMAGE_VERSION_TAGS, addImageVersionTags);
+    }
+
     private String imagePath(String imageName) {
         return homeAssistantPath.replaceAll("/+$", "") + "/" + imageName;
     }
@@ -206,6 +218,7 @@ public class Controller {
     public void resetAdvancedOptionsToDefaults() {
         settings.set(CONTROLLER_SENSITIVTY, null);
         settings.set(CONTROLLER_HOME_ASSISTANT_PATH, null);
+        settings.set(CONTROLLER_ADD_IMAGE_VERSION_TAGS, null);
         loadDefaultSettings();
     }
 
@@ -335,8 +348,8 @@ public class Controller {
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
             String yaml = String.format(
                 "type: picture-elements\n" +
-                "image: %s.png?version=%s\n" +
-                "elements:\n", imagePath(TRANSPARENT_IMAGE_NAME), renderHash(TRANSPARENT_IMAGE_NAME, true));
+                "image: %s.png%s\n" +
+                "elements:\n", imagePath(TRANSPARENT_IMAGE_NAME), imageVersionSuffix(TRANSPARENT_IMAGE_NAME, true));
             
             turnOffLightsFromOtherLevels();
             for (Scene scene : scenes) {
@@ -672,8 +685,14 @@ public class Controller {
         return tintedImage;
     }
 
-    private String renderHash(String imageName) throws IOException {
-        return renderHash(imageName, false);
+    private String imageVersionSuffix(String imageName) throws IOException {
+        return imageVersionSuffix(imageName, false);
+    }
+
+    private String imageVersionSuffix(String imageName, boolean forcePng) throws IOException {
+        if (!addImageVersionTags)
+            return "";
+        return "?version=" + renderHash(imageName, forcePng);
     }
 
     private String renderHash(String imageName, boolean forcePng) throws IOException {
@@ -720,14 +739,14 @@ public class Controller {
             "          action: none\n" +
             "        hold_action:\n" +
             "          action: none\n" +
-            "        image: %s.%s?version=%s\n" +
+            "        image: %s.%s%s\n" +
             "        filter: none\n" +
             "        style:\n" +
             "          left: 50%%\n" +
             "          top: 50%%\n" +
             "          width: 100%%\n%s",
             generateTitle(scene, onLights), conditions, imagePath(normalizePath(imageName)),
-            getFloorplanImageExtention(), renderHash(imageName),
+            getFloorplanImageExtention(), imageVersionSuffix(imageName),
             includeMixBlend && lightMixingMode == LightMixingMode.CSS ? "          mix-blend-mode: lighten\n" : "");
     }
 
@@ -755,8 +774,8 @@ public class Controller {
             "          type: image\n" +
             "          image: >-\n" +
             "              ${!isInColoredMode(COLOR_MODE) || (isInColoredMode(COLOR_MODE) && LIGHT_COLOR && LIGHT_COLOR[0] == 0 && LIGHT_COLOR[1] == 0) ?\n" +
-            "              '%s.png?version=%s' :\n" +
-            "              '%s.png?version=%s' }\n" +
+            "              '%s.png%s' :\n" +
+            "              '%s.png%s' }\n" +
             "        style:\n" +
             "          filter: '${ \"hue-rotate(\" + (isInColoredMode(COLOR_MODE) && LIGHT_COLOR ? LIGHT_COLOR[0] : 0) + \"deg) saturate(\" + (LIGHT_COLOR ? LIGHT_COLOR[1] / 100 : 1) + \")\"}'\n" +
             "          opacity: '${LIGHT_STATE === ''on'' ? (BRIGHTNESS / 255) : ''100''}'\n" +
@@ -767,7 +786,7 @@ public class Controller {
             "          width: 100%%\n",
             generateTitle(scene, Arrays.asList(light)),
             lightName, scene.getConditions(), lightName, lightName, lightName, lightName, lightName,
-            imagePath(normalizePath(imageName)), renderHash(imageName, true), imagePath(normalizePath(imageName) + ".red"), renderHash(imageName + ".red", true));
+            imagePath(normalizePath(imageName)), imageVersionSuffix(imageName, true), imagePath(normalizePath(imageName) + ".red"), imageVersionSuffix(imageName + ".red", true));
     }
 
     private String normalizePath(String fileName) {

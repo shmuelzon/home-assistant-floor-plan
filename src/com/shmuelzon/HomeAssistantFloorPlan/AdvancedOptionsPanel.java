@@ -7,11 +7,14 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
 import javax.swing.ActionMap;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -39,6 +42,7 @@ public class AdvancedOptionsPanel extends JPanel {
     private JSpinner sensitivitySpinner;
     private JLabel homeAssistantPathLabel;
     private JTextField homeAssistantPathTextField;
+    private JCheckBox addImageVersionTagsCheckbox;
     private JButton closeButton;
     private JButton resetToDefaultsButton;
 
@@ -94,6 +98,15 @@ public class AdvancedOptionsPanel extends JPanel {
             }
         });
 
+        addImageVersionTagsCheckbox = new JCheckBox();
+        addImageVersionTagsCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.addImageVersionTags.text"));
+        addImageVersionTagsCheckbox.setSelected(controller.getAddImageVersionTags());
+        addImageVersionTagsCheckbox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+                controller.setAddImageVersionTags(addImageVersionTagsCheckbox.isSelected());
+            }
+        });
+
         closeButton = new JButton(actionMap.get(ActionType.CLOSE));
         closeButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.closeButton.text"));
         resetToDefaultsButton = new JButton(actionMap.get(ActionType.RESET_TO_DEFAULTS));
@@ -121,6 +134,11 @@ public class AdvancedOptionsPanel extends JPanel {
         homeAssistantPathLabel.setHorizontalAlignment(labelAlignment);
         add(homeAssistantPathTextField, new GridBagConstraints(
             1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
+        add(addImageVersionTagsCheckbox, new GridBagConstraints(
+            0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.LINE_START,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
     }
 
