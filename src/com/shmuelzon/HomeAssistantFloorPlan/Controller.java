@@ -1,7 +1,9 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Color;
+import java.awt.EventQueue;
 import java.awt.image.BufferedImage;
+import java.awt.image.ImageObserver;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -78,6 +80,7 @@ public class Controller {
     private PropertyChangeSupport propertyChangeSupport;
     private int numberOfCompletedRenders;
     private AbstractPhotoRenderer photoRenderer;
+    private ImageObserver renderObserver;
     private int renderWidth;
     private int renderHeight;
     private LightMixingMode lightMixingMode;
@@ -129,6 +132,10 @@ public class Controller {
 
     public void removePropertyChangeListener(Property property, PropertyChangeListener listener) {
         propertyChangeSupport.removePropertyChangeListener(property.name(), listener);
+    }
+
+    public void setRenderObserver(ImageObserver observer) {
+        renderObserver = observer;
     }
 
     public List<Entity> getLightEntities() {
@@ -599,8 +606,10 @@ public class Controller {
         String fileName = outputRendersDirectoryName + File.separator + name + ".png";
 
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
+            BufferedImage image = ImageIO.read(Files.newInputStream(Paths.get(fileName)));
+            showExistingRender(image);
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
-            return ImageIO.read(Files.newInputStream(Paths.get(fileName)));
+            return image;
         }
         prepareScene(onLights);
         BufferedImage image = renderScene();
@@ -608,6 +617,17 @@ public class Controller {
         ImageIO.write(image, "png", imageFile);
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
         return image;
+    }
+
+    private void showExistingRender(final BufferedImage image) {
+        final ImageObserver observer = renderObserver;
+        if (observer == null || image == null)
+            return;
+        EventQueue.invokeLater(new Runnable() {
+            public void run() {
+                observer.imageUpdate(image, ImageObserver.ALLBITS, 0, 0, image.getWidth(), image.getHeight());
+            }
+        });
     }
 
     private void prepareScene(List<Entity> onLights) {
@@ -624,7 +644,7 @@ public class Controller {
             rendererToClassName.get(renderer),
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
-        photoRenderer.render(image, camera, null);
+        photoRenderer.render(image, camera, renderObserver);
         if (photoRenderer != null) {
             photoRenderer.dispose();
             photoRenderer = null;

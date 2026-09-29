@@ -123,6 +123,7 @@ public class Panel extends JPanel implements DialogView {
     private JCheckBox useExistingRendersCheckbox;
     private JButton advancedOptionsButton;
     private JProgressBar progressBar;
+    private RenderPreviewComponent renderPreview;
     private JButton startButton;
     private JButton closeButton;
 
@@ -194,6 +195,9 @@ public class Panel extends JPanel implements DialogView {
             public void actionPerformed(ActionEvent ev) {
                 if (!checkOutputDirectoryAccessible())
                     return;
+                renderPreview.setImage(null);
+                renderPreview.setPlaceholderSize(controller.getRenderWidth(), controller.getRenderHeight());
+                renderPreview.setVisible(true);
                 renderExecutor = Executors.newSingleThreadExecutor();
                 renderExecutor.execute(new Runnable() {
                     public void run() {
@@ -208,6 +212,8 @@ public class Panel extends JPanel implements DialogView {
                         EventQueue.invokeLater(new Runnable() {
                             public void run() {
                                 setComponentsEnabled(true);
+                                renderPreview.setVisible(false);
+                                renderPreview.setImage(null);
                                 renderExecutor = null;
                             }
                         });
@@ -584,6 +590,12 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        renderPreview = new RenderPreviewComponent();
+        renderPreview.setPreferredSize(new Dimension(0, 0));
+        renderPreview.setMinimumSize(new Dimension(0, 0));
+        renderPreview.setVisible(false);
+        controller.setRenderObserver(renderPreview);
+
         startButton = new JButton(actionMap.get(ActionType.START));
         startButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.startButton.text"));
         updateOutputDirectoryDependentButtons();
@@ -733,10 +745,22 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.NONE, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Render preview, overlaid on top of all the components above the progress bar */
+        int previewGap = Math.round(20 * SwingTools.getResolutionScale());
+        add(renderPreview, new GridBagConstraints(
+            0, 0, 4, currentGridYIndex, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.BOTH, new Insets(previewGap, previewGap, previewGap, previewGap), 0, 0), 0);
+
         /* Progress bar */
         add(progressBar, new GridBagConstraints(
             0, currentGridYIndex, 4, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
+    }
+
+    /* Components overlap (the render preview is drawn on top of the others) */
+    @Override
+    public boolean isOptimizedDrawingEnabled() {
+        return false;
     }
 
     public void displayView(View parentView) {
