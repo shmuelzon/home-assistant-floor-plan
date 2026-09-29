@@ -19,6 +19,8 @@ light, sensors and cameras.
   and rooms
 * **YAML Configuration** - Generate a YAML file with the picture-elements
   structure for easy integration with Home Assistant
+* **Multiple Floors** - Render all the floors of the project with buttons for
+  switching between them
 * **Configuration Options** -
   * Group detected lights by room
   * Adjust output resolution
@@ -94,6 +96,14 @@ the room they're located in. Please verify the list matches your expectations.
 * Renderer - Select which rendering engine to use, YafaRay or SunFlow
 * Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Quality - Choose the rendering quality (low or high)
+* Floors - Only displayed when the project has multiple levels. Render only the
+  selected floor or all floors, each in its own directory, e.g.,
+  `floorplan/1st_floor`, with buttons for switching between them. Levels
+  without any entities, e.g., a roof, are skipped
+
+  :warning: **Note:** Rendering all floors requires installing the
+  [state-switch](https://github.com/thomasloven/lovelace-state-switch) custom
+  Lovelace card
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
 

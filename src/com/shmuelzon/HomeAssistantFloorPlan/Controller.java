@@ -2,6 +2,11 @@ package com.shmuelzon.HomeAssistantFloorPlan;
 
 import java.awt.Color;
 import java.awt.EventQueue;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.font.FontRenderContext;
+import java.awt.font.TextLayout;
 import java.awt.image.BufferedImage;
 import java.awt.image.ImageObserver;
 import java.beans.PropertyChangeEvent;
@@ -18,12 +23,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,20 +45,22 @@ import javax.xml.bind.DatatypeConverter;
 import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.Home;
-import com.eteks.sweethome3d.model.HomeFurnitureGroup;
-import com.eteks.sweethome3d.model.HomeLight;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
-import com.eteks.sweethome3d.model.Room;
+import com.eteks.sweethome3d.model.Level;
+import com.eteks.sweethome3d.model.ObserverCamera;
 
 
 public class Controller {
-    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS}
+    public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, FLOORS}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
     public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
+    public enum RenderedFloors {SELECTED, ALL}
 
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
+    private static final String FLOOR_BUTTON_IMAGE_NAME = "floor_button";
+    private static final String SELECTED_FLOOR_BUTTON_IMAGE_NAME = "floor_button_selected";
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
@@ -67,14 +74,12 @@ public class Controller {
     private static final String CONTROLLER_ADD_IMAGE_VERSION_TAGS = "addImageVersionTags";
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
+    private static final String CONTROLLER_RENDERED_FLOORS = "renderedFloors";
 
     private Home home;
     private Settings settings;
     private Camera camera;
-    private List<Entity> lightEntities = new ArrayList<>();
-    private List<Entity> otherEntities = new ArrayList<>();
-    private List<Entity> otherLevelsEntities = new ArrayList<>();
-    private Map<String, List<Entity>> lightsGroups = new HashMap<>();
+    private List<Floor> floors = new ArrayList<>();
     private Vector4d cameraPosition;
     private Transform3D perspectiveTransform;
     private PropertyChangeSupport propertyChangeSupport;
@@ -95,7 +100,9 @@ public class Controller {
     private String outputRendersDirectoryName;
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
-    private Scenes scenes;
+    private RenderedFloors renderedFloors;
+    private int floorButtonWidth;
+    private int floorButtonHeight;
 
     public Controller(Home home) {
         this.home = home;
@@ -103,11 +110,7 @@ public class Controller {
         camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
         loadDefaultSettings();
-        createHomeAssistantEntities();
-
-        buildLightsGroups();
-        buildScenes();
-        repositionEntities();
+        buildFloors();
     }
 
     public void loadDefaultSettings() {
@@ -124,6 +127,7 @@ public class Controller {
         outputDirectoryName = settings.get(CONTROLLER_OUTPUT_DIRECTORY_NAME);
         updateOutputSubDirectoryNames();
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
+        renderedFloors = settings.getEnum(RenderedFloors.class, CONTROLLER_RENDERED_FLOORS, RenderedFloors.SELECTED);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -138,37 +142,44 @@ public class Controller {
         renderObserver = observer;
     }
 
-    public List<Entity> getLightEntities() {
-        return lightEntities;
-    }
-
-    public List<Entity> getOtherEntities() {
-        return otherEntities;
-    }
-
-    public Map<String, List<Entity>> getLightsGroups() {
-        return lightsGroups;
-    }
-
-    private int getNumberOfControllableLights(List<Entity> lights) {
-        int numberOfControllableLights = 0;
-
-        for (Entity light : lights)
-            numberOfControllableLights += light.getAlwaysOn() ? 0 : 1;
-
-        return numberOfControllableLights;
+    public List<Floor> getFloors() {
+        return floors;
     }
 
     public int getNumberOfTotalRenders() {
-        int numberOfLightRenders = 1;
+        return floors.stream().mapToInt(Floor::getNumberOfTotalRenders).sum();
+    }
 
-        if (scenes == null)
-            return 0;
+    private List<Level> getFloorLevels() {
+        Set<Level> levelsWithEntities = Floor.getLevelsWithEntities(home);
+        return home.getLevels().stream().filter(level -> level.isViewable() && levelsWithEntities.contains(level)).collect(Collectors.toList());
+    }
 
-        for (List<Entity> groupLights : lightsGroups.values()) {
-            numberOfLightRenders += (1 << getNumberOfControllableLights(groupLights)) - 1;
-        }
-        return numberOfLightRenders * scenes.size();
+    public boolean hasMultipleFloors() {
+        return getFloorLevels().size() > 1;
+    }
+
+    public String getSelectedFloorName() {
+        Level selectedLevel = home.getSelectedLevel();
+        return selectedLevel != null && selectedLevel.getName() != null ? selectedLevel.getName() : "";
+    }
+
+    public RenderedFloors getRenderedFloors() {
+        return renderedFloors;
+    }
+
+    public void setRenderedFloors(RenderedFloors renderedFloors) {
+        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
+        this.renderedFloors = renderedFloors;
+        settings.set(CONTROLLER_RENDERED_FLOORS, renderedFloors.name());
+        buildFloors();
+        propertyChangeSupport.firePropertyChange(Property.FLOORS.name(), null, floors);
+        propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
+    }
+
+    /* Determined by the floors that were built, as rendering modifies the furniture used to detect them */
+    private boolean isRenderingAllFloors() {
+        return floors.size() > 1;
     }
 
     public int getRenderHeight() {
@@ -236,7 +247,7 @@ public class Controller {
     public void setLightMixingMode(LightMixingMode lightMixingMode) {
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         this.lightMixingMode = lightMixingMode;
-        buildLightsGroups();
+        floors.forEach(floor -> floor.buildLightsGroups(lightMixingMode));
         settings.set(CONTROLLER_LIGHT_MIXING_MODE, lightMixingMode.name());
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
@@ -347,36 +358,25 @@ public class Controller {
     public void render() throws IOException, InterruptedException {
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, 0);
         numberOfCompletedRenders = 0;
+        Map<Level, Boolean> levelsVisibility = home.getLevels().stream().collect(Collectors.toMap(level -> level, Level::isVisible));
 
         try {
             Files.createDirectories(Paths.get(outputRendersDirectoryName));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName));
 
             generateTransparentImage(outputFloorplanDirectoryName + File.separator + TRANSPARENT_IMAGE_NAME + ".png");
-            String yaml = String.format(
-                "type: picture-elements\n" +
-                "image: %s.png%s\n" +
-                "elements:\n", imagePath(TRANSPARENT_IMAGE_NAME), imageVersionSuffix(TRANSPARENT_IMAGE_NAME, true));
-            
-            turnOffLightsFromOtherLevels();
-            for (Scene scene : scenes) {
-                Files.createDirectories(Paths.get(outputRendersDirectoryName + File.separator + scene.getName()));
-                Files.createDirectories(Paths.get(outputFloorplanDirectoryName + File.separator + scene.getName()));
+            if (isRenderingAllFloors())
+                generateFloorButtonImages();
 
-                scene.prepare();
-
-                String baseImageName = "base";
-                if (!scene.getName().isEmpty())
-                    baseImageName = scene.getName() + File.separator + baseImageName;
-                BufferedImage baseImage = generateBaseRender(scene, baseImageName);
-                yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
-
-                for (String group : lightsGroups.keySet())
-                    yaml += generateGroupRenders(scene, group, baseImage);
+            Map<Floor, String> floorsYaml = new HashMap<>();
+            for (Floor floor : floors) {
+                if (isRenderingAllFloors())
+                    showLevel(floor.getLevel());
+                floorsYaml.put(floor, generateFloorYaml(floor));
+                restoreEntityConfiguration();
             }
 
-            yaml += generateEntitiesYaml();
-
+            String yaml = isRenderingAllFloors() ? generateFloorsSwitchYaml(floorsYaml) : floorsYaml.get(floors.get(0));
             Files.write(Paths.get(outputDirectoryName + File.separator + "floorplan.yaml"), yaml.getBytes());
         } catch (InterruptedIOException e) {
             throw new InterruptedException();
@@ -386,167 +386,136 @@ public class Controller {
             throw e;
         } finally {
             restoreEntityConfiguration();
+            levelsVisibility.forEach(Level::setVisible);
         }
     }
 
-    private void addEligibleFurnitureToMap(Map<String, List<HomePieceOfFurniture>> furnitureByName, List<HomePieceOfFurniture> lightsFromOtherLevels, List<HomePieceOfFurniture> furnitureList) {
-        for (HomePieceOfFurniture piece : furnitureList) {
-            if (piece instanceof HomeFurnitureGroup) {
-                addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, ((HomeFurnitureGroup)piece).getFurniture());
-                continue;
-            }
-            if (!isHomeAssistantEntity(piece.getName()) || !piece.isVisible())
-                continue;
-            boolean isLight = piece instanceof HomeLight;
-            if (isLight && ((HomeLight)piece).getPower() == 0f)
-                continue;
-            if (!home.getEnvironment().isAllLevelsVisible() && piece.getLevel() != home.getSelectedLevel()) {
-                if (isLight)
-                    lightsFromOtherLevels.add(piece);
-                continue;
-            }
-            if (!furnitureByName.containsKey(piece.getName()))
-                furnitureByName.put(piece.getName(), new ArrayList<HomePieceOfFurniture>());
-            furnitureByName.get(piece.getName()).add(piece);
+    private String generateFloorYaml(Floor floor) throws IOException, InterruptedException {
+        String yaml = String.format(
+            "type: picture-elements\n" +
+            "image: %s.png%s\n" +
+            "elements:\n", imagePath(TRANSPARENT_IMAGE_NAME), imageVersionSuffix(TRANSPARENT_IMAGE_NAME, true));
+
+        floor.turnOffLightsFromOtherLevels();
+        for (Scene scene : floor.getScenes()) {
+            Files.createDirectories(Paths.get(outputRendersDirectoryName, floor.getName(), scene.getName()));
+            Files.createDirectories(Paths.get(outputFloorplanDirectoryName, floor.getName(), scene.getName()));
+
+            scene.prepare();
+
+            String baseImageName = imageName(floor, scene, "base");
+            BufferedImage baseImage = generateBaseRender(floor, baseImageName);
+            yaml += generateLightYaml(scene, Collections.emptyList(), null, baseImageName, false);
+
+            for (String group : floor.getLightsGroups().keySet())
+                yaml += generateGroupRenders(floor, scene, group, baseImage);
+        }
+
+        yaml += generateEntitiesYaml(floor);
+        if (isRenderingAllFloors())
+            yaml += generateFloorButtonsYaml(floor);
+
+        return yaml;
+    }
+
+    private String imageName(Floor floor, Scene scene, String name) {
+        return Stream.of(floor.getName(), scene.getName(), name).filter(s -> !s.isEmpty()).collect(Collectors.joining(File.separator));
+    }
+
+    /* Show the level along with the levels below it, similar to selecting it in the 3D view */
+    private void showLevel(Level levelToShow) {
+        boolean visible = true;
+
+        for (Level level : home.getLevels()) {
+            level.setVisible(visible);
+            if (level == levelToShow)
+                visible = false;
         }
     }
 
-    private void createHomeAssistantEntities() {
-        Map<String, List<HomePieceOfFurniture>> furnitureByName = new HashMap<>();
-        List<HomePieceOfFurniture> lightsFromOtherLevels = new ArrayList<>();
-        addEligibleFurnitureToMap(furnitureByName, lightsFromOtherLevels, home.getFurniture());
+    /* Get the camera as SH3D would place it when the level is selected: the aerial view camera is updated
+     * according to the visible levels while the virtual visitor's elevation is adjusted to the level's elevation */
+    private Camera getFloorCamera(Level level) {
+        Map<Level, Boolean> levelsVisibility = home.getLevels().stream().collect(Collectors.toMap(l -> l, Level::isVisible));
+        showLevel(level);
+        Camera floorCamera = home.getCamera().clone();
+        levelsVisibility.forEach(Level::setVisible);
 
-        for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
-            Entity entity = new Entity(settings, pieces);
-            entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    repositionEntities();
-                }
-            });
-            entity.addPropertyChangeListener(Entity.Property.SCALE, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    repositionEntities();
-                }
-            });
-            entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    buildLightsGroups();
-                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
-                }
-            });
-            entity.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    buildScenes();
-                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
-                }
-            });
-            entity.addPropertyChangeListener(Entity.Property.OPEN_FURNITURE_CONDITION, new PropertyChangeListener() {
-                public void propertyChange(PropertyChangeEvent ev) {
-                    buildScenes();
-                    propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
-                }
-            });
+        floorCamera.setTime(camera.getTime());
+        Level selectedLevel = home.getSelectedLevel();
+        if (floorCamera instanceof ObserverCamera && home.getEnvironment().isObserverCameraElevationAdjusted() && selectedLevel != null)
+            floorCamera.setZ(floorCamera.getZ() - selectedLevel.getElevation() + level.getElevation());
 
-            if (entity.getIsLight())
-                lightEntities.add(entity);
-            else
-                otherEntities.add(entity);
-        }
-
-        for (HomePieceOfFurniture piece : lightsFromOtherLevels)
-            otherLevelsEntities.add(new Entity(settings, Arrays.asList(piece)));
+        return floorCamera;
     }
 
-    private void buildLightsGroupsByRoom() {
-        List<Room> homeRooms = home.getRooms();
+    private void buildFloors() {
+        List<Level> levels = getFloorLevels();
+        floors = new ArrayList<>();
 
-        for (Room room : homeRooms) {
-            if (!home.getEnvironment().isAllLevelsVisible() && room.getLevel() != home.getSelectedLevel())
-                continue;
-            String roomName = room.getName() != null ? room.getName() : room.getId();
-            for (Entity entity : lightEntities) {
-                HomePieceOfFurniture light = entity.getPiecesOfFurniture().get(0);
-                if (room.containsPoint(light.getX(), light.getY(), 0) && room.getLevel() == light.getLevel()) {
-                    if (!lightsGroups.containsKey(roomName))
-                        lightsGroups.put(roomName, new ArrayList<>());
-                    lightsGroups.get(roomName).add(entity);
-                }
+        if (renderedFloors == RenderedFloors.ALL && levels.size() > 1) {
+            Set<String> floorNames = new HashSet<>();
+            for (int i = 0; i < levels.size(); i++) {
+                String baseName = Utils.normalizeName(levels.get(i).getName());
+                if (baseName.isEmpty())
+                    baseName = "level_" + i;
+                String name = baseName;
+                for (int suffix = 2; floorNames.contains(name); suffix++)
+                    name = baseName + "_" + suffix;
+                floorNames.add(name);
+                floors.add(new Floor(home, levels.get(i), getFloorCamera(levels.get(i)), false, name));
             }
         }
-    }
+        else
+            floors.add(new Floor(home, home.getSelectedLevel(), camera, home.getEnvironment().isAllLevelsVisible(), ""));
 
-    private void buildLightsGroupsByLight() {
-        for (Entity entity : lightEntities) {
-            lightsGroups.put(entity.getName(), new ArrayList<>());
-            lightsGroups.get(entity.getName()).add(entity);
+        for (Floor floor : floors) {
+            for (Entity entity : floor.getEntities())
+                addEntityListeners(floor, entity);
+            floor.buildLightsGroups(lightMixingMode);
+            floor.buildScenes(renderDateTimes);
+            repositionEntities(floor);
         }
     }
 
-    private void buildLightsGroupsByHome() {
-        lightsGroups.put("Home", new ArrayList<>());
-        for (Entity entity : lightEntities)
-            lightsGroups.get("Home").add(entity);
-    }
-
-    private void buildLightsGroups() {
-        lightsGroups.clear();
-
-        if (lightMixingMode == LightMixingMode.CSS)
-            buildLightsGroupsByLight();
-        else if (lightMixingMode == LightMixingMode.OVERLAY)
-            buildLightsGroupsByRoom();
-        else if (lightMixingMode == LightMixingMode.FULL)
-            buildLightsGroupsByHome();
+    private void addEntityListeners(Floor floor, Entity entity) {
+        entity.addPropertyChangeListener(Entity.Property.POSITION, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                repositionEntities(floor);
+            }
+        });
+        entity.addPropertyChangeListener(Entity.Property.SCALE, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                repositionEntities(floor);
+            }
+        });
+        entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                floor.buildLightsGroups(lightMixingMode);
+                propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+            }
+        });
+        entity.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                floor.buildScenes(renderDateTimes);
+                propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+            }
+        });
+        entity.addPropertyChangeListener(Entity.Property.OPEN_FURNITURE_CONDITION, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                floor.buildScenes(renderDateTimes);
+                propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
+            }
+        });
     }
 
     private void buildScenes() {
         int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
-        scenes = new Scenes(camera);
-        scenes.setRenderingTimes(renderDateTimes);
-        scenes.setEntitiesToShowOrHide(otherEntities.stream().filter(entity -> { return entity.getDisplayFurnitureCondition() != Entity.DisplayFurnitureCondition.ALWAYS; }).collect(Collectors.toList()));
-        scenes.setEntitiesToOpenOrClose(otherEntities.stream().filter(entity -> { return entity.getOpenFurnitureCondition() != Entity.OpenFurnitureCondition.ALWAYS; }).collect(Collectors.toList()));
+        floors.forEach(floor -> floor.buildScenes(renderDateTimes));
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
     }
 
-    private boolean isHomeAssistantEntity(String name) {
-        List<String> sensorPrefixes = Arrays.asList(
-            "air_quality.",
-            "alarm_control_panel.",
-            "assist_satellite.",
-            "binary_sensor.",
-            "button.",
-            "camera.",
-            "climate.",
-            "cover.",
-            "device_tracker.",
-            "fan.",
-            "humidifier.",
-            "input_boolean.",
-            "input_button.",
-            "lawn_mower.",
-            "light.",
-            "lock.",
-            "media_player.",
-            "remote.",
-            "sensor.",
-            "siren.",
-            "switch.",
-            "sun.",
-            "todo.",
-            "update.",
-            "vacuum.",
-            "valve.",
-            "water_heater.",
-            "weather."
-        );
-
-        if (name == null)
-            return false;
-
-        return sensorPrefixes.stream().anyMatch(name::startsWith);
-    }
-
-    private void build3dProjection() {
+    private void build3dProjection(Camera camera) {
         cameraPosition = new Vector4d(camera.getX(), camera.getZ(), camera.getY(), 0);
 
         Transform3D yawRotation = new Transform3D();
@@ -561,8 +530,8 @@ public class Controller {
         perspectiveTransform.mul(yawRotation);
     }
 
-    private BufferedImage generateBaseRender(Scene scene, String imageName) throws IOException, InterruptedException {
-        BufferedImage image = generateImage(new ArrayList<>(), imageName);
+    private BufferedImage generateBaseRender(Floor floor, String imageName) throws IOException, InterruptedException {
+        BufferedImage image = generateImage(floor, new ArrayList<>(), imageName);
         return generateFloorPlanImage(image, image, imageName, false);
     }
 
@@ -572,16 +541,14 @@ public class Controller {
         return this.imageFormat.name().toLowerCase();
     }
 
-    private String generateGroupRenders(Scene scene, String group, BufferedImage baseImage) throws IOException, InterruptedException {
-        List<Entity> groupLights = lightsGroups.get(group);
+    private String generateGroupRenders(Floor floor, Scene scene, String group, BufferedImage baseImage) throws IOException, InterruptedException {
+        List<Entity> groupLights = floor.getLightsGroups().get(group);
 
         List<List<Entity>> lightCombinations = getCombinations(groupLights);
         String yaml = "";
         for (List<Entity> onLights : lightCombinations) {
-            String imageName = String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList()));
-            if (!scene.getName().isEmpty())
-                imageName = scene.getName() + File.separator + imageName;
-            BufferedImage image = generateImage(onLights, imageName);
+            String imageName = imageName(floor, scene, String.join("_", onLights.stream().map(Entity::getName).collect(Collectors.toList())));
+            BufferedImage image = generateImage(floor, onLights, imageName);
             Entity firstLight = onLights.get(0);
             boolean createOverlayImage = lightMixingMode == LightMixingMode.OVERLAY || (lightMixingMode == LightMixingMode.CSS && firstLight.getIsRgb());
             BufferedImage floorPlanImage = generateFloorPlanImage(baseImage, image, imageName, createOverlayImage);
@@ -595,6 +562,120 @@ public class Controller {
         return yaml;
     }
 
+    private void generateFloorButtonImages() throws IOException {
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, Math.max(10, Math.round(renderHeight * 0.035f)));
+        FontRenderContext fontRenderContext = new FontRenderContext(null, true, true);
+        int padding = font.getSize();
+        int maxTextWidth = 0;
+        int textHeight = 0;
+
+        for (Floor floor : floors) {
+            TextLayout text = new TextLayout(floor.getTitle().isEmpty() ? " " : floor.getTitle(), font, fontRenderContext);
+            maxTextWidth = Math.max(maxTextWidth, (int)Math.ceil(text.getAdvance()));
+            textHeight = Math.max(textHeight, (int)Math.ceil(text.getAscent() + text.getDescent()));
+        }
+        floorButtonWidth = maxTextWidth + 2 * padding;
+        floorButtonHeight = textHeight + padding;
+
+        for (Floor floor : floors) {
+            Files.createDirectories(Paths.get(outputFloorplanDirectoryName, floor.getName()));
+            generateFloorButtonImage(floor, font, fontRenderContext, false);
+            generateFloorButtonImage(floor, font, fontRenderContext, true);
+        }
+    }
+
+    private void generateFloorButtonImage(Floor floor, Font font, FontRenderContext fontRenderContext, boolean isSelected) throws IOException {
+        BufferedImage image = new BufferedImage(floorButtonWidth, floorButtonHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        graphics.setColor(isSelected ? new Color(255, 255, 255, 220) : new Color(255, 255, 255, 77));
+        graphics.fillRoundRect(0, 0, floorButtonWidth, floorButtonHeight, floorButtonHeight, floorButtonHeight);
+        if (!floor.getTitle().isEmpty()) {
+            TextLayout text = new TextLayout(floor.getTitle(), font, fontRenderContext);
+            graphics.setColor(Color.BLACK);
+            text.draw(graphics,
+                (floorButtonWidth - text.getAdvance()) / 2,
+                (floorButtonHeight - text.getAscent() - text.getDescent()) / 2 + text.getAscent());
+        }
+        graphics.dispose();
+
+        String imageName = floorButtonImageName(floor, isSelected);
+        ImageIO.write(image, "png", new File(outputFloorplanDirectoryName + File.separator + imageName + ".png"));
+    }
+
+    private String floorButtonImageName(Floor floor, boolean isSelected) {
+        return floor.getName() + File.separator + (isSelected ? SELECTED_FLOOR_BUTTON_IMAGE_NAME : FLOOR_BUTTON_IMAGE_NAME);
+    }
+
+    private String floorHash(Floor floor) {
+        return Utils.percentEncode(floor.getName());
+    }
+
+    /* Buttons are stacked at the top left corner, with the highest floor at the top */
+    private String generateFloorButtonsYaml(Floor currentFloor) throws IOException {
+        List<Floor> floorsTopToBottom = new ArrayList<>(floors);
+        Collections.reverse(floorsTopToBottom);
+        double margin = floorButtonHeight / 2.0;
+        double gap = floorButtonHeight / 4.0;
+        String yaml = "";
+
+        for (int i = 0; i < floorsTopToBottom.size(); i++) {
+            Floor floor = floorsTopToBottom.get(i);
+            boolean isSelected = floor == currentFloor;
+            String imageName = floorButtonImageName(floor, isSelected);
+
+            yaml += String.format(Locale.US,
+                "  - type: image\n" +
+                "    title: %s\n" +
+                "    image: %s.png%s\n" +
+                "    tap_action:\n" +
+                "      action: %s\n" +
+                "    hold_action:\n" +
+                "      action: none\n" +
+                "    style:\n" +
+                "      top: %.2f%%\n" +
+                "      left: %.2f%%\n" +
+                "      width: %.2f%%\n" +
+                "      transform: none\n",
+                Utils.yamlQuote(floor.getTitle()), imagePath(normalizePath(imageName)), imageVersionSuffix(imageName, true),
+                isSelected ? "none" : "navigate\n      navigation_path: " + Utils.yamlQuote("#" + floorHash(floor)),
+                (margin + i * (floorButtonHeight + gap)) * 100.0 / renderHeight, margin * 100.0 / renderWidth,
+                floorButtonWidth * 100.0 / renderWidth);
+        }
+
+        return yaml;
+    }
+
+    /* The floor to display is selected according to the URL's hash, requires the state-switch custom card.
+     * It's wrapped by a picture-elements card, which clips the state-switch's negative margins that would otherwise
+     * overflow and add scroll bars when used in a panel view */
+    private String generateFloorsSwitchYaml(Map<Floor, String> floorsYaml) throws IOException {
+        Floor defaultFloor = floors.stream().filter(floor -> floor.getLevel() == home.getSelectedLevel()).findFirst().orElse(floors.get(0));
+        String yaml = String.format(
+            "type: picture-elements\n" +
+            "image: %s.png%s\n" +
+            "elements:\n" +
+            "  - type: custom:state-switch\n" +
+            "    entity: hash\n" +
+            "    default: %s\n" +
+            "    style:\n" +
+            "      left: 50%%\n" +
+            "      top: 50%%\n" +
+            "      width: 100%%\n" +
+            "    states:\n",
+            imagePath(TRANSPARENT_IMAGE_NAME), imageVersionSuffix(TRANSPARENT_IMAGE_NAME, true), Utils.yamlQuote(floorHash(defaultFloor)));
+
+        for (Floor floor : floors) {
+            yaml += String.format("      %s:\n", Utils.yamlQuote(floorHash(floor)));
+            yaml += floorsYaml.get(floor).replaceAll("(?m)^(?=.)", "        ");
+        }
+
+        return yaml;
+    }
+
     private void generateTransparentImage(String fileName) throws IOException {
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, 0);
@@ -602,7 +683,7 @@ public class Controller {
         ImageIO.write(image, "png", imageFile);
     }
 
-    private BufferedImage generateImage(List<Entity> onLights, String name) throws IOException, InterruptedException {
+    private BufferedImage generateImage(Floor floor, List<Entity> onLights, String name) throws IOException, InterruptedException {
         String fileName = outputRendersDirectoryName + File.separator + name + ".png";
 
         if (useExistingRenders && Files.exists(Paths.get(fileName))) {
@@ -611,8 +692,8 @@ public class Controller {
             propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
             return image;
         }
-        prepareScene(onLights);
-        BufferedImage image = renderScene();
+        floor.setLightsPower(onLights);
+        BufferedImage image = renderScene(floor.getCamera());
         File imageFile = new File(fileName);
         ImageIO.write(image, "png", imageFile);
         propertyChangeSupport.firePropertyChange(Property.COMPLETED_RENDERS.name(), numberOfCompletedRenders, ++numberOfCompletedRenders);
@@ -630,12 +711,7 @@ public class Controller {
         });
     }
 
-    private void prepareScene(List<Entity> onLights) {
-        for (Entity light : lightEntities)
-            light.setLightPower(onLights.contains(light) || light.getAlwaysOn());
-    }
-
-    private BufferedImage renderScene() throws IOException, InterruptedException {
+    private BufferedImage renderScene(Camera camera) throws IOException, InterruptedException {
         Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
             put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
             put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
@@ -815,13 +891,8 @@ public class Controller {
         return fileName.replace('\\', '/');
     }
 
-    private void turnOffLightsFromOtherLevels() {
-        otherLevelsEntities.forEach(entity -> entity.setLightPower(false));
-    }
-
     private void restoreEntityConfiguration() {
-        Stream.of(lightEntities, otherEntities, otherLevelsEntities).flatMap(Collection::stream)
-            .forEach(Entity::restoreConfiguration);
+        floors.forEach(Floor::restoreEntityConfiguration);
     }
 
     private void removeAlwaysOnLights(List<Entity> inputList) {
@@ -866,19 +937,23 @@ public class Controller {
     }
 
 
-    private String generateEntitiesYaml() {
-        return Stream.concat(lightEntities.stream(), otherEntities.stream())
+    private String generateEntitiesYaml(Floor floor) {
+        return floor.getEntities().stream()
             .map(Entity::buildYaml).collect(Collectors.joining());
     }
 
     private void repositionEntities() {
-        build3dProjection();
-        calculateEntityPositions();
-        moveEntityIconsToAvoidIntersection();
+        floors.forEach(this::repositionEntities);
     }
 
-    private void calculateEntityPositions() {
-        Stream.concat(lightEntities.stream(), otherEntities.stream())
+    private void repositionEntities(Floor floor) {
+        build3dProjection(floor.getCamera());
+        calculateEntityPositions(floor);
+        moveEntityIconsToAvoidIntersection(floor);
+    }
+
+    private void calculateEntityPositions(Floor floor) {
+        floor.getEntities().stream()
             .forEach(entity -> {
                 Point2d entityCenter = new Point2d();
                 for (HomePieceOfFurniture piece : entity.getPiecesOfFurniture())
@@ -922,8 +997,8 @@ public class Controller {
         return null;
     }
 
-    private Optional<Entity> stateIconWithWhichStateIconIntersects(Entity entity) {
-        return Stream.concat(lightEntities.stream(), otherEntities.stream())
+    private Optional<Entity> stateIconWithWhichStateIconIntersects(List<Entity> entities, Entity entity) {
+        return entities.stream()
             .filter(other -> {
                 if (entity == other)
                     return false;
@@ -931,17 +1006,18 @@ public class Controller {
             }).findFirst();
     }
 
-    private List<Set<Entity>> findIntersectingStateIcons() {
+    private List<Set<Entity>> findIntersectingStateIcons(Floor floor) {
         List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
+        List<Entity> entities = floor.getEntities();
 
-        Stream.concat(lightEntities.stream(), otherEntities.stream())
+        entities.stream()
             .forEach(entity -> {
                 Set<Entity> interectingSet = setWithWhichStateIconIntersects(entity, intersectingStateIcons);
                 if (interectingSet != null) {
                     interectingSet.add(entity);
                     return;
                 }
-                Optional<Entity> intersectingStateIcon = stateIconWithWhichStateIconIntersects(entity);
+                Optional<Entity> intersectingStateIcon = stateIconWithWhichStateIconIntersects(entities, entity);
                 if (!intersectingStateIcon.isPresent())
                     return;
                 Set<Entity> intersectingGroup = new HashSet<Entity>();
@@ -981,9 +1057,9 @@ public class Controller {
         }
     }
 
-    private void moveEntityIconsToAvoidIntersection() {
+    private void moveEntityIconsToAvoidIntersection(Floor floor) {
         for (int i = 0; i < 100; i++) {
-            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons();
+            List<Set<Entity>> intersectingStateIcons = findIntersectingStateIcons(floor);
             if (intersectingStateIcons.size() == 0)
                 break;
             for (Set<Entity> set : intersectingStateIcons)
