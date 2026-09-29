@@ -606,29 +606,20 @@ public class Entity implements Comparable<Entity> {
         return name;
     }
 
-    private <T extends Enum<T>> T getSavedEnumValue(Class<T> type, String name, T defaultValue) {
-        try {
-            return Enum.valueOf(type, settings.get(name, defaultValue.name()));
-        } catch (IllegalArgumentException e) {
-            settings.set(name, null);
-        }
-        return defaultValue;
-    }
-
     private void loadDefaultAttributes() {
         HomePieceOfFurniture firstPiece = piecesOfFurniture.get(0);
         id = firstPiece.getId();
         name = firstPiece.getName();
         position = loadPosition();
-        displayType = getSavedEnumValue(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
+        displayType = settings.getEnum(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
         iconOverride = settings.get(name + "." + SETTING_NAME_ICON_OVERRIDE, "");
         attribute = settings.get(name + "." + SETTING_NAME_ATTRIBUTE, "");
-        displayCondition = getSavedEnumValue(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
-        tapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
+        displayCondition = settings.getEnum(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
+        tapAction = settings.getEnum(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
         tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");
-        doubleTapAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, Action.NONE);
+        doubleTapAction = settings.getEnum(Action.class, name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, Action.NONE);
         doubleTapActionValue = settings.get(name + "." + SETTING_NAME_DOUBLE_TAP_ACTION_VALUE, "");
-        holdAction = getSavedEnumValue(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
+        holdAction = settings.getEnum(Action.class, name + "." + SETTING_NAME_HOLD_ACTION, Action.MORE_INFO);
         holdActionValue = settings.get(name + "." + SETTING_NAME_HOLD_ACTION_VALUE, "");
         title = firstPiece.getDescription();
         opacity = settings.getInteger(name + "." + SETTING_NAME_OPACITY, 100);
@@ -636,9 +627,9 @@ public class Entity implements Comparable<Entity> {
         backgroundColor = settings.get(name + "." + SETTING_NAME_BACKGROUND_COLOR, "rgba(255, 255, 255, 0.3)");
         alwaysOn = settings.getBoolean(name + "." + SETTING_NAME_ALWAYS_ON, false);
         isRgb = settings.getBoolean(name + "." + SETTING_NAME_IS_RGB, false);
-        displayFurnitureCondition = getSavedEnumValue(DisplayFurnitureCondition.class, name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, DisplayFurnitureCondition.ALWAYS);
+        displayFurnitureCondition = settings.getEnum(DisplayFurnitureCondition.class, name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION, DisplayFurnitureCondition.ALWAYS);
         displayFurnitureConditionValue = settings.get(name + "." + SETTING_NAME_DISPLAY_FURNITURE_CONDITION_VALUE, "");
-        openFurnitureCondition = getSavedEnumValue(OpenFurnitureCondition.class, name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION, OpenFurnitureCondition.ALWAYS);
+        openFurnitureCondition = settings.getEnum(OpenFurnitureCondition.class, name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION, OpenFurnitureCondition.ALWAYS);
         openFurnitureConditionValue = settings.get(name + "." + SETTING_NAME_OPEN_FURNITURE_CONDITION_VALUE, "");
 
         isLight = firstPiece instanceof HomeLight;
