@@ -423,6 +423,8 @@ public class Entity implements Comparable<Entity> {
         boolean oldIsRgb = isRgb;
         Point2d oldPosition = getPosition();
         int oldScale = scale;
+        DisplayFurnitureCondition oldDisplayFurnitureCondition = displayFurnitureCondition;
+        OpenFurnitureCondition oldOpenFurnitureCondition = openFurnitureCondition;
 
         settings.set(name + "." + SETTING_NAME_DISPLAY_TYPE, null);
         settings.set(name + "." + SETTING_NAME_ICON_OVERRIDE, null);
@@ -451,6 +453,8 @@ public class Entity implements Comparable<Entity> {
         propertyChangeSupport.firePropertyChange(Property.IS_RGB.name(), oldIsRgb, isRgb);
         propertyChangeSupport.firePropertyChange(Property.POSITION.name(), oldPosition, position);
         propertyChangeSupport.firePropertyChange(Property.SCALE.name(), oldScale, scale);
+        propertyChangeSupport.firePropertyChange(Property.DISPLAY_FURNITURE_CONDITION.name(), oldDisplayFurnitureCondition, displayFurnitureCondition);
+        propertyChangeSupport.firePropertyChange(Property.OPEN_FURNITURE_CONDITION.name(), oldOpenFurnitureCondition, openFurnitureCondition);
     }
 
     public void setLightPower(boolean on) {
