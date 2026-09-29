@@ -5,18 +5,26 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.eteks.sweethome3d.model.Home;
+import com.eteks.sweethome3d.model.Level;
 
 public class Settings {
     private static final String PROPERTY_PREFIX = "com.shmuelzon.HomeAssistantFloorPlan.";
 
     private Home home;
+    private String prefix;
 
     public Settings(Home home) {
+        this(home, null);
+    }
+
+    /* Settings of a specific level are kept separately from those of other levels */
+    public Settings(Home home, Level level) {
         this.home = home;
+        this.prefix = PROPERTY_PREFIX + (level != null ? level.getId() + "." : "");
     }
 
     public String get(String name, String defaultValue) {
-        String value = home.getProperty(PROPERTY_PREFIX + name);
+        String value = home.getProperty(prefix + name);
         if (value == null)
             return defaultValue;
         return value;
@@ -46,6 +54,16 @@ public class Settings {
         return Arrays.stream(values.split(",")).map(Long::valueOf).collect(Collectors.toList());
     }
 
+    /* Invalid values, e.g., saved by a different version, are removed and the default value is returned */
+    public <T extends Enum<T>> T getEnum(Class<T> type, String name, T defaultValue) {
+        try {
+            return Enum.valueOf(type, get(name, defaultValue.name()));
+        } catch (IllegalArgumentException e) {
+            set(name, null);
+        }
+        return defaultValue;
+    }
+
     public double getDouble(String name, double defaultValue) {
         return Double.parseDouble(get(name, String.valueOf(defaultValue)));
     }
@@ -55,7 +73,7 @@ public class Settings {
 
         if (oldValue != null && oldValue.equals(value))
             return;
-        home.setProperty(PROPERTY_PREFIX + name, value);
+        home.setProperty(prefix + name, value);
         home.setModified(true);
     }
 

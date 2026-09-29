@@ -38,6 +38,7 @@ import java.util.TimeZone;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 
 import javax.swing.ActionMap;
 import javax.swing.DefaultListCellRenderer;
@@ -116,6 +117,8 @@ public class Panel extends JPanel implements DialogView {
 
     private JLabel imageFormatLabel;
     private JComboBox<Controller.ImageFormat> imageFormatComboBox;
+    private JLabel renderedFloorsLabel;
+    private JComboBox<Controller.RenderedFloors> renderedFloorsComboBox;
     private JButton outputDirectoryBrowseButton;
     private JButton outputDirectoryOpenButton;
     private JPanel outputDirectoryButtonsPanel;
@@ -316,7 +319,7 @@ public class Panel extends JPanel implements DialogView {
                     return;
 
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode)selectedPath.getLastPathComponent();
-                if (!node.isLeaf()) {
+                if (!(node.getUserObject() instanceof EntityNode)) {
                     tree.clearSelection();
                     return;
                 }
@@ -333,7 +336,7 @@ public class Panel extends JPanel implements DialogView {
 
                 TreePath path = tree.getPathForLocation(e.getX(), e.getY());
 
-                if (path != null && ((DefaultMutableTreeNode)path.getLastPathComponent()).isLeaf()) {
+                if (path != null && ((DefaultMutableTreeNode)path.getLastPathComponent()).getUserObject() instanceof EntityNode) {
                     tree.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                     tree.setSelectionPath(path);
                 } else {
@@ -364,26 +367,24 @@ public class Panel extends JPanel implements DialogView {
 
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
         detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"));
-        buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
 
         otherEntitiesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTreeLabel.text"));
         otherEntitiesTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text"));
-        Map<String, List<Entity>> otherEntitiesGroupedByType = controller.getOtherEntities().stream()
-            .collect(Collectors.groupingBy(entity -> entity.getName().split("\\.")[0]));
-        buildEntitiesGroupsTree(otherEntitiesTree, otherEntitiesGroupedByType);
+        buildEntitiesTrees();
 
         PropertyChangeListener updateTreeOnProperyChanged = new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
-                buildEntitiesGroupsTree(detectedLightsTree, controller.getLightsGroups());
-                buildEntitiesGroupsTree(otherEntitiesTree, otherEntitiesGroupedByType);
+                buildEntitiesTrees();
             }
         };
         controller.addPropertyChangeListener(Controller.Property.NUMBER_OF_RENDERS, updateTreeOnProperyChanged);
-        for (Entity light : controller.getLightEntities()) {
-            light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, updateTreeOnProperyChanged);
-            light.addPropertyChangeListener(Entity.Property.IS_RGB, updateTreeOnProperyChanged);
-            light.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, updateTreeOnProperyChanged);
-        }
+        addEntitiesListeners(updateTreeOnProperyChanged);
+        controller.addPropertyChangeListener(Controller.Property.FLOORS, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                addEntitiesListeners(updateTreeOnProperyChanged);
+                buildEntitiesTrees();
+            }
+        });
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
@@ -532,6 +533,25 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        renderedFloorsLabel = new JLabel();
+        renderedFloorsLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderedFloorsLabel.text"));
+        renderedFloorsComboBox = new JComboBox<Controller.RenderedFloors>(Controller.RenderedFloors.values());
+        renderedFloorsComboBox.setSelectedItem(controller.getRenderedFloors());
+        renderedFloorsComboBox.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
+                Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
+                setText(String.format(resource.getString(String.format("HomeAssistantFloorPlan.Panel.renderedFloorsComboBox.%s.text", ((Controller.RenderedFloors)o).name())), controller.getSelectedFloorName()));
+                return rendererComponent;
+            }
+        });
+        renderedFloorsComboBox.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                controller.setRenderedFloors((Controller.RenderedFloors)renderedFloorsComboBox.getSelectedItem());
+            }
+        });
+        renderedFloorsLabel.setVisible(controller.hasMultipleFloors());
+        renderedFloorsComboBox.setVisible(controller.hasMultipleFloors());
+
         useExistingRendersCheckbox = new JCheckBox();
         useExistingRendersCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.text"));
         useExistingRendersCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.useExistingRenders.tooltip"));
@@ -620,6 +640,7 @@ public class Panel extends JPanel implements DialogView {
         nightRenderCheckbox.setEnabled(enabled);
         nightRenderTimeSpinner.setEnabled(enabled);
         imageFormatComboBox.setEnabled(enabled);
+        renderedFloorsComboBox.setEnabled(enabled);
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         useExistingRendersCheckbox.setEnabled(enabled);
@@ -724,6 +745,15 @@ public class Panel extends JPanel implements DialogView {
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
+        /* Rendered floors, only displayed when the project has multiple levels */
+        add(renderedFloorsLabel, new GridBagConstraints(
+            0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        add(renderedFloorsComboBox, new GridBagConstraints(
+            1, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
+        currentGridYIndex++;
+
         /* Output directory */
         add(outputDirectoryLabel, new GridBagConstraints(
             0, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.CENTER,
@@ -799,13 +829,46 @@ public class Panel extends JPanel implements DialogView {
         currentPanel = this;
     }
 
-    private void buildEntitiesGroupsTree(JTree tree, Map<String, List<Entity>> entityGroups) {
+    private void addEntitiesListeners(PropertyChangeListener listener) {
+        for (Floor floor : controller.getFloors()) {
+            for (Entity light : floor.getLightEntities()) {
+                light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, listener);
+                light.addPropertyChangeListener(Entity.Property.IS_RGB, listener);
+                light.addPropertyChangeListener(Entity.Property.DISPLAY_FURNITURE_CONDITION, listener);
+            }
+        }
+    }
+
+    private void buildEntitiesTrees() {
+        buildEntitiesGroupsTree(detectedLightsTree, Floor::getLightsGroups);
+        buildEntitiesGroupsTree(otherEntitiesTree, floor -> floor.getOtherEntities().stream()
+            .collect(Collectors.groupingBy(entity -> entity.getName().split("\\.")[0])));
+    }
+
+    /* When rendering multiple floors, the entities are grouped by floor as well */
+    private void buildEntitiesGroupsTree(JTree tree, Function<Floor, Map<String, List<Entity>>> floorEntityGroups) {
         DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
         DefaultMutableTreeNode root = (DefaultMutableTreeNode)model.getRoot();
+        List<Floor> floors = controller.getFloors();
 
         root.removeAllChildren();
         model.reload();
 
+        for (Floor floor : floors) {
+            DefaultMutableTreeNode parent = root;
+            if (floors.size() > 1) {
+                parent = new DefaultMutableTreeNode(floor.getTitle());
+                model.insertNodeInto(parent, root, root.getChildCount());
+            }
+            addEntityGroupsNodes(model, parent, floorEntityGroups.apply(floor));
+        }
+
+        for (int i = 0; i < tree.getRowCount(); i++) {
+            tree.expandRow(i);
+        }
+    }
+
+    private void addEntityGroupsNodes(DefaultTreeModel model, DefaultMutableTreeNode parent, Map<String, List<Entity>> entityGroups) {
         for (String group : new TreeSet<String>(entityGroups.keySet())) {
             DefaultMutableTreeNode groupNode;
             if (entityGroups.get(group).size() != 1 || entityGroups.get(group).get(0).getName() != group)
@@ -816,11 +879,7 @@ public class Panel extends JPanel implements DialogView {
             }
             else
                 groupNode = new DefaultMutableTreeNode(new EntityNode(entityGroups.get(group).get(0)));
-            model.insertNodeInto(groupNode, root, root.getChildCount());
-        }
-
-        for (int i = 0; i < tree.getRowCount(); i++) {
-            tree.expandRow(i);
+            model.insertNodeInto(groupNode, parent, parent.getChildCount());
         }
     }
 
