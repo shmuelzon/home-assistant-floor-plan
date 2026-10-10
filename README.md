@@ -8,6 +8,14 @@ light, sensors and cameras.
 
 <img src="doc/demo.gif" />
 
+*Floor plan: all floors from an aerial view, with buttons for switching between
+them*
+
+<img src="doc/demo_room.gif" />
+
+*Room view: a single room from the virtual visitor's point of view, with only
+the entities that are seen from it*
+
 ## Features
 
 * **3D Rendered Floor Plan** - Integrates with Sweet Home 3D to automatically
@@ -21,6 +29,9 @@ light, sensors and cameras.
   structure for easy integration with Home Assistant
 * **Multiple Floors** - Render all the floors of the project with buttons for
   switching between them
+* **Room Views** - Render a specific room or area of the project, from the
+  virtual visitor's point of view or an aerial view, with only the entities
+  that are seen from it
 * **Configuration Options** -
   * Group detected lights by room
   * Adjust output resolution
@@ -106,6 +117,13 @@ the room they're located in. Please verify the list matches your expectations.
   Lovelace card
 * Output directory - The location on your PC where the floor plan images and
   YAML will be saved
+* Visible entities only? - Only include entities that are seen from the
+  current camera, i.e., inside the rendered image and not hidden behind walls,
+  floors, ceilings or closed doors. Lights that aren't seen but light up what's
+  seen, e.g., a ceiling light above the camera, are included as well, while
+  other lights are turned off. Useful for rendering a single room from the
+  virtual visitor's point of view, or an aerial view of a specific room or area
+  of the project
 
 The progress bar at the bottom will indicate how many images need to be rendered
 for the complete floor plan and will progress as they are ready.
@@ -123,7 +141,9 @@ that allow you to customize the entity according to your needs.
   [Elements](https://www.home-assistant.io/dashboards/picture-elements/#elements)
 * Icon override - Allow overriding the default entity icon
 * Attribute - Allow specifying the attribute to show for entity label
-* Display condition - Configure when the entity should be displayed
+* Display condition - Configure when the entity should be displayed. Entities
+  that are out of the rendered view, e.g., behind the camera, are marked as
+  "Out of view" and aren't displayed by default
 * Tap action - Define what to do when the entity is tapped/clicked on, see
   [Tap action](https://www.home-assistant.io/dashboards/actions/#tap-action)
 * Double tap action - Define what to do when the entity is double-tapped/clicked
