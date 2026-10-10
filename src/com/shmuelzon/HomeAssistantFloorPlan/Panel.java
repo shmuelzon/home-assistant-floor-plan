@@ -370,9 +370,11 @@ public class Panel extends JPanel implements DialogView {
         final ActionMap actionMap = getActionMap();
 
         detectedLightsLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.text"));
+        detectedLightsLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTreeLabel.tooltip"));
         detectedLightsTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.detectedLightsTree.root.text"));
 
         otherEntitiesLabel = new JLabel(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTreeLabel.text"));
+        otherEntitiesLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTreeLabel.tooltip"));
         otherEntitiesTree = createTree(resource.getString("HomeAssistantFloorPlan.Panel.otherEntitiesTree.root.text"));
         buildEntitiesTrees();
 
@@ -392,8 +394,10 @@ public class Panel extends JPanel implements DialogView {
 
         widthLabel = new JLabel();
         widthLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.text"));
+        widthLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.tooltip"));
         final SpinnerNumberModel widthSpinnerModel = new SpinnerNumberModel(1024, 10, 10000, 10);
         widthSpinner = new AutoCommitSpinner(widthSpinnerModel);
+        widthSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.widthLabel.tooltip"));
         widthSpinnerModel.setValue(controller.getRenderWidth());
         widthSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
@@ -403,8 +407,10 @@ public class Panel extends JPanel implements DialogView {
 
         heightLabel = new JLabel();
         heightLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.heightLabel.text"));
+        heightLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.heightLabel.tooltip"));
         final SpinnerNumberModel heightSpinnerModel = new SpinnerNumberModel(576, 10, 10000, 10);
         heightSpinner = new AutoCommitSpinner(heightSpinnerModel);
+        heightSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.heightLabel.tooltip"));
         heightSpinnerModel.setValue(controller.getRenderHeight());
         heightSpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
@@ -416,6 +422,7 @@ public class Panel extends JPanel implements DialogView {
         lightMixingModeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.text"));
         lightMixingModeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.tooltip"));
         lightMixingModeComboBox = new JComboBox<Controller.LightMixingMode>(Controller.LightMixingMode.values());
+        lightMixingModeComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.lightMixingModeLabel.tooltip"));
         lightMixingModeComboBox.setSelectedItem(controller.getLightMixingMode());
         lightMixingModeComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -432,7 +439,9 @@ public class Panel extends JPanel implements DialogView {
 
         rendererLabel = new JLabel();
         rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
+        rendererLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.tooltip"));
         rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
+        rendererComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.tooltip"));
         rendererComboBox.setSelectedItem(controller.getRenderer());
         rendererComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -449,7 +458,9 @@ public class Panel extends JPanel implements DialogView {
 
         qualityLabel = new JLabel();
         qualityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.qualityLabel.text"));
+        qualityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.qualityLabel.tooltip"));
         qualityComboBox = new JComboBox<Controller.Quality>(Controller.Quality.values());
+        qualityComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.qualityLabel.tooltip"));
         qualityComboBox.setSelectedItem(controller.getQuality());
         qualityComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -467,6 +478,7 @@ public class Panel extends JPanel implements DialogView {
         List<Long> renderingTimes = controller.getRenderDateTimes();
         renderTimeLabel = new JLabel();
         renderTimeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.text"));
+        renderTimeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.tooltip"));
         ChangeListener renderTimeChangeListener = new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
                 List<Long> renderingTimes = new ArrayList<>();
@@ -486,6 +498,7 @@ public class Panel extends JPanel implements DialogView {
         };
         renderTimeModel = new SpinnerDateModel();
         renderTimeSpinner = new JSpinner(renderTimeModel);
+        renderTimeSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderTimeLabel.tooltip"));
         final JSpinner.DateEditor timeEditor = new JSpinner.DateEditor(renderTimeSpinner);
         timeEditor.getFormat().setTimeZone(timeZone);
         timeEditor.getFormat().applyPattern("dd/MM/yyyy HH:mm");
@@ -498,6 +511,7 @@ public class Panel extends JPanel implements DialogView {
         renderTimeSpinner.addChangeListener(renderTimeChangeListener);
         nightRenderCheckbox = new JCheckBox();
         nightRenderCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.nightRender.text"));
+        nightRenderCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.nightRender.tooltip"));
         nightRenderCheckbox.setBorder(null);
         nightRenderCheckbox.setSelected(renderingTimes.size() > 1);
         nightRenderCheckbox.addActionListener(new ActionListener() {
@@ -508,6 +522,7 @@ public class Panel extends JPanel implements DialogView {
         });
         nightRenderTimeModel = new SpinnerDateModel();
         nightRenderTimeSpinner = new JSpinner(nightRenderTimeModel);
+        nightRenderTimeSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.nightRender.tooltip"));
         final JSpinner.DateEditor nightTimeEditor = new JSpinner.DateEditor(nightRenderTimeSpinner);
         nightTimeEditor.getFormat().setTimeZone(timeZone);
         nightTimeEditor.getFormat().applyPattern("HH:mm");
@@ -522,7 +537,9 @@ public class Panel extends JPanel implements DialogView {
 
         imageFormatLabel = new JLabel();
         imageFormatLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.text"));
+        imageFormatLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.tooltip"));
         imageFormatComboBox = new JComboBox<Controller.ImageFormat>(Controller.ImageFormat.values());
+        imageFormatComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.imageFormatLabel.tooltip"));
         imageFormatComboBox.setSelectedItem(controller.getImageFormat());
         imageFormatComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -539,7 +556,9 @@ public class Panel extends JPanel implements DialogView {
 
         renderedFloorsLabel = new JLabel();
         renderedFloorsLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.renderedFloorsLabel.text"));
+        renderedFloorsLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderedFloorsLabel.tooltip"));
         renderedFloorsComboBox = new JComboBox<Controller.RenderedFloors>(Controller.RenderedFloors.values());
+        renderedFloorsComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.renderedFloorsLabel.tooltip"));
         renderedFloorsComboBox.setSelectedItem(controller.getRenderedFloors());
         renderedFloorsComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -583,7 +602,9 @@ public class Panel extends JPanel implements DialogView {
 
         outputDirectoryLabel = new JLabel();
         outputDirectoryLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.text"));
+        outputDirectoryLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.tooltip"));
         outputDirectoryTextField = new JTextField(20);
+        outputDirectoryTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.outputDirectoryLabel.tooltip"));
         outputDirectoryTextField.setEditable(false);
         outputDirectoryTextField.setText(controller.getOutputDirectory());
         outputDirectoryTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
