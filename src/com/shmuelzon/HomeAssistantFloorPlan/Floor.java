@@ -26,24 +26,34 @@ public class Floor {
     private Camera camera;
     private boolean includeAllLevels;
     private String name;
+    private CameraVisibility cameraVisibility;
     private Settings settings;
     private List<Entity> lightEntities = new ArrayList<>();
     private List<Entity> otherEntities = new ArrayList<>();
     private List<Entity> otherLevelsEntities = new ArrayList<>();
+    private List<Entity> hiddenLightEntities = new ArrayList<>();
+    private List<Entity> hiddenOtherEntities = new ArrayList<>();
+    private Map<Entity, CameraVisibility.Result> entitiesVisibility = new HashMap<>();
     private Map<String, List<Entity>> lightsGroups = new HashMap<>();
     private Scenes scenes;
 
     /* The name is used as the floor's directory name, an empty name means no additional directory level */
     public Floor(Home home, Level level, Camera camera, boolean includeAllLevels, String name) {
-        this(home, level, camera, includeAllLevels, name, true);
+        this(home, level, camera, includeAllLevels, name, null);
     }
 
-    private Floor(Home home, Level level, Camera camera, boolean includeAllLevels, String name, boolean createEntities) {
+    /* When the camera's visibility is given, only entities that affect the render are included */
+    public Floor(Home home, Level level, Camera camera, boolean includeAllLevels, String name, CameraVisibility cameraVisibility) {
+        this(home, level, camera, includeAllLevels, name, cameraVisibility, true);
+    }
+
+    private Floor(Home home, Level level, Camera camera, boolean includeAllLevels, String name, CameraVisibility cameraVisibility, boolean createEntities) {
         this.home = home;
         this.level = level;
         this.camera = camera;
         this.includeAllLevels = includeAllLevels;
         this.name = name;
+        this.cameraVisibility = cameraVisibility;
         settings = new Settings(home, level);
         if (createEntities)
             createHomeAssistantEntities();
@@ -75,6 +85,16 @@ public class Floor {
 
     public List<Entity> getEntities() {
         return Stream.concat(lightEntities.stream(), otherEntities.stream()).collect(Collectors.toList());
+    }
+
+    /* Entities of the floor that aren't included as they don't affect the render, i.e., not seen by the camera */
+    public List<Entity> getHiddenEntities() {
+        return Stream.concat(hiddenLightEntities.stream(), hiddenOtherEntities.stream()).collect(Collectors.toList());
+    }
+
+    /* The entity's visibility in the render, or null if entities aren't filtered by their visibility */
+    public CameraVisibility.Result getVisibility(Entity entity) {
+        return entitiesVisibility.get(entity);
     }
 
     public Map<String, List<Entity>> getLightsGroups() {
@@ -109,7 +129,7 @@ public class Floor {
     /* Levels without any Home Assistant entities, e.g., a roof, aren't considered as floors */
     public static Set<Level> getLevelsWithEntities(Home home) {
         Map<String, List<HomePieceOfFurniture>> furnitureByName = new HashMap<>();
-        new Floor(home, null, null, true, "", false).addEligibleFurnitureToMap(furnitureByName, new ArrayList<>(), home.getFurniture());
+        new Floor(home, null, null, true, "", null, false).addEligibleFurnitureToMap(furnitureByName, new ArrayList<>(), home.getFurniture());
 
         Set<Level> levels = new HashSet<>();
         furnitureByName.values().forEach(pieces -> pieces.forEach(piece -> levels.add(piece.getLevel())));
@@ -149,10 +169,16 @@ public class Floor {
 
         for (List<HomePieceOfFurniture> pieces : furnitureByName.values()) {
             Entity entity = new Entity(settings, pieces);
+            boolean isRelevant = true;
+            if (cameraVisibility != null) {
+                CameraVisibility.Result visibility = cameraVisibility.getVisibility(entity);
+                entitiesVisibility.put(entity, visibility);
+                isRelevant = visibility.isRelevant();
+            }
             if (entity.getIsLight())
-                lightEntities.add(entity);
+                (isRelevant ? lightEntities : hiddenLightEntities).add(entity);
             else
-                otherEntities.add(entity);
+                (isRelevant ? otherEntities : hiddenOtherEntities).add(entity);
         }
 
         for (HomePieceOfFurniture piece : lightsFromOtherLevels)
@@ -213,12 +239,15 @@ public class Floor {
             light.setLightPower(onLights.contains(light) || light.getAlwaysOn());
     }
 
-    public void turnOffLightsFromOtherLevels() {
+    /* Lights from other levels and lights that aren't seen by the camera aren't controlled by the floor plan, unless
+     * they're always on, in which case they're left on whether their light reaches the render or not */
+    public void turnOffExcludedLights() {
         otherLevelsEntities.forEach(entity -> entity.setLightPower(false));
+        hiddenLightEntities.stream().filter(entity -> !entity.getAlwaysOn()).forEach(entity -> entity.setLightPower(false));
     }
 
     public void restoreEntityConfiguration() {
-        Stream.of(lightEntities, otherEntities, otherLevelsEntities).flatMap(Collection::stream)
+        Stream.of(lightEntities, otherEntities, otherLevelsEntities, hiddenLightEntities, hiddenOtherEntities).flatMap(Collection::stream)
             .forEach(Entity::restoreConfiguration);
     }
 

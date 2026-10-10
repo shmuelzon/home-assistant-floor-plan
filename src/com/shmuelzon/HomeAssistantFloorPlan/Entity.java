@@ -31,7 +31,7 @@ import com.eteks.sweethome3d.model.Transformation;
 
 
 public class Entity implements Comparable<Entity> {
-    public enum Property {ALWAYS_ON, OPEN_FURNITURE_CONDITION, DISPLAY_FURNITURE_CONDITION, IS_RGB, POSITION, SCALE}
+    public enum Property {ALWAYS_ON, DISPLAY_CONDITION, OPEN_FURNITURE_CONDITION, DISPLAY_FURNITURE_CONDITION, IS_IN_RENDER, IS_RGB, POSITION, SCALE}
     public enum DisplayType {BADGE, ICON, LABEL}
     public enum DisplayCondition {ALWAYS, NEVER, AVAILABLE, WHEN_ON, WHEN_OFF}
     public enum Action {MORE_INFO, NAVIGATE, NONE, TOGGLE}
@@ -71,6 +71,8 @@ public class Entity implements Comparable<Entity> {
     private String iconOverride;
     private String attribute;
     private DisplayCondition displayCondition;
+    private DisplayCondition defaultDisplayCondition = DisplayCondition.ALWAYS;
+    private boolean isInRender = true;
     private Action tapAction;
     private String tapActionValue;
     private Action doubleTapAction;
@@ -181,12 +183,33 @@ public class Entity implements Comparable<Entity> {
     }
 
     public void setDisplayCondition(DisplayCondition displayCondition) {
+        DisplayCondition oldDisplayCondition = this.displayCondition;
         this.displayCondition = displayCondition;
         settings.set(name + "." + SETTING_NAME_DISPLAY_CONDITION, displayCondition.name());
+        propertyChangeSupport.firePropertyChange(Property.DISPLAY_CONDITION.name(), oldDisplayCondition, displayCondition);
     }
 
     public boolean isDisplayConditionModified() {
         return settings.get(name + "." + SETTING_NAME_DISPLAY_CONDITION) != null;
+    }
+
+    public boolean getIsInRender() {
+        return isInRender;
+    }
+
+    /* Entities outside of the render, e.g., behind the camera, aren't displayed unless their display condition is set */
+    public void setIsInRender(boolean isInRender) {
+        boolean oldIsInRender = this.isInRender;
+        this.isInRender = isInRender;
+        defaultDisplayCondition = isInRender ? DisplayCondition.ALWAYS : DisplayCondition.NEVER;
+        if (!isDisplayConditionModified())
+            displayCondition = defaultDisplayCondition;
+        propertyChangeSupport.firePropertyChange(Property.IS_IN_RENDER.name(), oldIsInRender, isInRender);
+    }
+
+    /* Whether the entity's icon or label is displayed at all, depending on its state or not */
+    public boolean isDisplayed() {
+        return displayCondition != DisplayCondition.NEVER && !getAlwaysOn();
     }
 
     public Action getTapAction() {
@@ -420,6 +443,7 @@ public class Entity implements Comparable<Entity> {
 
     public void resetToDefaults() {
         boolean oldAlwaysOn = alwaysOn;
+        DisplayCondition oldDisplayCondition = displayCondition;
         boolean oldIsRgb = isRgb;
         Point2d oldPosition = getPosition();
         int oldScale = scale;
@@ -450,6 +474,7 @@ public class Entity implements Comparable<Entity> {
         loadDefaultAttributes();
 
         propertyChangeSupport.firePropertyChange(Property.ALWAYS_ON.name(), oldAlwaysOn, alwaysOn);
+        propertyChangeSupport.firePropertyChange(Property.DISPLAY_CONDITION.name(), oldDisplayCondition, displayCondition);
         propertyChangeSupport.firePropertyChange(Property.IS_RGB.name(), oldIsRgb, isRgb);
         propertyChangeSupport.firePropertyChange(Property.POSITION.name(), oldPosition, position);
         propertyChangeSupport.firePropertyChange(Property.SCALE.name(), oldScale, scale);
@@ -527,7 +552,7 @@ public class Entity implements Comparable<Entity> {
             put(DisplayType.LABEL, "state-label");
         }};
 
-        if (displayCondition == Entity.DisplayCondition.NEVER || getAlwaysOn())
+        if (!isDisplayed())
             return "";
 
         String additionalYaml = "";
@@ -618,7 +643,7 @@ public class Entity implements Comparable<Entity> {
         displayType = settings.getEnum(DisplayType.class, name + "." + SETTING_NAME_DISPLAY_TYPE, defaultDisplayType());
         iconOverride = settings.get(name + "." + SETTING_NAME_ICON_OVERRIDE, "");
         attribute = settings.get(name + "." + SETTING_NAME_ATTRIBUTE, "");
-        displayCondition = settings.getEnum(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, DisplayCondition.ALWAYS);
+        displayCondition = settings.getEnum(DisplayCondition.class, name + "." + SETTING_NAME_DISPLAY_CONDITION, defaultDisplayCondition);
         tapAction = settings.getEnum(Action.class, name + "." + SETTING_NAME_TAP_ACTION, defaultAction());
         tapActionValue = settings.get(name + "." + SETTING_NAME_TAP_ACTION_VALUE, "");
         doubleTapAction = settings.getEnum(Action.class, name + "." + SETTING_NAME_DOUBLE_TAP_ACTION, Action.NONE);
@@ -714,7 +739,9 @@ public class Entity implements Comparable<Entity> {
         modelPiece.setY(0);
         modelPiece.setElevation(-modelPiece.getHeight() / 2);
 
-        HomePieceOfFurniture3D piece3D = new HomePieceOfFurniture3D(modelPiece, null);
+        /* The model is loaded synchronously as rendering doesn't run in the event dispatch thread, which is required
+         * for asynchronous loading when the model isn't loaded already, e.g., by the 3D view */
+        HomePieceOfFurniture3D piece3D = new HomePieceOfFurniture3D(modelPiece, null, false, true);
         modelTransformGroup.addChild(piece3D);
 
         modelPiece.setModelTransformations(piece.getModelTransformations());

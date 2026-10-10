@@ -58,6 +58,9 @@ public class Controller {
     public enum ImageFormat {PNG, JPEG}
     public enum RenderedFloors {SELECTED, ALL}
 
+    private static final int STATE_ICON_DEFAULT_RADIUS = 20;
+    private static final int MARGIN_BETWEEN_ICONS = 10;
+
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
     private static final String FLOOR_BUTTON_IMAGE_NAME = "floor_button";
     private static final String SELECTED_FLOOR_BUTTON_IMAGE_NAME = "floor_button_selected";
@@ -75,6 +78,7 @@ public class Controller {
     private static final String CONTROLLER_OUTPUT_DIRECTORY_NAME = "outputDirectoryName";
     private static final String CONTROLLER_USE_EXISTING_RENDERS = "useExistingRenders";
     private static final String CONTROLLER_RENDERED_FLOORS = "renderedFloors";
+    private static final String CONTROLLER_VISIBLE_ENTITIES_ONLY = "visibleEntitiesOnly";
 
     private Home home;
     private Settings settings;
@@ -101,6 +105,8 @@ public class Controller {
     private String outputFloorplanDirectoryName;
     private boolean useExistingRenders;
     private RenderedFloors renderedFloors;
+    private boolean visibleEntitiesOnly;
+    private Map<Level, CameraVisibility> floorsVisibility = new HashMap<>();
     private int floorButtonWidth;
     private int floorButtonHeight;
 
@@ -128,6 +134,7 @@ public class Controller {
         updateOutputSubDirectoryNames();
         useExistingRenders = settings.getBoolean(CONTROLLER_USE_EXISTING_RENDERS, true);
         renderedFloors = settings.getEnum(RenderedFloors.class, CONTROLLER_RENDERED_FLOORS, RenderedFloors.SELECTED);
+        visibleEntitiesOnly = settings.getBoolean(CONTROLLER_VISIBLE_ENTITIES_ONLY, false);
     }
 
     public void addPropertyChangeListener(Property property, PropertyChangeListener listener) {
@@ -169,12 +176,26 @@ public class Controller {
     }
 
     public void setRenderedFloors(RenderedFloors renderedFloors) {
-        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         this.renderedFloors = renderedFloors;
         settings.set(CONTROLLER_RENDERED_FLOORS, renderedFloors.name());
+        /* The cameras of the floors are different when rendering all floors */
+        floorsVisibility.clear();
+        rebuildFloors();
+    }
+
+    private void rebuildFloors() {
+        int oldNumberOfTotaleRenders = getNumberOfTotalRenders();
         buildFloors();
         propertyChangeSupport.firePropertyChange(Property.FLOORS.name(), null, floors);
         propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), oldNumberOfTotaleRenders, getNumberOfTotalRenders());
+    }
+
+    /* The render's aspect ratio changes the vertical field of view and thus which entities are seen */
+    private void renderSizeChanged() {
+        if (visibleEntitiesOnly)
+            rebuildFloors();
+        else
+            repositionEntities();
     }
 
     /* Determined by the floors that were built, as rendering modifies the furniture used to detect them */
@@ -189,7 +210,7 @@ public class Controller {
     public void setRenderHeight(int renderHeight) {
         this.renderHeight = renderHeight;
         settings.setInteger(CONTROLLER_RENDER_HEIGHT, renderHeight);
-        repositionEntities();
+        renderSizeChanged();
     }
 
     public int getRenderWidth() {
@@ -199,7 +220,7 @@ public class Controller {
     public void setRenderWidth(int renderWidth) {
         this.renderWidth = renderWidth;
         settings.setInteger(CONTROLLER_RENDER_WIDTH, renderWidth);
-        repositionEntities();
+        renderSizeChanged();
     }
 
     public int getSensitivity() {
@@ -284,6 +305,16 @@ public class Controller {
     public void setUserExistingRenders(boolean useExistingRenders) {
         this.useExistingRenders = useExistingRenders;
         settings.setBoolean(CONTROLLER_USE_EXISTING_RENDERS, useExistingRenders);
+    }
+
+    public boolean getVisibleEntitiesOnly() {
+        return visibleEntitiesOnly;
+    }
+
+    public void setVisibleEntitiesOnly(boolean visibleEntitiesOnly) {
+        this.visibleEntitiesOnly = visibleEntitiesOnly;
+        settings.setBoolean(CONTROLLER_VISIBLE_ENTITIES_ONLY, visibleEntitiesOnly);
+        rebuildFloors();
     }
 
     public Renderer getRenderer() {
@@ -396,7 +427,7 @@ public class Controller {
             "image: %s.png%s\n" +
             "elements:\n", imagePath(TRANSPARENT_IMAGE_NAME), imageVersionSuffix(TRANSPARENT_IMAGE_NAME, true));
 
-        floor.turnOffLightsFromOtherLevels();
+        floor.turnOffExcludedLights();
         for (Scene scene : floor.getScenes()) {
             Files.createDirectories(Paths.get(outputRendersDirectoryName, floor.getName(), scene.getName()));
             Files.createDirectories(Paths.get(outputFloorplanDirectoryName, floor.getName(), scene.getName()));
@@ -449,6 +480,29 @@ public class Controller {
         return floorCamera;
     }
 
+    /* The obstacles are only those of the levels that are visible when the floor is rendered, so they're built while
+     * these levels are shown. They don't depend on the render's size, so they're kept for when it changes */
+    private CameraVisibility getFloorVisibility(Level level, Camera floorCamera, boolean showFloorLevel) {
+        double aspectRatio = (double)renderWidth / renderHeight;
+        CameraVisibility visibility = floorsVisibility.get(level);
+
+        if (visibility == null) {
+            Map<Level, Boolean> levelsVisibility = home.getLevels().stream().collect(Collectors.toMap(l -> l, Level::isVisible));
+            if (showFloorLevel)
+                showLevel(level);
+            try {
+                visibility = new CameraVisibility(home, floorCamera, aspectRatio);
+            } finally {
+                levelsVisibility.forEach(Level::setVisible);
+            }
+            floorsVisibility.put(level, visibility);
+        }
+        else if (visibility.getAspectRatio() != aspectRatio)
+            visibility.setAspectRatio(aspectRatio);
+
+        return visibility;
+    }
+
     private void buildFloors() {
         List<Level> levels = getFloorLevels();
         floors = new ArrayList<>();
@@ -456,18 +510,24 @@ public class Controller {
         if (renderedFloors == RenderedFloors.ALL && levels.size() > 1) {
             Set<String> floorNames = new HashSet<>();
             for (int i = 0; i < levels.size(); i++) {
-                String baseName = Utils.normalizeName(levels.get(i).getName());
+                Level level = levels.get(i);
+                String baseName = Utils.normalizeName(level.getName());
                 if (baseName.isEmpty())
                     baseName = "level_" + i;
                 String name = baseName;
                 for (int suffix = 2; floorNames.contains(name); suffix++)
                     name = baseName + "_" + suffix;
                 floorNames.add(name);
-                floors.add(new Floor(home, levels.get(i), getFloorCamera(levels.get(i)), false, name));
+                Camera floorCamera = getFloorCamera(level);
+                floors.add(new Floor(home, level, floorCamera, false, name,
+                    visibleEntitiesOnly ? getFloorVisibility(level, floorCamera, true) : null));
             }
         }
-        else
-            floors.add(new Floor(home, home.getSelectedLevel(), camera, home.getEnvironment().isAllLevelsVisible(), ""));
+        else {
+            Level level = home.getSelectedLevel();
+            floors.add(new Floor(home, level, camera, home.getEnvironment().isAllLevelsVisible(), "",
+                visibleEntitiesOnly ? getFloorVisibility(level, camera, false) : null));
+        }
 
         for (Floor floor : floors) {
             for (Entity entity : floor.getEntities())
@@ -489,8 +549,15 @@ public class Controller {
                 repositionEntities(floor);
             }
         });
+        /* Icons that aren't displayed aren't moved apart from the others */
+        entity.addPropertyChangeListener(Entity.Property.DISPLAY_CONDITION, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+                repositionEntities(floor);
+            }
+        });
         entity.addPropertyChangeListener(Entity.Property.ALWAYS_ON, new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
+                repositionEntities(floor);
                 floor.buildLightsGroups(lightMixingMode);
                 propertyChangeSupport.firePropertyChange(Property.NUMBER_OF_RENDERS.name(), null, getNumberOfTotalRenders());
             }
@@ -948,11 +1015,18 @@ public class Controller {
 
     private void repositionEntities(Floor floor) {
         build3dProjection(floor.getCamera());
-        calculateEntityPositions(floor);
+        Set<Entity> movedInsideRender = calculateEntityPositions(floor);
         moveEntityIconsToAvoidIntersection(floor);
+        /* Moving icons apart may have moved them back outside of the render */
+        movedInsideRender.forEach(entity -> entity.setPosition(moveInsideRender(entity, entity.getPosition()), false));
     }
 
-    private void calculateEntityPositions(Floor floor) {
+    /* Returns the entities whose icon was moved inside the render */
+    private Set<Entity> calculateEntityPositions(Floor floor) {
+        Set<Entity> movedInsideRender = new HashSet<>();
+        /* Without filtering by visibility, entities are only checked against the render's field of view */
+        CameraVisibility fieldOfView = new CameraVisibility(floor.getCamera(), (double)renderWidth / renderHeight);
+
         floor.getEntities().stream()
             .forEach(entity -> {
                 Point2d entityCenter = new Point2d();
@@ -960,14 +1034,34 @@ public class Controller {
                     entityCenter.add(getFurniture2dLocation(piece));
                 entityCenter.scale(1.0 / entity.getPiecesOfFurniture().size());
 
+                CameraVisibility.Result visibility = floor.getVisibility(entity);
+                if (visibility == null)
+                    visibility = fieldOfView.getVisibility(entity);
+                /* Used when the pieces' center is outside of the render, e.g., for partially seen entities */
+                if (visibility.getPosition() != null) {
+                    entityCenter = moveInsideRender(entity, visibility.getPosition());
+                    movedInsideRender.add(entity);
+                }
+                /* Icons of entities that aren't in the render are hidden, unless set otherwise */
+                entity.setIsInRender(visibility.isIconInRender());
+
                 entity.setPosition(entityCenter, false);
             });
+
+        return movedInsideRender;
+    }
+
+    /* The icon is entirely inside the render, i.e., its center is at least its radius away from the render's sides */
+    private Point2d moveInsideRender(Entity entity, Point2d position) {
+        double radius = STATE_ICON_DEFAULT_RADIUS * entity.getScale() / 100.0;
+        double horizontalMargin = Math.min(50, radius * 100.0 / renderWidth);
+        double verticalMargin = Math.min(50, radius * 100.0 / renderHeight);
+        return new Point2d(
+            Math.max(horizontalMargin, Math.min(100 - horizontalMargin, position.x)),
+            Math.max(verticalMargin, Math.min(100 - verticalMargin, position.y)));
     }
 
     private boolean doStateIconsIntersect(Entity first, Entity second) {
-        final int STATE_ICON_DEFAULT_RADIUS = 20;
-        final int MARGIN_BETWEEN_ICONS = 10;
-
         double requiredDistanceBetweenIcons = MARGIN_BETWEEN_ICONS +
             (STATE_ICON_DEFAULT_RADIUS * first.getScale() / 100.0) +
             (STATE_ICON_DEFAULT_RADIUS * second.getScale() / 100.0);
@@ -1006,9 +1100,10 @@ public class Controller {
             }).findFirst();
     }
 
+    /* Icons that aren't displayed don't need to be moved apart */
     private List<Set<Entity>> findIntersectingStateIcons(Floor floor) {
         List<Set<Entity>> intersectingStateIcons = new ArrayList<Set<Entity>>();
-        List<Entity> entities = floor.getEntities();
+        List<Entity> entities = floor.getEntities().stream().filter(Entity::isDisplayed).collect(Collectors.toList());
 
         entities.stream()
             .forEach(entity -> {

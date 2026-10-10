@@ -1,5 +1,6 @@
 package com.shmuelzon.HomeAssistantFloorPlan;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.ComponentOrientation;
 import java.awt.Cursor;
@@ -124,6 +125,7 @@ public class Panel extends JPanel implements DialogView {
     private JPanel outputDirectoryButtonsPanel;
     private FileContentManager outputDirectoryChooser;
     private JCheckBox useExistingRendersCheckbox;
+    private JCheckBox visibleEntitiesOnlyCheckbox;
     private JButton advancedOptionsButton;
     private JProgressBar progressBar;
     private RenderPreviewComponent renderPreview;
@@ -157,6 +159,8 @@ public class Panel extends JPanel implements DialogView {
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.displayByState.text"));
             if (entity.getOpenFurnitureCondition() != Entity.OpenFurnitureCondition.ALWAYS)
                 attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.openByState.text"));
+            if (!entity.getIsInRender())
+                attributes.add(resource.getString("HomeAssistantFloorPlan.Panel.attributes.outOfView.text"));
 
             return attributes;
         }
@@ -562,6 +566,16 @@ public class Panel extends JPanel implements DialogView {
             }
         });
 
+        visibleEntitiesOnlyCheckbox = new JCheckBox();
+        visibleEntitiesOnlyCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.visibleEntitiesOnly.text"));
+        visibleEntitiesOnlyCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.visibleEntitiesOnly.tooltip"));
+        visibleEntitiesOnlyCheckbox.setSelected(controller.getVisibleEntitiesOnly());
+        visibleEntitiesOnlyCheckbox.addItemListener(new ItemListener() {
+            public void itemStateChanged(ItemEvent ev) {
+                controller.setVisibleEntitiesOnly(visibleEntitiesOnlyCheckbox.isSelected());
+            }
+        });
+
         advancedOptionsButton = new JButton(actionMap.get(ActionType.ADVANCED_OPTIONS));
         advancedOptionsButton.setText(resource.getString("HomeAssistantFloorPlan.Panel.advancedOptionsButton.text"));
         advancedOptionsButton.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.advancedOptionsButton.tooltip"));
@@ -644,6 +658,7 @@ public class Panel extends JPanel implements DialogView {
         outputDirectoryTextField.setEnabled(enabled);
         outputDirectoryBrowseButton.setEnabled(enabled);
         useExistingRendersCheckbox.setEnabled(enabled);
+        visibleEntitiesOnlyCheckbox.setEnabled(enabled);
         advancedOptionsButton.setEnabled(enabled);
         if (enabled) {
             startButton.setAction(getActionMap().get(ActionType.START));
@@ -770,9 +785,13 @@ public class Panel extends JPanel implements DialogView {
         add(useExistingRendersCheckbox, new GridBagConstraints(
             0, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.HORIZONTAL, insets, 0, 0));
-        add(advancedOptionsButton, new GridBagConstraints(
-            3, currentGridYIndex, 1, 1, 0, 0, GridBagConstraints.LINE_END,
-            GridBagConstraints.NONE, insets, 0, 0));
+        /* Together, so the checkbox can span both columns without widening any of them */
+        JPanel optionsPanel = new JPanel(new BorderLayout());
+        optionsPanel.add(visibleEntitiesOnlyCheckbox, BorderLayout.LINE_START);
+        optionsPanel.add(advancedOptionsButton, BorderLayout.LINE_END);
+        add(optionsPanel, new GridBagConstraints(
+            2, currentGridYIndex, 2, 1, 0, 0, GridBagConstraints.CENTER,
+            GridBagConstraints.HORIZONTAL, insets, 0, 0));
         currentGridYIndex++;
 
         /* Render preview, overlaid on top of all the components above the progress bar */
@@ -831,6 +850,9 @@ public class Panel extends JPanel implements DialogView {
 
     private void addEntitiesListeners(PropertyChangeListener listener) {
         for (Floor floor : controller.getFloors()) {
+            /* Changes with the render's size, which otherwise only moves the entities' icons */
+            for (Entity entity : floor.getEntities())
+                entity.addPropertyChangeListener(Entity.Property.IS_IN_RENDER, listener);
             for (Entity light : floor.getLightEntities()) {
                 light.addPropertyChangeListener(Entity.Property.ALWAYS_ON, listener);
                 light.addPropertyChangeListener(Entity.Property.IS_RGB, listener);
