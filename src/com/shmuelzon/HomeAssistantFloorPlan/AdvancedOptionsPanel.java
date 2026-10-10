@@ -78,8 +78,10 @@ public class AdvancedOptionsPanel extends JPanel {
 
         sensitivityLabel = new JLabel();
         sensitivityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.text"));
+        sensitivityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.tooltip"));
         final SpinnerNumberModel sensitivitySpinnerModel = new SpinnerNumberModel(10, 0, 100, 1);
         sensitivitySpinner = new AutoCommitSpinner(sensitivitySpinnerModel);
+        sensitivitySpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.sensitivityLabel.tooltip"));
         sensitivitySpinnerModel.setValue(controller.getSensitivity());
         sensitivitySpinner.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent ev) {
@@ -89,7 +91,9 @@ public class AdvancedOptionsPanel extends JPanel {
 
         homeAssistantPathLabel = new JLabel();
         homeAssistantPathLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.homeAssistantPathLabel.text"));
+        homeAssistantPathLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.homeAssistantPathLabel.tooltip"));
         homeAssistantPathTextField = new JTextField(25);
+        homeAssistantPathTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.homeAssistantPathLabel.tooltip"));
         homeAssistantPathTextField.setText(controller.getHomeAssistantPath());
         homeAssistantPathTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -100,6 +104,7 @@ public class AdvancedOptionsPanel extends JPanel {
 
         addImageVersionTagsCheckbox = new JCheckBox();
         addImageVersionTagsCheckbox.setText(resource.getString("HomeAssistantFloorPlan.Panel.addImageVersionTags.text"));
+        addImageVersionTagsCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.addImageVersionTags.tooltip"));
         addImageVersionTagsCheckbox.setSelected(controller.getAddImageVersionTags());
         addImageVersionTagsCheckbox.addItemListener(new ItemListener() {
             public void itemStateChanged(ItemEvent ev) {

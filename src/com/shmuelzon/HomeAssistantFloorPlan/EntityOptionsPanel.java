@@ -116,7 +116,9 @@ public class EntityOptionsPanel extends JPanel {
 
         displayTypeLabel = new JLabel();
         displayTypeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayTypeLabel.text"));
+        displayTypeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.displayTypeLabel.tooltip"));
         displayTypeComboBox = new JComboBox<Entity.DisplayType>(Entity.DisplayType.values());
+        displayTypeComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.displayTypeLabel.tooltip"));
         displayTypeComboBox.setSelectedItem(entity.getDisplayType());
         displayTypeComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -135,7 +137,9 @@ public class EntityOptionsPanel extends JPanel {
 
         iconOverrideLabel = new JLabel();
         iconOverrideLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.iconOverrideLabel.text"));
+        iconOverrideLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.iconOverrideLabel.tooltip"));
         iconOverrideTextField = new JTextField(10);
+        iconOverrideTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.iconOverrideLabel.tooltip"));
         iconOverrideTextField.setText(entity.getIconOverride());
         iconOverrideTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -148,7 +152,9 @@ public class EntityOptionsPanel extends JPanel {
 
         attributeLabel = new JLabel();
         attributeLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.attributeLabel.text"));
+        attributeLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.attributeLabel.tooltip"));
         attributeTextField = new JTextField(10);
+        attributeTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.attributeLabel.tooltip"));
         attributeTextField.setText(entity.getAttribute());
         attributeTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -161,7 +167,9 @@ public class EntityOptionsPanel extends JPanel {
 
         displayConditionLabel = new JLabel();
         displayConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayConditionLabel.text"));
+        displayConditionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.displayConditionLabel.tooltip"));
         displayConditionComboBox = new JComboBox<Entity.DisplayCondition>(Entity.DisplayCondition.values());
+        displayConditionComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.displayConditionLabel.tooltip"));
         displayConditionComboBox.setSelectedItem(entity.getDisplayCondition());
         displayConditionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -179,7 +187,9 @@ public class EntityOptionsPanel extends JPanel {
 
         tapActionLabel = new JLabel();
         tapActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.tapActionLabel.text"));
+        tapActionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.tapActionLabel.tooltip"));
         tapActionComboBox = new JComboBox<Entity.Action>(Entity.Action.values());
+        tapActionComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.tapActionLabel.tooltip"));
         tapActionComboBox.setSelectedItem(entity.getTapAction());
         tapActionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -199,6 +209,7 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
         tapActionValueTextField = new JTextField(10);
+        tapActionValueTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.actionValueTextField.tooltip"));
         tapActionValueTextField.setText(entity.getTapActionValue());
         tapActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -214,7 +225,9 @@ public class EntityOptionsPanel extends JPanel {
 
         doubleTapActionLabel = new JLabel();
         doubleTapActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.doubleTapActionLabel.text"));
+        doubleTapActionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.doubleTapActionLabel.tooltip"));
         doubleTapActionComboBox = new JComboBox<Entity.Action>(Entity.Action.values());
+        doubleTapActionComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.doubleTapActionLabel.tooltip"));
         doubleTapActionComboBox.setSelectedItem(entity.getDoubleTapAction());
         doubleTapActionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -234,6 +247,7 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
         doubleTapActionValueTextField = new JTextField(10);
+        doubleTapActionValueTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.actionValueTextField.tooltip"));
         doubleTapActionValueTextField.setText(entity.getDoubleTapActionValue());
         doubleTapActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -249,7 +263,9 @@ public class EntityOptionsPanel extends JPanel {
 
         holdActionLabel = new JLabel();
         holdActionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.holdActionLabel.text"));
+        holdActionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.holdActionLabel.tooltip"));
         holdActionComboBox = new JComboBox<Entity.Action>(Entity.Action.values());
+        holdActionComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.holdActionLabel.tooltip"));
         holdActionComboBox.setSelectedItem(entity.getHoldAction());
         holdActionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -269,6 +285,7 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
         holdActionValueTextField = new JTextField(10);
+        holdActionValueTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.actionValueTextField.tooltip"));
         holdActionValueTextField.setText(entity.getHoldActionValue());
         holdActionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -285,10 +302,13 @@ public class EntityOptionsPanel extends JPanel {
         final Point2d position = entity.getPosition();
         positionLabel = new JLabel();
         positionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.positionLabel.text"));
+        positionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.positionLabel.tooltip"));
         positionLeftLabel = new JLabel();
         positionLeftLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.positionLeftLabel.text"));
+        positionLeftLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.positionLeftLabel.tooltip"));
         final SpinnerNumberModel positionLeftSpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.001);
         positionLeftSpinner = new AutoCommitSpinner(positionLeftSpinnerModel);
+        positionLeftSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.positionLeftLabel.tooltip"));
         JSpinner.NumberEditor positionLeftEditor = new JSpinner.NumberEditor(positionLeftSpinner, "0.00 %");
         ((JSpinner.DefaultEditor)positionLeftEditor).getTextField().setColumns(5);
         positionLeftSpinner.setEditor(positionLeftEditor);
@@ -303,8 +323,10 @@ public class EntityOptionsPanel extends JPanel {
         });
         positionTopLabel = new JLabel();
         positionTopLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.positionTopLabel.text"));
+        positionTopLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.positionTopLabel.tooltip"));
         final SpinnerNumberModel positionTopSpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.001);
         positionTopSpinner = new AutoCommitSpinner(positionTopSpinnerModel);
+        positionTopSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.positionTopLabel.tooltip"));
         JSpinner.NumberEditor positionTopEditor = new JSpinner.NumberEditor(positionTopSpinner, "0.00 %");
         ((JSpinner.DefaultEditor)positionTopEditor).getTextField().setColumns(5);
         positionTopSpinner.setEditor(positionTopEditor);
@@ -320,8 +342,10 @@ public class EntityOptionsPanel extends JPanel {
 
         opacityLabel = new JLabel();
         opacityLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.opacityLabel.text"));
+        opacityLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.opacityLabel.tooltip"));
         final SpinnerNumberModel opacitySpinnerModel = new SpinnerNumberModel(0, 0, 1, 0.01);
         opacitySpinner = new AutoCommitSpinner(opacitySpinnerModel);
+        opacitySpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.opacityLabel.tooltip"));
         JSpinner.NumberEditor opacityEditor = new JSpinner.NumberEditor(opacitySpinner, "0 %");
         ((JSpinner.DefaultEditor)opacityEditor).getTextField().setColumns(5);
         opacitySpinner.setEditor(opacityEditor);
@@ -335,8 +359,10 @@ public class EntityOptionsPanel extends JPanel {
 
         scaleLabel = new JLabel();
         scaleLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.scaleLabel.text"));
+        scaleLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.scaleLabel.tooltip"));
         final SpinnerNumberModel scaleSpinnerModel = new SpinnerNumberModel(0, 0, 10, 0.01);
         scaleSpinner = new AutoCommitSpinner(scaleSpinnerModel);
+        scaleSpinner.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.scaleLabel.tooltip"));
         JSpinner.NumberEditor scaleEditor = new JSpinner.NumberEditor(scaleSpinner, "0 %");
         ((JSpinner.DefaultEditor)scaleEditor).getTextField().setColumns(5);
         scaleSpinner.setEditor(scaleEditor);
@@ -350,7 +376,9 @@ public class EntityOptionsPanel extends JPanel {
 
         backgroundColorLabel = new JLabel();
         backgroundColorLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.text"));
+        backgroundColorLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.tooltip"));
         backgroundColorTextField = new JTextField(20);
+        backgroundColorTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.backgroundColorLabel.tooltip"));
         backgroundColorTextField.setText(entity.getBackgrounColor());
         backgroundColorTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -362,7 +390,9 @@ public class EntityOptionsPanel extends JPanel {
 
         alwaysOnLabel = new JLabel();
         alwaysOnLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.text"));
+        alwaysOnLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.tooltip"));
         alwaysOnCheckbox = new JCheckBox();
+        alwaysOnCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.alwaysOnLabel.tooltip"));
         alwaysOnCheckbox.setSelected(entity.getAlwaysOn());
         alwaysOnCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
@@ -373,7 +403,9 @@ public class EntityOptionsPanel extends JPanel {
 
         isRgbLabel = new JLabel();
         isRgbLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.isRgbLabel.text"));
+        isRgbLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.isRgbLabel.tooltip"));
         isRgbCheckbox = new JCheckBox();
+        isRgbCheckbox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.isRgbLabel.tooltip"));
         isRgbCheckbox.setSelected(entity.getIsRgb());
         isRgbCheckbox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
@@ -384,7 +416,9 @@ public class EntityOptionsPanel extends JPanel {
 
         displayFurnitureConditionLabel = new JLabel();
         displayFurnitureConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.displayFurnitureConditionLabel.text"));
+        displayFurnitureConditionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.displayFurnitureConditionLabel.tooltip"));
         displayFurnitureConditionComboBox = new JComboBox<Entity.DisplayFurnitureCondition>(Entity.DisplayFurnitureCondition.values());
+        displayFurnitureConditionComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.displayFurnitureConditionLabel.tooltip"));
         displayFurnitureConditionComboBox.setSelectedItem(entity.getDisplayFurnitureCondition());
         displayFurnitureConditionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -404,6 +438,7 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
         displayFurnitureConditionValueTextField = new JTextField(10);
+        displayFurnitureConditionValueTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.furnitureConditionValueTextField.tooltip"));
         displayFurnitureConditionValueTextField.setText(entity.getDisplayFurnitureConditionValue());
         displayFurnitureConditionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
@@ -419,7 +454,9 @@ public class EntityOptionsPanel extends JPanel {
 
         openFurnitureConditionLabel = new JLabel();
         openFurnitureConditionLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.openFurnitureConditionLabel.text"));
+        openFurnitureConditionLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.openFurnitureConditionLabel.tooltip"));
         openFurnitureConditionComboBox = new JComboBox<Entity.OpenFurnitureCondition>(Entity.OpenFurnitureCondition.values());
+        openFurnitureConditionComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.openFurnitureConditionLabel.tooltip"));
         openFurnitureConditionComboBox.setSelectedItem(entity.getOpenFurnitureCondition());
         openFurnitureConditionComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
@@ -439,6 +476,7 @@ public class EntityOptionsPanel extends JPanel {
             }
         });
         openFurnitureConditionValueTextField = new JTextField(10);
+        openFurnitureConditionValueTextField.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.furnitureConditionValueTextField.tooltip"));
         openFurnitureConditionValueTextField.setText(entity.getOpenFurnitureConditionValue());
         openFurnitureConditionValueTextField.getDocument().addDocumentListener(new SimpleDocumentListener() {
             @Override
