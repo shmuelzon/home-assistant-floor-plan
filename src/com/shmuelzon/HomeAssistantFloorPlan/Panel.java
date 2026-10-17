@@ -104,7 +104,7 @@ public class Panel extends JPanel implements DialogView {
     private JLabel lightMixingModeLabel;
     private JComboBox<Controller.LightMixingMode> lightMixingModeComboBox;
     private JLabel rendererLabel;
-    private JComboBox<Controller.Renderer> rendererComboBox;
+    private JComboBox<String> rendererComboBox;
     private JLabel qualityLabel;
     private JComboBox<Controller.Quality> qualityComboBox;
     private JLabel outputDirectoryLabel;
@@ -440,19 +440,19 @@ public class Panel extends JPanel implements DialogView {
         rendererLabel = new JLabel();
         rendererLabel.setText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.text"));
         rendererLabel.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.tooltip"));
-        rendererComboBox = new JComboBox<Controller.Renderer>(Controller.Renderer.values());
+        rendererComboBox = new JComboBox<String>(controller.getAvailableRenderers().toArray(new String[0]));
         rendererComboBox.setToolTipText(resource.getString("HomeAssistantFloorPlan.Panel.rendererLabel.tooltip"));
         rendererComboBox.setSelectedItem(controller.getRenderer());
         rendererComboBox.setRenderer(new DefaultListCellRenderer() {
             public Component getListCellRendererComponent(JList<?> jList, Object o, int i, boolean b, boolean b1) {
                 Component rendererComponent = super.getListCellRendererComponent(jList, o, i, b, b1);
-                setText(resource.getString(String.format("HomeAssistantFloorPlan.Panel.rendererComboBox.%s.text", ((Controller.Renderer)o).name())));
+                setText(controller.getRendererName((String)o));
                 return rendererComponent;
             }
         });
         rendererComboBox.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
-                controller.setRenderer((Controller.Renderer)rendererComboBox.getSelectedItem());
+                controller.setRenderer((String)rendererComboBox.getSelectedItem());
             }
         });
 
