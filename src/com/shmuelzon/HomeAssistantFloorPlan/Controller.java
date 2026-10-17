@@ -53,7 +53,6 @@ import com.eteks.sweethome3d.model.ObserverCamera;
 public class Controller {
     public enum Property {COMPLETED_RENDERS, NUMBER_OF_RENDERS, FLOORS}
     public enum LightMixingMode {CSS, OVERLAY, FULL}
-    public enum Renderer {YAFARAY, SUNFLOW}
     public enum Quality {HIGH, LOW}
     public enum ImageFormat {PNG, JPEG}
     public enum RenderedFloors {SELECTED, ALL}
@@ -64,6 +63,12 @@ public class Controller {
     private static final String TRANSPARENT_IMAGE_NAME = "transparent";
     private static final String FLOOR_BUTTON_IMAGE_NAME = "floor_button";
     private static final String SELECTED_FLOOR_BUTTON_IMAGE_NAME = "floor_button_selected";
+
+    /* Backward-compatibility for projects that saved the old renderer's names */
+    private static final Map<String, String> LEGACY_RENDERER_NAMES = new HashMap<String, String>() {{
+        put("YAFARAY", "com.eteks.sweethome3d.j3d.YafarayRenderer");
+        put("SUNFLOW", "com.eteks.sweethome3d.j3d.PhotoRenderer");
+    }};
 
     private static final String CONTROLLER_RENDER_WIDTH = "renderWidth";
     private static final String CONTROLLER_RENDER_HEIGHT = "renderHeigh";
@@ -94,7 +99,9 @@ public class Controller {
     private int renderHeight;
     private LightMixingMode lightMixingMode;
     private int sensitivity;
-    private Renderer renderer;
+    private List<String> availableRenderers;
+    private Map<String, String> rendererNames = new HashMap<>();
+    private String renderer;
     private Quality quality;
     private ImageFormat imageFormat;
     private List<Long> renderDateTimes;
@@ -115,6 +122,7 @@ public class Controller {
         settings = new Settings(home);
         camera = home.getCamera().clone();
         propertyChangeSupport = new PropertyChangeSupport(this);
+        availableRenderers = AbstractPhotoRenderer.getAvailableRenderers();
         loadDefaultSettings();
         buildFloors();
     }
@@ -124,7 +132,7 @@ public class Controller {
         renderHeight = settings.getInteger(CONTROLLER_RENDER_HEIGHT, 576);
         lightMixingMode = LightMixingMode.valueOf(settings.get(CONTROLLER_LIGHT_MIXING_MODE, LightMixingMode.CSS.name()));
         sensitivity = settings.getInteger(CONTROLLER_SENSITIVTY, 10);
-        renderer = Renderer.valueOf(settings.get(CONTROLLER_RENDERER, Renderer.YAFARAY.name()));
+        renderer = loadRenderer("com.eteks.sweethome3d.j3d.YafarayRenderer");
         quality = Quality.valueOf(settings.get(CONTROLLER_QUALITY, Quality.HIGH.name()));
         imageFormat = ImageFormat.valueOf(settings.get(CONTROLLER_IMAGE_FORMAT, ImageFormat.PNG.name()));
         renderDateTimes = settings.getListLong(CONTROLLER_RENDER_TIME, Arrays.asList(camera.getTime()));
@@ -317,13 +325,33 @@ public class Controller {
         rebuildFloors();
     }
 
-    public Renderer getRenderer() {
+    public List<String> getAvailableRenderers() {
+        return availableRenderers;
+    }
+
+    public String getRendererName(String renderer) {
+        return rendererNames.computeIfAbsent(renderer, className ->
+            AbstractPhotoRenderer.createInstance(className, home, null, AbstractPhotoRenderer.Quality.LOW).getName());
+    }
+
+    public String getRenderer() {
         return renderer;
     }
 
-    public void setRenderer(Renderer renderer) {
+    public void setRenderer(String renderer) {
         this.renderer = renderer;
-        settings.set(CONTROLLER_RENDERER, renderer.name());
+        /* Save legacy renderers with their old names */
+        settings.set(CONTROLLER_RENDERER, LEGACY_RENDERER_NAMES.entrySet().stream()
+            .filter(entry -> entry.getValue().equals(renderer)).map(Map.Entry::getKey).findFirst().orElse(renderer));
+    }
+
+    private String loadRenderer(String defaultRenderer) {
+        String savedRenderer = settings.get(CONTROLLER_RENDERER);
+        String renderer = LEGACY_RENDERER_NAMES.getOrDefault(savedRenderer, savedRenderer);
+
+        if (availableRenderers.contains(renderer))
+            return renderer;
+        return availableRenderers.contains(defaultRenderer) ? defaultRenderer : availableRenderers.get(0);
     }
 
     public Quality getQuality() {
@@ -779,12 +807,8 @@ public class Controller {
     }
 
     private BufferedImage renderScene(Camera camera) throws IOException, InterruptedException {
-        Map<Renderer, String> rendererToClassName = new HashMap<Renderer, String>() {{
-            put(Renderer.SUNFLOW, "com.eteks.sweethome3d.j3d.PhotoRenderer");
-            put(Renderer.YAFARAY, "com.eteks.sweethome3d.j3d.YafarayRenderer");
-        }};
         photoRenderer = AbstractPhotoRenderer.createInstance(
-            rendererToClassName.get(renderer),
+            renderer,
             home, null, this.quality == Quality.LOW ? AbstractPhotoRenderer.Quality.LOW : AbstractPhotoRenderer.Quality.HIGH);
         BufferedImage image = new BufferedImage(renderWidth, renderHeight, BufferedImage.TYPE_INT_RGB);
         photoRenderer.render(image, camera, renderObserver);

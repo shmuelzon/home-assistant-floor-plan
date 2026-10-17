@@ -35,7 +35,8 @@ the entities that are seen from it*
 * **Configuration Options** -
   * Group detected lights by room
   * Adjust output resolution
-  * Select rendering engine (YafaRay / SunFlow)
+  * Select rendering engine (YafaRay / SunFlow / renderers added by other
+    plugins)
   * Adjust output quality (high / low)
   * Progress bar indicates rendering status
   * Create state icons for multiple entities from Home Assistant based on their
@@ -104,7 +105,8 @@ the room they're located in. Please verify the list matches your expectations.
   night. Enabling this requires the
   [Sun](https://www.home-assistant.io/integrations/sun/) integration, which is
   enabled by default
-* Renderer - Select which rendering engine to use, YafaRay or SunFlow
+* Renderer - Select which rendering engine to use, YafaRay, SunFlow or any
+  renderer added by another SH3D plugin
 * Image format - The image file format of the resulting floor plan (PNG or JPEG)
 * Quality - Choose the rendering quality (low or high)
 * Floors - Only displayed when the project has multiple levels. Render only the
